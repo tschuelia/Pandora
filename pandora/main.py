@@ -64,6 +64,7 @@ def main():
         infile_prefix=infile_prefix,
         outfile_prefix=outfile_prefix,
         smartpca=smartpca,
+        # TODO: what is a meaningful variance cutoff?
         explained_variance_cutoff=0.01,
     )
 

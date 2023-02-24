@@ -3,21 +3,38 @@ import pandas as pd
 
 from scipy.linalg import orthogonal_procrustes
 from sklearn.cluster import KMeans
-from sklearn.metrics import silhouette_score, rand_score, adjusted_rand_score, v_measure_score, adjusted_mutual_info_score, fowlkes_mallows_score
+from sklearn.metrics import (
+    silhouette_score,
+    rand_score,
+    adjusted_rand_score,
+    v_measure_score,
+    adjusted_mutual_info_score,
+    fowlkes_mallows_score,
+)
 
 from pandora.custom_types import *
 from pandora.logger import logger, fmt_message
 
 
-def prepare_pca_for_comparison(pca1: pd.DataFrame, pca2: pd.DataFrame) -> Tuple[np.ndarray, np.ndarray]:
+def pandas_pca_to_numpy_pca(pca: pd.DataFrame) -> np.ndarray:
+    pca = pca.sort_values(by="sample_id").reset_index(drop=True)
+    pca = pca[[c for c in pca.columns if "PC" in c]].to_numpy()
+
+    return pca
+
+
+def prepare_pca_for_comparison(
+    pca1: Union[np.ndarray, pd.DataFrame], pca2: Union[np.ndarray, pd.DataFrame]
+) -> Tuple[np.ndarray, np.ndarray]:
     if pca1.shape[0] != pca2.shape[0]:
-        raise ValueError("Mismatch in PCA size: PCA1 and PCA2 need to have the same number of rows.")
+        raise ValueError(
+            "Mismatch in PCA size: PCA1 and PCA2 need to have the same number of rows."
+        )
 
-    pca1 = pca1.sort_values(by="sample_id").reset_index(drop=True)
-    pca2 = pca2.sort_values(by="sample_id").reset_index(drop=True)
-
-    pca1 = pca1[[c for c in pca1.columns if "PC" in c]].to_numpy()
-    pca2 = pca2[[c for c in pca1.columns if "PC" in c]].to_numpy()
+    if isinstance(pca1, pd.DataFrame):
+        pca1 = pandas_pca_to_numpy_pca(pca1)
+    if isinstance(pca2, pd.DataFrame):
+        pca2 = pandas_pca_to_numpy_pca(pca2)
 
     n_pcs1 = pca1.shape[1]
     n_pcs2 = pca2.shape[1]
@@ -37,7 +54,9 @@ def prepare_pca_for_comparison(pca1: pd.DataFrame, pca2: pd.DataFrame) -> Tuple[
     return pca1, pca2
 
 
-def match_pcas(pca1: pd.DataFrame, pca2: pd.DataFrame, normalize: bool = False) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+def match_pcas(
+    pca1: pd.DataFrame, pca2: pd.DataFrame, normalize: bool = False
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     # TODO: reorder PCs (if we find a dataset where this is needed...don't want to blindly implement something)
     pca1, pca2 = prepare_pca_for_comparison(pca1, pca2)
 
@@ -51,7 +70,7 @@ def match_pcas(pca1: pd.DataFrame, pca2: pd.DataFrame, normalize: bool = False) 
     return pca1, transformed_pca2, transformation
 
 
-def find_optimal_number_of_clusters(pca: np.ndarray):
+def find_optimal_number_of_clusters(pca: np.ndarray) -> int:
     best_k = -1
     best_score = -1
     for k in range(3, 50):
@@ -65,7 +84,9 @@ def find_optimal_number_of_clusters(pca: np.ndarray):
     return best_k
 
 
-def compare_clustering(pca1: pd.DataFrame, pca2: pd.DataFrame) -> Dict:
+def compare_clustering(
+    pca1: Union[np.ndarray, pd.DataFrame], pca2: Union[np.ndarray, pd.DataFrame]
+) -> Dict:
     pca1, transformed_pca2, _ = match_pcas(pca1, pca2)
 
     n_clusters = find_optimal_number_of_clusters(pca1)
@@ -83,8 +104,12 @@ def compare_clustering(pca1: pd.DataFrame, pca2: pd.DataFrame) -> Dict:
         "rand_score": rand_score(true_clusters, predicted_clusters),
         "adjusted_rand_score": adjusted_rand_score(true_clusters, predicted_clusters),
         "v_measure_score": v_measure_score(true_clusters, predicted_clusters),
-        "adjusted_mutual_info_score": adjusted_mutual_info_score(true_clusters, predicted_clusters),
-        "fowlkes_mallows_score": fowlkes_mallows_score(true_clusters, predicted_clusters)
+        "adjusted_mutual_info_score": adjusted_mutual_info_score(
+            true_clusters, predicted_clusters
+        ),
+        "fowlkes_mallows_score": fowlkes_mallows_score(
+            true_clusters, predicted_clusters
+        ),
     }
 
     return scores

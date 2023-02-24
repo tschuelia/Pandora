@@ -15,6 +15,44 @@ Typically, a PCA analysis is followed by a clustering (usually using K-Means clu
 Pandora estimates the uncertainty of the clustering using the bootstrapped PCAs and the TODO score. 
 Again, the uncertainty is measured on a scale of 0 to 1, with 0 being the worst possible score and 1 the best.
 
+## Installation
+I recommend to install Pandora in a (conda) environment.
+
+```commandline
+git clone https://github.com/tschuelia/Pandora.git
+cd Pandora
+pip install -e .
+```
+
+The `-e` flag is a development flag I would recommend to set. Changes in the code will be reflected in the respective package and a reinstallation is not necessary.
+On some machines this option does not work. If you encounter any errors, try again using `pip install .`
+
+## Usage
+### Command line interface
+Not yet implemented, coming soon...
+
+### From code
+Once installed, you can use Pandora from code, e.g. to compare your own PCAs:
+
+```python
+import numpy as np
+from pandora.comparison import match_pcas, compare_clustering
+from pandora.postprocessing import read_smartpca_eigenvec
+
+# pca1 and pca2 can be either pandas dataframes or numpy arrays
+pca1 = ...
+pca2 = ...
+
+# for example, you can load a smartpca result using read_smartpca_eigenvec
+pca1 = read_smartpca_eigenvec("path/to/smartpca.evec")
+
+# find a transformation matrix that matches pca2 to pca1, and then applies this transformation to pca2
+pca1, transformed_pca2, transformation = match_pcas(pca1, pca2)
+
+# get a set of cluster metrics to compare the clustering of pca1 and pca2
+scores = compare_clustering(pca1, pca2)
+```
+
 ## How Pandora works:
 ### Bootstrapping:
 Bootstrapping the original data is done on two levels independently: resampling the SNPs and resampling the individual sequences. 
@@ -24,4 +62,3 @@ TODO: describe how we resample the sequences and what this means (refer to the P
 ### PCA uncertainty
 To measure the uncertainty of the dimensionality reduction, we compare the PCA of the original dataset (`original_pca`) to the PCA of each bootstrapped dataset (`bootstrapped_pca_i`) separately.
 
- 

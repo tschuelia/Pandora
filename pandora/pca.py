@@ -439,37 +439,43 @@ def determine_number_of_pcs(
     redo: bool = False,
 ):
     n_pcs = 20
+    pca_checkpoint = pathlib.Path(f"{outfile_prefix}.ckp")
     evec_file = pathlib.Path(f"{outfile_prefix}.evec")
-    eval_file = pathlib.Path(f"{outfile_prefix}.eval")
 
-    if evec_file.exists() and eval_file.exists() and not redo:
-        # in case of a restarted analysis, this ensures that we correctly update the n_pcs variable below
-        pca = from_smartpca(evec_file)
+    if pca_checkpoint.exists() and not redo:
+        # checkpointing file contains two values: an int and a bool
+        # the int is the number of PCs that was last tested, the bool says whether the analysis finished properly or not
+        n_pcs, finished = pca_checkpoint.open().readline().strip().split()
+        n_pcs = int(n_pcs)
+        finished = bool(finished)
 
-        logger.info(
-            fmt_message(
-                f"Resuming from checkpoint: "
-                f"Reading data from existing PCA outfiles {outfile_prefix}.*. "
-                f"Delete files or set the redo flag in case you want to rerun the PCA."
+        if finished:
+            # smartPCA run finished properly, check if n_pcs is sufficient
+            pca = from_smartpca(evec_file)
+
+            logger.info(
+                fmt_message(
+                    f"Resuming from checkpoint: "
+                    f"Reading data from existing PCA outfiles {outfile_prefix}.*. "
+                    f"Delete files or set the redo flag in case you want to rerun the PCA."
+                )
             )
-        )
 
-        # check if the last smartpca run already had the optimal number of PCs present
-        # if yes, create a new PCA object and truncate the data to the optimal number of PCs
-        best_pcs = check_pcs_sufficient(
-            pca.explained_variances, explained_variance_cutoff
-        )
+            # check if the last smartpca run already had the optimal number of PCs present
+            # if yes, create a new PCA object and truncate the data to the optimal number of PCs
+            best_pcs = check_pcs_sufficient(
+                pca.explained_variances, explained_variance_cutoff
+            )
 
-        if best_pcs:
-            pca.cutoff_pcs(best_pcs)
-            return pca
+            if best_pcs:
+                pca.cutoff_pcs(best_pcs)
+                return pca
 
-        # otherwise, resume the search for the optimal number of PCs from the last number of PCs
-        n_pcs = pca.n_pcs
+        # otherwise, running smartPCA was aborted and did not finnish properly, resume from last tested n_pcs
         logger.info(
             fmt_message(
-                f"Resuming the search for the optimal number of PCS. "
-                f"Previously tested setting: {n_pcs}, new setting: {int(n_pcs * 1.5)} "
+                f"Resuming from checkpoint: Previously tested setting {n_pcs} not sufficient. "
+                f"Repeating with n_pcs = {int(1.5 * n_pcs)}"
             )
         )
         n_pcs = int(1.5 * n_pcs)
@@ -493,6 +499,8 @@ def determine_number_of_pcs(
         )
         if best_pcs:
             pca.cutoff_pcs(best_pcs)
+            # initial PCA analysis finished -> write checkpoint: best_pcs and True
+            pca_checkpoint.write_text(f"{best_pcs} True")
             return pca
 
         # if all PCs explain >= <cutoff>% variance, rerun the PCA with an increased number of PCs
@@ -502,4 +510,6 @@ def determine_number_of_pcs(
                 f"{n_pcs} PCs not sufficient. Repeating analysis with {int(1.5 * n_pcs)} PCs."
             )
         )
+        # number of PCs not sufficient, write checkpoint and increase n_pcs
+        pca_checkpoint.write_text(f"{n_pcs} False")
         n_pcs = int(1.5 * n_pcs)

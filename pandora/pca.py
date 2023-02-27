@@ -421,21 +421,22 @@ def run_smartpca(
 def check_pcs_sufficient(explained_variances: List, cutoff: float) -> Union[int, None]:
     # at least one PC explains less than <cutoff>% variance
     # -> find the index of the last PC explaining more than <cutoff>%
-    n_pcs = sum([1 for var in explained_variances if var >= cutoff])
-    if n_pcs != len(explained_variances):
-        logger.info(
+    sum_variances = 0
+    for i, var in enumerate(explained_variances):
+        sum_variances += var
+        if sum_variances >= cutoff:
             fmt_message(
-                f"Optimal number of PCs for explained variance cutoff {cutoff}: {n_pcs}"
+                f"Optimal number of PCs for explained variance cutoff {cutoff}: {i}"
             )
-        )
-        return n_pcs
+
+            return i
 
 
 def determine_number_of_pcs(
     infile_prefix: FilePath,
     outfile_prefix: FilePath,
     smartpca: Executable,
-    explained_variance_cutoff: float = 0.01,
+    explained_variance_cutoff: float = 0.95,
     redo: bool = False,
 ):
     n_pcs = 20
@@ -446,7 +447,7 @@ def determine_number_of_pcs(
         # checkpointing file contains three values: an int, a bool, and a float
         # the int is the number of PCs that was last tested
         # the bool says whether the analysis finished properly or not
-        # the float (ignored here) is the amount of variance explained by the smallest PC (used for debugging)
+        # the float (ignored here) is the amount of variance explained by the current number of PCs (used for debugging)
         n_pcs, finished, _ = pca_checkpoint.open().readline().strip().split()
         n_pcs = int(n_pcs)
         finished = bool(int(finished))
@@ -502,7 +503,7 @@ def determine_number_of_pcs(
         if best_pcs:
             pca.cutoff_pcs(best_pcs)
             # initial PCA analysis finished -> write checkpoint: best_pcs and True
-            pca_checkpoint.write_text(f"{best_pcs} 1 {min(pca.explained_variances)}")
+            pca_checkpoint.write_text(f"{best_pcs} 1 {sum(pca.explained_variances)}")
             return pca
 
         # if all PCs explain >= <cutoff>% variance, rerun the PCA with an increased number of PCs
@@ -513,5 +514,5 @@ def determine_number_of_pcs(
             )
         )
         # number of PCs not sufficient, write checkpoint and increase n_pcs
-        pca_checkpoint.write_text(f"{n_pcs} 0 {min(pca.explained_variances)}")
+        pca_checkpoint.write_text(f"{n_pcs} 0 {sum(pca.explained_variances)}")
         n_pcs = int(1.5 * n_pcs)

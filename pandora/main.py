@@ -65,7 +65,7 @@ def main():
                 / dataset
         )
 
-        outfile_base = pathlib.Path("/hits/fast/cme/schmidja/popgen_adna/pca_uncertainty/results")
+        outfile_base = pathlib.Path("/hits/fast/cme/schmidja/popgen_adna/pca_uncertainty/results") / dataset
 
         smartpca = "/home/schmidja/miniconda3/envs/pca/bin/smartpca"
         convertf = "/home/schmidja/miniconda3/envs/pca/bin/convertf"

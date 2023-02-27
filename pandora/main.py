@@ -1,3 +1,5 @@
+import os
+
 from pandora import __version__
 from pandora.bootstrapping import create_bootstrap_pcas
 from pandora.converter import eigen_to_plink
@@ -19,36 +21,58 @@ def print_header():
 
 def main():
     print_header()
+    """
+    TODO: CL arguments
+    - type of analysis:
+        - bootstrapping on SNP level (bool)
+        - bootstrapping on individual level (bool)
+        - clustering uncertainty (bool)
+        - all (= all 4 analysis)
+        - n bootstrap samples (default = 100 / bootstopping criterion) (int)
+        - n threads (int)
+        - save results (bool)
+        - data format (string) -> implement conversions of the most common data formats
+        - seed (int)
+    """
 
     """
-        TODO: CL arguments
-        - type of analysis:
-            - bootstrapping on SNP level (bool)
-            - bootstrapping on individual level (bool)
-            - clustering uncertainty (bool)
-            - all (= all 4 analysis)
-            - n bootstrap samples (default = 100 / bootstopping criterion) (int)
-            - n threads (int)
-            - save results (bool)
-            - data format (string) -> implement conversions of the most common data formats
-            - seed (int)
-        """
-    dataset = "HumanOriginsPublic2068"
+    begin config
+    """
+    dataset = "SouthernArc_Public"
     n_bootstraps = 3
     n_threads = 2
     seed = 0
     redo = False
 
-    infile_prefix = (
-        pathlib.Path("/Users/julia/Desktop/Promotion/ADNA_Popgen/input")
-        / dataset
-        / dataset
-    )
+    if "/Users/julia" in os.getcwd():
+        infile_prefix = (
+            pathlib.Path("/Users/julia/Desktop/Promotion/ADNA_Popgen/input")
+            / dataset
+            / dataset
+        )
 
-    outfile_base = (
-        pathlib.Path("/Users/julia/Desktop/Promotion/ADNA_Popgen/Pandora/results")
-        / dataset
-    )
+        outfile_base = (
+            pathlib.Path("/Users/julia/Desktop/Promotion/ADNA_Popgen/Pandora/results")
+            / dataset
+        )
+
+        smartpca = "/Users/julia/micromamba/envs/pca_micromamba/bin/smartpca"
+        convertf = "/Users/julia/micromamba/envs/pca_micromamba/bin/convertf"
+    else:
+        infile_prefix = (
+                pathlib.Path("/hits/fast/cme/schmidja/popgen_adna/input")
+                / dataset
+                / dataset
+        )
+
+        outfile_base = pathlib.Path("/hits/fast/cme/schmidja/popgen_adna/pca_uncertainty/results")
+
+        smartpca = "/home/schmidja/miniconda3/envs/pca/bin/smartpca"
+        convertf = "/home/schmidja/miniconda3/envs/pca/bin/convertf"
+    """
+    End config
+    """
+
     outfile_base.mkdir(exist_ok=True, parents=True)
 
     outfile_prefix = outfile_base / dataset
@@ -60,8 +84,6 @@ def main():
     bootstrap_dir = outfile_base / "bootstrap"
     bootstrap_dir.mkdir(exist_ok=True)
 
-    smartpca = "/Users/julia/micromamba/envs/pca_micromamba/bin/smartpca"
-    convertf = "/Users/julia/micromamba/envs/pca_micromamba/bin/convertf"
 
     empirical_pca = determine_number_of_pcs(
         infile_prefix=infile_prefix,

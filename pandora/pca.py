@@ -449,7 +449,7 @@ def determine_number_of_pcs(
         # the float (ignored here) is the amount of variance explained by the smallest PC (used for debugging)
         n_pcs, finished, _ = pca_checkpoint.open().readline().strip().split()
         n_pcs = int(n_pcs)
-        finished = bool(finished)
+        finished = bool(int(finished))
 
         if finished:
             # smartPCA run finished properly, check if n_pcs is sufficient

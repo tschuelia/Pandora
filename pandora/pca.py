@@ -1,3 +1,4 @@
+import math
 import tempfile
 import subprocess
 import textwrap
@@ -40,7 +41,7 @@ def _get_colors(n: int) -> List[str]:
     green_blue = n_colors(
         lowcolor="rgb(0,255,0)",
         highcolor="rgb(0,0,255)",
-        n_colors=round(n / 2),
+        n_colors=math.ceil(n / 2),
         colortype="rgb",
     )
     return red_green + green_blue
@@ -427,10 +428,11 @@ def check_pcs_sufficient(explained_variances: List, cutoff: float) -> Union[int,
     for i, var in enumerate(explained_variances, start=1):
         sum_variances += var
         if sum_variances >= cutoff:
-            fmt_message(
-                f"Optimal number of PCs for explained variance cutoff {cutoff}: {i}"
+            logger.info(
+                fmt_message(
+                    f"Optimal number of PCs for explained variance cutoff {cutoff}: {i}"
+                )
             )
-
             return i
 
 

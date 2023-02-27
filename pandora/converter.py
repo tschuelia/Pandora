@@ -2,8 +2,6 @@ import tempfile
 import textwrap
 import subprocess
 
-from multiprocessing import Pool
-
 from pandora.custom_types import *
 from pandora.logger import logger, fmt_message
 
@@ -77,22 +75,13 @@ def plink_to_eigen(plink_prefix: FilePath, eigen_prefix: FilePath, convertf: Exe
 
         subprocess.check_output(cmd)
 
+    # for some reason, the file conversion results in weird sample IDs -> clean them  to match the original IDs
+    # the affected file is the ind_out file
+    corrected_content = []
+    for line in ind_out.open():
+        line = line.strip()
+        _, line = line.split(":", maxsplit=1)
+        corrected_content.append(line)
 
-def _run_conversion(args):
-    bootstrap_dir, convertf, i = args
-    prefix = bootstrap_dir / f"bootstrap_{i}"
+    ind_out.open("w").write("\n".join(corrected_content))
 
-    plink_to_eigen(
-        plink_prefix=prefix,
-        eigen_prefix=prefix,
-        convertf=convertf,
-    )
-
-    logger.info(fmt_message(f"Finished converting bootstrapped dataset #{i}"))
-
-
-def parallel_plink_to_eigen(bootstrap_dir: FilePath, convertf: Executable, n_bootstraps: int, n_threads: int):
-    args = [(bootstrap_dir, convertf, i + 1) for i in range(n_bootstraps)]
-
-    with Pool(n_threads) as p:
-        list(p.map(_run_conversion, args))

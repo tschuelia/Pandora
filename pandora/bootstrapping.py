@@ -1,13 +1,18 @@
+import os
 import random
 import shutil
 
 from multiprocessing import Pool
 
 from pandora.custom_types import *
+from pandora.converter import plink_to_eigen
 from pandora.logger import logger, fmt_message
+from pandora.pca import PCA, run_smartpca
 
 
-def bootstrap_snp_level(infile_prefix: FilePath, outfile_prefix: FilePath, seed: int, redo: bool = False):
+def bootstrap_snp_level(
+    infile_prefix: FilePath, outfile_prefix: FilePath, seed: int, redo: bool = False
+):
     random.seed(seed)
     map_in = pathlib.Path(f"{infile_prefix}.map")
     ped_in = pathlib.Path(f"{infile_prefix}.ped")
@@ -19,7 +24,9 @@ def bootstrap_snp_level(infile_prefix: FilePath, outfile_prefix: FilePath, seed:
 
     if map_out.exists() and ped_out.exists() and fam_out.exists() and not redo:
         logger.info(
-            fmt_message(f"Skipping bootstrapping. Files {outfile_prefix}.* already exist.")
+            fmt_message(
+                f"Skipping bootstrapping. Files {outfile_prefix}.* already exist."
+            )
         )
         return
 
@@ -84,22 +91,81 @@ def bootstrap_indiv_level():
 
 
 def _run(args):
-    _i, _seed, _in, _out = args
+    _i, _seed, _in, _out, _redo, _convertf, _smartpca, _npcs = args
     bootstrap_prefix = _out / f"bootstrap_{_i}"
 
-    bootstrap_snp_level(
-        infile_prefix=_in,
-        outfile_prefix=bootstrap_prefix,
-        seed=_seed
+    # first check if the final EIGEN files already exist
+    # if so, skip the bootstrapping and the conversion
+    geno_out = pathlib.Path(f"{bootstrap_prefix}.geno")
+    snp_out = pathlib.Path(f"{bootstrap_prefix}.snp")
+    ind_out = pathlib.Path(f"{bootstrap_prefix}.ind")
+
+    files_missing = not all([geno_out.exists(), snp_out.exists(), ind_out.exists()])
+
+    if _redo or files_missing:
+        bootstrap_snp_level(
+            infile_prefix=_in, outfile_prefix=bootstrap_prefix, seed=_seed, redo=_redo
+        )
+
+        logger.info(fmt_message(f"Finished drawing bootstrap dataset #{_i}"))
+
+        plink_to_eigen(
+            plink_prefix=bootstrap_prefix,
+            eigen_prefix=bootstrap_prefix,
+            convertf=_convertf,
+            redo=_redo,
+        )
+
+        logger.info(fmt_message(f"Finished converting bootstrap dataset #{_i}"))
+    else:
+        logger.info(fmt_message(f"Bootstrapped dataset #{_i} already exists."))
+
+    # to not waste disk space, we remove the input files once the conversion is done
+    # we don't want to save the data redundantly in different file types
+    for f in [
+        pathlib.Path(f"{bootstrap_prefix}.ped"),
+        pathlib.Path(f"{bootstrap_prefix}.map"),
+        pathlib.Path(f"{bootstrap_prefix}.fam"),
+    ]:
+        if f.exists():
+            os.remove(f)
+
+    # next, run the PCA and return the resulting PCA object
+    pca_prefix = _out / f"bootstrap_{_i}.pca"
+
+    pca = run_smartpca(
+        infile_prefix=bootstrap_prefix,
+        outfile_prefix=pca_prefix,
+        smartpca=_smartpca,
+        n_pcs=_npcs,
     )
 
-    logger.info(fmt_message(f"Finished bootstrap dataset #{_i}"))
+    logger.info(fmt_message(f"Finished PCA for bootstrapped dataset #{_i}"))
+    return pca
 
 
-def create_bootstrap_datasets(infile_prefix: FilePath, bootstrap_outdir: FilePath, n_bootstraps: int, seed: int, n_threads: int):
+def create_bootstrap_pcas(
+    infile_prefix: FilePath,
+    bootstrap_outdir: FilePath,
+    convertf: Executable,
+    smartpca: Executable,
+    n_bootstraps: int,
+    seed: int,
+    n_pcs: int,
+    n_threads: int,
+    redo: bool = False,
+) -> List[PCA]:
+    """
+    Draws n_bootstraps bootstrapped datasets using the provided PLINK files, creating new PLINK files.
+    Afterwards converts them to EIGEN format and deletes the intermediate PLINK files.
+    """
     random.seed(seed)
     bootstrap_seeds = [random.randint(0, 1_000_000) for _ in range(n_bootstraps)]
-    args = [(_i + 1, _seed, infile_prefix, bootstrap_outdir) for _i, _seed in zip(range(n_bootstraps), bootstrap_seeds)]
+    args = [
+        (_i + 1, _seed, infile_prefix, bootstrap_outdir, redo, convertf, smartpca, n_pcs)
+        for _i, _seed in zip(range(n_bootstraps), bootstrap_seeds)
+    ]
 
     with Pool(n_threads) as p:
-        list(p.map(_run, args))
+        return list(p.map(_run, args))
+

@@ -1,9 +1,11 @@
 from pandora import __version__
-from pandora.bootstrapping import create_bootstrap_datasets
-from pandora.converter import eigen_to_plink, parallel_plink_to_eigen
+from pandora.bootstrapping import create_bootstrap_pcas
+from pandora.converter import eigen_to_plink
 from pandora.custom_types import *
 from pandora.logger import logger, fmt_message
-from pandora.pca import run_pca_original_data_and_get_number_of_pcs, run_pca_bootstapped_data
+from pandora.pca import (
+    determine_number_of_pcs,
+)
 
 
 def print_header():
@@ -32,9 +34,10 @@ def main():
             - seed (int)
         """
     dataset = "HumanOriginsPublic2068"
-    n_bootstraps = 2
+    n_bootstraps = 3
     n_threads = 2
     seed = 0
+    redo = False
 
     infile_prefix = (
         pathlib.Path("/Users/julia/Desktop/Promotion/ADNA_Popgen/input")
@@ -60,12 +63,13 @@ def main():
     smartpca = "/Users/julia/micromamba/envs/pca_micromamba/bin/smartpca"
     convertf = "/Users/julia/micromamba/envs/pca_micromamba/bin/convertf"
 
-    n_pcs = run_pca_original_data_and_get_number_of_pcs(
+    empirical_pca = determine_number_of_pcs(
         infile_prefix=infile_prefix,
         outfile_prefix=outfile_prefix,
         smartpca=smartpca,
         # TODO: what is a meaningful variance cutoff?
         explained_variance_cutoff=0.01,
+        redo=redo,
     )
 
     logger.info(fmt_message("Converting Input files to PLINK format for bootstrapping."))
@@ -74,34 +78,64 @@ def main():
         eigen_prefix=infile_prefix, plink_prefix=convert_prefix, convertf=convertf
     )
 
-    logger.info(fmt_message(f"Drawing {n_bootstraps} bootstrapped datasets."))
+    logger.info(fmt_message(f"Drawing {n_bootstraps} bootstrapped datasets, converting them to EIGEN format and running smartpca."))
 
-    create_bootstrap_datasets(
+    bootstrap_pcas = create_bootstrap_pcas(
         infile_prefix=convert_prefix,
         bootstrap_outdir=bootstrap_dir,
-        n_bootstraps=n_bootstraps,
-        seed=seed,
-        n_threads=n_threads
-    )
-
-    logger.info(fmt_message("Converting bootstrapped files to EIGEN format for PCA."))
-
-    parallel_plink_to_eigen(
-        bootstrap_dir=bootstrap_dir,
         convertf=convertf,
-        n_bootstraps=n_bootstraps,
-        n_threads=n_threads
-    )
-
-    logger.info(fmt_message(f"Running PCA for {n_bootstraps} bootstrapped datasets."))
-
-    run_pca_bootstapped_data(
-        bootstrap_dir=bootstrap_dir,
         smartpca=smartpca,
         n_bootstraps=n_bootstraps,
-        n_pcs=n_pcs,
-        n_threads=n_threads
+        seed=seed,
+        n_pcs=empirical_pca.n_pcs,
+        n_threads=n_threads,
+        redo=redo
     )
+
+    logger.info(fmt_message(f"Plotting and comparing PCA results."))
+
+    pc1 = 0
+    pc2 = 1
+
+    fig = empirical_pca.plot(
+        pc1=pc1,
+        pc2=pc2,
+        plot_populations=True,
+    )
+    fp = f"{outfile_prefix}.pdf"
+    fig.write_image(fp)
+    logger.info(fmt_message(f"Plotted empirical PCA: {fp}"))
+
+    n_clusters = empirical_pca.get_optimal_n_clusters()
+    distances = []
+    clustering_scores = None
+
+    for i, bootstrap_pca in enumerate(bootstrap_pcas):
+        bootstrap_pca.set_populations(empirical_pca.pca_data.population)
+
+        fig = bootstrap_pca.plot(
+            pc1=pc1,
+            pc2=pc2,
+            plot_populations=True,
+        )
+
+        fp = bootstrap_dir / f"bootstrap_{i + 1}.pca.pdf"
+        fig.write_image(fp)
+        logger.info(fmt_message(f"Plotted bootstrap PCA #{i + 1}: {fp}"))
+
+        distance = bootstrap_pca.compare(other=empirical_pca, normalize=True)
+        distances.append(distance)
+
+        scores = bootstrap_pca.compare_clustering(other=empirical_pca, n_clusters=n_clusters)
+
+        if clustering_scores is None:
+            clustering_scores = dict([(k, [v]) for k, v in scores.items()])
+        else:
+            for k, v in scores.items():
+                clustering_scores[k].append(v)
+
+        print("Distances: ", distances)
+        print("Clustering measures ", clustering_scores)
 
 
 if __name__ == "__main__":

@@ -37,14 +37,14 @@ Once installed, you can use Pandora from code, e.g. to compare your own PCAs:
 ```python
 import numpy as np
 from pandora.comparison import match_pcas, compare_clustering
-from pandora.postprocessing import read_smartpca_eigenvec
+from pandora.postprocessing import smartpca_results_to_dataframes
 
 # pca1 and pca2 can be either pandas dataframes or numpy arrays
 pca1 = ...
 pca2 = ...
 
 # for example, you can load a smartpca result using read_smartpca_eigenvec
-pca1 = read_smartpca_eigenvec("path/to/smartpca.evec")
+pca1 = smartpca_results_to_dataframes("path/to/smartpca.evec")
 
 # find a transformation matrix that matches pca2 to pca1, and then applies this transformation to pca2
 pca1, transformed_pca2, transformation = match_pcas(pca1, pca2)

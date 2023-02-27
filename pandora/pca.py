@@ -443,9 +443,11 @@ def determine_number_of_pcs(
     evec_file = pathlib.Path(f"{outfile_prefix}.evec")
 
     if pca_checkpoint.exists() and not redo:
-        # checkpointing file contains two values: an int and a bool
-        # the int is the number of PCs that was last tested, the bool says whether the analysis finished properly or not
-        n_pcs, finished = pca_checkpoint.open().readline().strip().split()
+        # checkpointing file contains three values: an int, a bool, and a float
+        # the int is the number of PCs that was last tested
+        # the bool says whether the analysis finished properly or not
+        # the float (ignored here) is the amount of variance explained by the smallest PC (used for debugging)
+        n_pcs, finished, _ = pca_checkpoint.open().readline().strip().split()
         n_pcs = int(n_pcs)
         finished = bool(finished)
 
@@ -500,7 +502,7 @@ def determine_number_of_pcs(
         if best_pcs:
             pca.cutoff_pcs(best_pcs)
             # initial PCA analysis finished -> write checkpoint: best_pcs and True
-            pca_checkpoint.write_text(f"{best_pcs} True")
+            pca_checkpoint.write_text(f"{best_pcs} True {min(pca.explained_variances)}")
             return pca
 
         # if all PCs explain >= <cutoff>% variance, rerun the PCA with an increased number of PCs
@@ -511,5 +513,5 @@ def determine_number_of_pcs(
             )
         )
         # number of PCs not sufficient, write checkpoint and increase n_pcs
-        pca_checkpoint.write_text(f"{n_pcs} False")
+        pca_checkpoint.write_text(f"{n_pcs} False {min(pca.explained_variances)}")
         n_pcs = int(1.5 * n_pcs)

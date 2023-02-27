@@ -35,22 +35,28 @@ Not yet implemented, coming soon...
 Once installed, you can use Pandora from code, e.g. to compare your own PCAs:
 
 ```python
-import numpy as np
-from pandora.comparison import match_pcas, compare_clustering
-from pandora.postprocessing import smartpca_results_to_dataframes
+from pandora.pca import PCA, from_smartpca
+from sklearn.decomposition import PCA as sklearnPCA
 
-# pca1 and pca2 can be either pandas dataframes or numpy arrays
-pca1 = ...
-pca2 = ...
 
-# for example, you can load a smartpca result using read_smartpca_eigenvec
-pca1 = smartpca_results_to_dataframes("path/to/smartpca.evec")
+# create 2 PCA objects
+# you can either create one using a numpy array / pandas dataframe manually
+# e.g. based on scikit-learns pca
+data = ...
+n_pcs = 10
+sklearn_pca = sklearnPCA(n_components=n_pcs)
+sklearn_pca.fit(data)
+pca1 = PCA(pca_data=sklearn_pca.transform(data), explained_variances=sklearn_pca.explained_variance_ratio_, n_pcs=n_pcs)
 
-# find a transformation matrix that matches pca2 to pca1, and then applies this transformation to pca2
-pca1, transformed_pca2, transformation = match_pcas(pca1, pca2)
+# or, you can load a smartpca result using from_smartpca
+pca2 = from_smartpca("cool_analysis.evec")
 
-# get a set of cluster metrics to compare the clustering of pca1 and pca2
-scores = compare_clustering(pca1, pca2)
+# setting pca1 as "ground truth", we match pca2 to pca1 and compute a comparison score
+# ATTENTION: THIS SCORE IS CURRENTLY ABSOLUTELY MEANINGLESS :(
+score = pca2.compare(pca1)
+
+# also, get a set of cluster metrics to compare the clustering of pca1 and pca2
+cluster_scores = pca2.compare_clustering(pca1)
 ```
 
 ## How Pandora works:

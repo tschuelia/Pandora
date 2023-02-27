@@ -301,6 +301,8 @@ class PCA:
             populations = self.pca_data.population.unique()
             colors = _get_colors(len(populations))
 
+            assert len(populations) == len(colors), f"{len(populations)}, {len(colors)}"
+
             for i, population in enumerate(populations):
                 _data = self.pca_data.loc[self.pca_data.population == population]
                 fig.add_trace(

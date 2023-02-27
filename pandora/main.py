@@ -74,16 +74,7 @@ def main():
     """
 
     outfile_base.mkdir(exist_ok=True, parents=True)
-
     outfile_prefix = outfile_base / dataset
-
-    convertf_dir = outfile_base / "convertf"
-    convertf_dir.mkdir(exist_ok=True)
-    convert_prefix = convertf_dir / dataset
-
-    bootstrap_dir = outfile_base / "bootstrap"
-    bootstrap_dir.mkdir(exist_ok=True)
-
 
     empirical_pca = determine_number_of_pcs(
         infile_prefix=infile_prefix,
@@ -96,11 +87,18 @@ def main():
 
     logger.info(fmt_message("Converting Input files to PLINK format for bootstrapping."))
 
+    convertf_dir = outfile_base / "convertf"
+    convertf_dir.mkdir(exist_ok=True)
+    convert_prefix = convertf_dir / dataset
+
     eigen_to_plink(
         eigen_prefix=infile_prefix, plink_prefix=convert_prefix, convertf=convertf
     )
 
     logger.info(fmt_message(f"Drawing {n_bootstraps} bootstrapped datasets, converting them to EIGEN format and running smartpca."))
+
+    bootstrap_dir = outfile_base / "bootstrap"
+    bootstrap_dir.mkdir(exist_ok=True)
 
     bootstrap_pcas = create_bootstrap_pcas(
         infile_prefix=convert_prefix,

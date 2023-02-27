@@ -422,12 +422,12 @@ def check_pcs_sufficient(explained_variances: List, cutoff: float) -> Union[int,
     # at least one PC explains less than <cutoff>% variance
     # -> find the index of the last PC explaining more than <cutoff>%
     n_pcs = sum([1 for var in explained_variances if var >= cutoff])
-    logger.info(
-        fmt_message(
-            f"Optimal number of PCs for explained variance cutoff {cutoff}: {n_pcs}"
-        )
-    )
     if n_pcs != len(explained_variances):
+        logger.info(
+            fmt_message(
+                f"Optimal number of PCs for explained variance cutoff {cutoff}: {n_pcs}"
+            )
+        )
         return n_pcs
 
 

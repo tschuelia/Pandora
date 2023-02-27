@@ -38,7 +38,7 @@ def main():
     """
     begin config
     """
-    dataset = "SouthernArc_Public"
+    dataset = "EastAsian_HO"
     n_bootstraps = 3
     n_threads = 2
     seed = 0

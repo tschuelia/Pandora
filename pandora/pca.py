@@ -131,14 +131,13 @@ class PCA:
         return self.pca_data[[f"PC{i}" for i in range(self.n_pcs)]].to_numpy()
 
     def transform_self_to_other(
-        self, other: PCA, normalize: bool = False
+        self, other: PCA
     ) -> np.ndarray:
         """
         Finds a transformation matrix to match self to other as close as possible (self is transformed).
 
         Args:
             other (PCA): PCA object to compare self to.
-            normalize (bool): Whether to normalize the PCA data of both PCAs prior to computing the transformation matrix.
 
         Returns:
             np.ndarray: Return the transformation matrix that most closely matches self to other.
@@ -156,16 +155,12 @@ class PCA:
         pca_data_other = other.get_pca_data_numpy()
 
         # TODO: reorder PCs (if we find a dataset where this is needed...don't want to blindly implement something)
-        if normalize:
-            pca_data_self = pca_data_self / np.linalg.norm(pca_data_self)
-            pca_data_other = pca_data_other / np.linalg.norm(pca_data_other)
-
         transformation, _ = orthogonal_procrustes(pca_data_other, pca_data_self)
         transformed_self = pca_data_self @ transformation
 
         return transformed_self
 
-    def compare(self, other: PCA, normalize: bool = False) -> float:
+    def compare(self, other: PCA) -> float:
         """
         Compare self to other by transforming self towards other and then computing the samplewise cosine similarity.
         Returns the average and standard deviation. The resulting similarity is on a scale of 0 to 1, with 1 meaning
@@ -173,20 +168,14 @@ class PCA:
 
         Args:
             other (PCA): PCA object to compare self to.
-            normalize (bool): Whether to normalize the PCA data of both PCAs prior to computing the transformation matrix.
 
         Returns:
             float: Similarity as average cosine similarity per sample PC-vector in self and other.
         """
-        transformed_self = self.transform_self_to_other(other, normalize)
-
-        # TODO: somehow normalize this difference to [0, 1] to reflect the degree of similarity
+        transformed_self = self.transform_self_to_other(other)
         other_data = other.get_pca_data_numpy()
-        if normalize:
-            other_data = other_data / np.linalg.norm(other_data)
 
         sample_similarity = cosine_similarity(other_data, transformed_self).diagonal()
-
         return sample_similarity.mean()
 
     def get_optimal_n_clusters(self, min_n: int = 3, max_n: int = 50) -> int:

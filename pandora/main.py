@@ -200,7 +200,7 @@ def main():
         fig.write_image(fp)
         logger.info(fmt_message(f"Plotted bootstrap PCA #{i + 1}: {fp}"))
 
-        similarity = bootstrap_pca.compare(other=empirical_pca, normalize=True)
+        similarity = bootstrap_pca.compare(other=empirical_pca)
         similarities.append(similarity)
 
         scores = bootstrap_pca.compare_clustering(other=empirical_pca, n_clusters=n_clusters)

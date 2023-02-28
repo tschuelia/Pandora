@@ -31,7 +31,7 @@ def main():
         "--input",
         type=str,
         required=True,
-        help="Prefix of the input files. Pandora will look for files called <input>.* so make sure all files have the same prefix."
+        help="Prefix of the input files. Pandora will look for files called {input}.* so make sure all files have the same prefix."
     )
     parser.add_argument(
         "-o",
@@ -94,7 +94,7 @@ def main():
         type=int,
         default=95,
         help="Cutoff to use when determining the number of PCs required. "
-             "Pandora will automatically find the number of PCs required to explain at least <varianceCutoff>% variance in the data."
+             "Pandora will automatically find the number of PCs required to explain at least {varianceCutoff}% variance in the data."
     )
     parser.add_argument(
         "--plot",
@@ -227,12 +227,16 @@ def main():
         output = [f"{i + 1}\t{sim}" for i, sim in enumerate(similarities)]
         f.write("\n".join(output))
 
+    # TODO: also log the output into a log file
+
     logger.info("--------- PANDORA RESULTS ---------")
     logger.info("PCA:")
     logger.info(f"- number of PCs required to explain at least {variance_cutoff}% variance: {empirical_pca.n_pcs}")
     logger.info(f"=> uncertainty: {round(np.mean(similarities), 2)} ± {round(np.std(similarities), 2)}")
     logger.info("K-Means clustering:")
     logger.info("- uncertainty: TODO: select the best measure")
+
+    # TODO: print total runtime
 
     print("Clustering measures ", [(k, round(np.mean(v), 2)) for k, v in clustering_scores.items()])
 

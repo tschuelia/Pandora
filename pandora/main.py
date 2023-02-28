@@ -31,7 +31,7 @@ def main():
         "--input",
         type=str,
         required=True,
-        help="Prefix of the input files. Pandora will look for files called {input}.* so make sure all files have the same prefix."
+        help="Prefix of the input files. Pandora will look for files called <input>.* so make sure all files have the same prefix."
     )
     parser.add_argument(
         "-o",
@@ -94,7 +94,7 @@ def main():
         type=int,
         default=95,
         help="Cutoff to use when determining the number of PCs required. "
-             "Pandora will automatically find the number of PCs required to explain at least {varianceCutoff}% variance in the data."
+             "Pandora will automatically find the number of PCs required to explain at least <varianceCutoff>%% variance in the data."
     )
     parser.add_argument(
         "--plot",

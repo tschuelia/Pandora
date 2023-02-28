@@ -96,6 +96,11 @@ def main():
         help="Cutoff to use when determining the number of PCs required. "
              "Pandora will automatically find the number of PCs required to explain at least <varianceCutoff>% variance in the data."
     )
+    parser.add_argument(
+        "--plot",
+        action="store_true",
+        help="If set, plots the individual PCAs with the resulting K-Means clusters annotated."
+    )
 
     args = parser.parse_args()
 
@@ -117,6 +122,7 @@ def main():
     n_threads = args.threads
     redo = args.redo
     variance_cutoff = args.varianceCutoff
+    plot_pcas = args.plot
 
     smartpca = args.smartpca
     convertf = args.convertf
@@ -168,19 +174,21 @@ def main():
         redo=redo
     )
 
-    logger.info(fmt_message(f"Plotting and comparing PCA results."))
-
+    logger.info(fmt_message(f"Comparing PCA results."))
+    # TODO: make plotted PCs command line settable
     pc1 = 0
     pc2 = 1
 
-    fig = empirical_pca.plot(
-        pc1=pc1,
-        pc2=pc2,
-        plot_populations=True,
-    )
-    fp = f"{outfile_prefix}.pdf"
-    fig.write_image(fp)
-    logger.info(fmt_message(f"Plotted empirical PCA: {fp}"))
+    if plot_pcas:
+
+        fig = empirical_pca.plot(
+            pc1=pc1,
+            pc2=pc2,
+            plot_populations=True,
+        )
+        fp = f"{outfile_prefix}.pdf"
+        fig.write_image(fp)
+        logger.info(fmt_message(f"Plotted empirical PCA: {fp}"))
 
     n_clusters = empirical_pca.get_optimal_n_clusters()
     logger.info(fmt_message(f"Optimal number of clusters determined to be: {n_clusters}"))
@@ -188,17 +196,20 @@ def main():
     clustering_scores = None
 
     for i, bootstrap_pca in enumerate(bootstrap_pcas):
-        bootstrap_pca.set_populations(empirical_pca.pca_data.population)
 
-        fig = bootstrap_pca.plot(
-            pc1=pc1,
-            pc2=pc2,
-            plot_populations=True,
-        )
+        if plot_pcas:
+            # TODO: plot once with populations and once with clusters? or only clusters?
+            bootstrap_pca.set_populations(empirical_pca.pca_data.population)
 
-        fp = bootstrap_dir / f"bootstrap_{i + 1}.pca.pdf"
-        fig.write_image(fp)
-        logger.info(fmt_message(f"Plotted bootstrap PCA #{i + 1}: {fp}"))
+            fig = bootstrap_pca.plot(
+                pc1=pc1,
+                pc2=pc2,
+                plot_populations=True,
+            )
+
+            fp = bootstrap_dir / f"bootstrap_{i + 1}.pca.pdf"
+            fig.write_image(fp)
+            logger.info(fmt_message(f"Plotted bootstrap PCA #{i + 1}: {fp}"))
 
         similarity = bootstrap_pca.compare(other=empirical_pca)
         similarities.append(similarity)
@@ -216,20 +227,12 @@ def main():
         output = [f"{i + 1}\t{sim}" for i, sim in enumerate(similarities)]
         f.write("\n".join(output))
 
-
-    logger.info(
-        f"""
-        --------- PANDORA RESULTS ---------
-        PCA:
-        - number of PCs required to explain at least {variance_cutoff}% variance: {empirical_pca.n_pcs}
-        => uncertainty: {round(np.mean(similarities), 2)} ± {round(np.std(similarities), 2)}
-        
-        
-        K-Means clustering:
-        - uncertainty: TODO: select the best measure
-        
-        """
-    )
+    logger.info("--------- PANDORA RESULTS ---------")
+    logger.info("PCA:")
+    logger.info(f"- number of PCs required to explain at least {variance_cutoff}% variance: {empirical_pca.n_pcs}")
+    logger.info(f"=> uncertainty: {round(np.mean(similarities), 2)} ± {round(np.std(similarities), 2)}")
+    logger.info("K-Means clustering:")
+    logger.info("- uncertainty: TODO: select the best measure")
 
     print("Clustering measures ", [(k, round(np.mean(v), 2)) for k, v in clustering_scores.items()])
 

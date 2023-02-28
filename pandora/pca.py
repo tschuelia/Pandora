@@ -215,12 +215,13 @@ class PCA:
 
         return best_k
 
-    def cluster(self, n_clusters: int = None) -> KMeans:
+    def cluster(self, n_clusters: int = None, weighted: bool = True) -> KMeans:
         """
         Fits a K-Means cluster to the pca data and returns a scikit-learn fitted KMeans object.
 
         Args:
             n_clusters (int): Number of clusters. If not set, the optimal number of clusters is determined automatically.
+            weighted (bool): If set, scales the PCA data of self and other according to the respective explained variances prior to clustering.
 
         Returns:
             KMeans: Scikit-learn KMeans object that with n_clusters that is fitted to self.pca_data.
@@ -228,17 +229,20 @@ class PCA:
         pca_data_np = self.get_pca_data_numpy()
         if n_clusters is None:
             n_clusters = self.get_optimal_n_clusters()
+        if weighted:
+            pca_data_np = pca_data_np * self.explained_variances
         kmeans = KMeans(random_state=42, n_clusters=n_clusters, n_init=10)
         kmeans.fit(pca_data_np)
         return kmeans
 
-    def compare_clustering(self, other: PCA, n_clusters: int = None) -> Dict[str, float]:
+    def compare_clustering(self, other: PCA, n_clusters: int = None, weighted: bool = True) -> Dict[str, float]:
         """
         Compare self clustering to other clustering using other as ground truth.
 
         Args:
             other (PCA): PCA object to compare self to.
             n_clusters (int): Number of clusters. If not set, the optimal number of clusters is determined automatically.
+            weighted (bool): If set, scales the PCA data of self and other according to the respective explained variances prior to clustering.
 
         Returns:
             Dict[str, float]: A dictionary containing various cluster comparison metrics.
@@ -249,9 +253,8 @@ class PCA:
             n_clusters = other.get_optimal_n_clusters()
 
         # since we are only comparing the assigned cluster labels, we don't need to transform self prior to comparing
-
-        self_kmeans = self.cluster(n_clusters=n_clusters)
-        other_kmeans = other.cluster(n_clusters=n_clusters)
+        self_kmeans = self.cluster(n_clusters=n_clusters, weighted=weighted)
+        other_kmeans = other.cluster(n_clusters=n_clusters, weighted=weighted)
 
         self_cluster_labels = self_kmeans.predict(self.get_pca_data_numpy())
         other_cluster_labels = other_kmeans.predict(other.get_pca_data_numpy())

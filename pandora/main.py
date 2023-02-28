@@ -212,7 +212,7 @@ def main():
                 clustering_scores[k].append(v)
 
     # write similarities of all bootstraps to file
-    with open(outfile_prefix / "pandora_results.txt", "w") as f:
+    with open(f"{outfile_prefix}.pandora.txt", "w") as f:
         output = [f"{i + 1}\t{sim}" for i, sim in enumerate(similarities)]
         f.write("\n".join(output))
 

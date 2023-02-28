@@ -154,6 +154,9 @@ class PCA:
         pca_data_self = self.get_pca_data_numpy()
         pca_data_other = other.get_pca_data_numpy()
 
+        pca_data_self = pca_data_self / np.linalg.norm(pca_data_self)
+        pca_data_other = pca_data_other / np.linalg.norm(pca_data_other)
+
         # TODO: reorder PCs (if we find a dataset where this is needed...don't want to blindly implement something)
         transformation, _ = orthogonal_procrustes(pca_data_other, pca_data_self)
         transformed_self = pca_data_self @ transformation
@@ -173,9 +176,13 @@ class PCA:
             float: Similarity as average cosine similarity per sample PC-vector in self and other.
         """
         transformed_self = self.transform_self_to_other(other)
+
+        # TODO: somehow normalize this difference to [0, 1] to reflect the degree of similarity
         other_data = other.get_pca_data_numpy()
+        other_data = other_data / np.linalg.norm(other_data)
 
         sample_similarity = cosine_similarity(other_data, transformed_self).diagonal()
+
         return sample_similarity.mean()
 
     def get_optimal_n_clusters(self, min_n: int = 3, max_n: int = 50) -> int:

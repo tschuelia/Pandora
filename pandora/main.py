@@ -128,7 +128,7 @@ def main():
 
     n_clusters = empirical_pca.get_optimal_n_clusters()
     logger.info(fmt_message(f"Optimal number of clusters determined to be: {n_clusters}"))
-    distances = []
+    similarities = []
     clustering_scores = None
 
     for i, bootstrap_pca in enumerate(bootstrap_pcas):
@@ -144,8 +144,8 @@ def main():
         fig.write_image(fp)
         logger.info(fmt_message(f"Plotted bootstrap PCA #{i + 1}: {fp}"))
 
-        distance = bootstrap_pca.compare(other=empirical_pca, normalize=True)
-        distances.append(distance)
+        similarity = bootstrap_pca.compare(other=empirical_pca, normalize=True)
+        similarities.append(similarity)
 
         scores = bootstrap_pca.compare_clustering(other=empirical_pca, n_clusters=n_clusters)
 
@@ -155,8 +155,8 @@ def main():
             for k, v in scores.items():
                 clustering_scores[k].append(v)
 
-        print("Distances: ", distances)
-        print("Clustering measures ", clustering_scores)
+    print(f"PCA similarity: {round(np.mean(similarities), 2)} ± {round(np.std(similarities), 2)}")
+    print("Clustering measures ", [(k, round(np.mean(v), 2)) for k, v in clustering_scores.items()])
 
 
 if __name__ == "__main__":

@@ -19,6 +19,7 @@ from sklearn.metrics import (
     adjusted_mutual_info_score,
     fowlkes_mallows_score,
 )
+from sklearn.metrics.pairwise import cosine_similarity
 
 from pandora.custom_types import *
 from pandora.logger import logger, fmt_message
@@ -129,7 +130,7 @@ class PCA:
         """
         return self.pca_data[[f"PC{i}" for i in range(self.n_pcs)]].to_numpy()
 
-    def _transform_self_to_other(
+    def transform_self_to_other(
         self, other: PCA, normalize: bool = False
     ) -> np.ndarray:
         """
@@ -166,24 +167,27 @@ class PCA:
 
     def compare(self, other: PCA, normalize: bool = False) -> float:
         """
-        Compare self to other by transforming self towards other and then measuring the distance.
+        Compare self to other by transforming self towards other and then computing the samplewise cosine similarity.
+        Returns the average and standard deviation. The resulting similarity is on a scale of 0 to 1, with 1 meaning
+        self and other are identical.
 
         Args:
             other (PCA): PCA object to compare self to.
             normalize (bool): Whether to normalize the PCA data of both PCAs prior to computing the transformation matrix.
 
         Returns:
-            float: distance between self and other
+            float: Similarity as average cosine similarity per sample PC-vector in self and other.
         """
-        transformed_self = self._transform_self_to_other(other, normalize)
+        transformed_self = self.transform_self_to_other(other, normalize)
 
         # TODO: somehow normalize this difference to [0, 1] to reflect the degree of similarity
         other_data = other.get_pca_data_numpy()
         if normalize:
             other_data = other_data / np.linalg.norm(other_data)
 
-        difference = np.linalg.norm(transformed_self - other_data)
-        return difference
+        sample_similarity = cosine_similarity(other_data, transformed_self).diagonal()
+
+        return sample_similarity.mean()
 
     def get_optimal_n_clusters(self, min_n: int = 3, max_n: int = 50) -> int:
         """

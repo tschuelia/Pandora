@@ -1,3 +1,5 @@
+from __future__ import annotations  # allows type hint PCA inside PCA class
+
 import math
 import tempfile
 import subprocess
@@ -128,7 +130,7 @@ class PCA:
         return self.pca_data[[f"PC{i}" for i in range(self.n_pcs)]].to_numpy()
 
     def _transform_self_to_other(
-        self, other: Self, normalize: bool = False
+        self, other: PCA, normalize: bool = False
     ) -> np.ndarray:
         """
         Finds a transformation matrix to match self to other as close as possible (self is transformed).
@@ -162,7 +164,7 @@ class PCA:
 
         return transformed_self
 
-    def compare(self, other: Self, normalize: bool = False) -> float:
+    def compare(self, other: PCA, normalize: bool = False) -> float:
         """
         Compare self to other by transforming self towards other and then measuring the distance.
 
@@ -226,7 +228,7 @@ class PCA:
         kmeans.fit(pca_data_np)
         return kmeans
 
-    def compare_clustering(self, other: Self, n_clusters: int = None) -> Dict[str, float]:
+    def compare_clustering(self, other: PCA, n_clusters: int = None) -> Dict[str, float]:
         """
         Compare self clustering to other clustering using other as ground truth.
 

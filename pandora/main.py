@@ -127,6 +127,7 @@ def main():
     logger.info(fmt_message(f"Plotted empirical PCA: {fp}"))
 
     n_clusters = empirical_pca.get_optimal_n_clusters()
+    logger.info(fmt_message(f"Optimal number of clusters determined to be: {n_clusters}"))
     distances = []
     clustering_scores = None
 

@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 import pathlib
-from typing import Union, Tuple, Dict, List, Self
+from typing import Union, Tuple, Dict, List
 
 
 FilePath = Union[str, pathlib.Path]

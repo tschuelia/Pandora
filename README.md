@@ -51,8 +51,7 @@ pca1 = PCA(pca_data=sklearn_pca.transform(data), explained_variances=sklearn_pca
 # or, you can load a smartpca result using from_smartpca
 pca2 = from_smartpca("cool_analysis.evec")
 
-# setting pca1 as "ground truth", we match pca2 to pca1 and compute a comparison score
-# ATTENTION: THIS SCORE IS CURRENTLY ABSOLUTELY MEANINGLESS :(
+# setting pca1 as "ground truth", we match pca2 to pca1 and compute a comparison score based on the cosine similarity
 score = pca2.compare(pca1)
 
 # also, get a set of cluster metrics to compare the clustering of pca1 and pca2
@@ -61,9 +60,7 @@ cluster_scores = pca2.compare_clustering(pca1)
 
 ## How Pandora works:
 ### Bootstrapping:
-Bootstrapping the original data is done on two levels independently: resampling the SNPs and resampling the individual sequences. 
-Bootstrapping the SNPs is straightforward and has a clear interpretation. This is not the case for resampling the sequences.
-TODO: describe how we resample the sequences and what this means (refer to the PCA Nature paper)
+We bootstrap the original data by resampling the SNPs. TODO: describe the bootstrapping procedure.
 
 ### PCA uncertainty
 To measure the uncertainty of the dimensionality reduction, we compare the PCA of the original dataset (`original_pca`) to the PCA of each bootstrapped dataset (`bootstrapped_pca_i`) separately.

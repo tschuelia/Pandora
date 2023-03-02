@@ -10,6 +10,7 @@ from plotly import graph_objects as go
 from plotly.colors import n_colors
 
 from scipy.linalg import orthogonal_procrustes
+from scipy.spatial import procrustes
 from sklearn.cluster import KMeans
 from sklearn.metrics import (
     silhouette_score,
@@ -64,13 +65,21 @@ class PCA:
                       0-indexed, so the first PC corresponds to column PC0
         - explained_variances (List[float]): List of explained variances for each PC
         - n_pcs (int): number of principal components
+        - pc_vectors: TODO
     """
     def __init__(
         self,
         pca_data: Union[pd.DataFrame, np.ndarray],
         explained_variances: List[float],
         n_pcs: int,
+        sample_ids: List[str] = None,
+        populations: List[str] = None,
     ):
+        """
+        TODO: Documentation
+        - auf sample_id Wichtigkeit hinweisen (Vergleichbarkeit!)
+
+        """
         self.n_pcs = n_pcs
         self.explained_variances = explained_variances
 
@@ -78,10 +87,25 @@ class PCA:
             pca_data = pd.DataFrame(
                 pca_data, columns=[f"PC{i}" for i in range(self.n_pcs)]
             )
+
+        if sample_ids is not None:
+            pca_data["sample_id"] = sample_ids
+
+        if populations is not None:
+            pca_data["population"] = populations
+
+        if "sample_id" not in pca_data.columns:
             pca_data["sample_id"] = None
+
+        if "population" not in pca_data.columns:
             pca_data["population"] = None
 
-        self.pca_data = pca_data
+        self.pca_data = pca_data.sort_values(by="sample_id").reset_index(drop=True)
+
+        # Normalize the PC vectors to [0, 1]
+        pc_vectors = self._get_pca_data_numpy()
+        pc_vectors = pc_vectors / np.linalg.norm(pc_vectors)
+        self.pc_vectors = pc_vectors
 
     def cutoff_pcs(self, new_n_pcs: int):
         """
@@ -120,7 +144,7 @@ class PCA:
             )
         self.pca_data["population"] = populations
 
-    def get_pca_data_numpy(self) -> np.ndarray:
+    def _get_pca_data_numpy(self) -> np.ndarray:
         """
         Converts the PCA data to a numpy array.
 
@@ -129,39 +153,6 @@ class PCA:
                  Does not contain the sample IDs or populations.
         """
         return self.pca_data[[f"PC{i}" for i in range(self.n_pcs)]].to_numpy()
-
-    def transform_self_to_other(
-        self, other: PCA
-    ) -> np.ndarray:
-        """
-        Finds a transformation matrix to match self to other as close as possible (self is transformed).
-
-        Args:
-            other (PCA): PCA object to compare self to.
-
-        Returns:
-            np.ndarray: Return the transformation matrix that most closely matches self to other.
-                The resulting transformation matrix has shape (n_pcs, n_pcs).
-
-        Raises:
-            ValueError: If the number of samples or the number of PCs in self and other are not identical.
-        """
-        if self.pca_data.shape != other.pca_data.shape:
-            raise ValueError(
-                "Mismatch in PCA size: Self and other need to have the same number of samples and the same number of PCs."
-            )
-
-        pca_data_self = self.get_pca_data_numpy()
-        pca_data_other = other.get_pca_data_numpy()
-
-        pca_data_self = pca_data_self / np.linalg.norm(pca_data_self)
-        pca_data_other = pca_data_other / np.linalg.norm(pca_data_other)
-
-        # TODO: reorder PCs (if we find a dataset where this is needed...don't want to blindly implement something)
-        transformation, _ = orthogonal_procrustes(pca_data_other, pca_data_self)
-        transformed_self = pca_data_self @ transformation
-
-        return transformed_self
 
     def compare(self, other: PCA) -> float:
         """
@@ -175,13 +166,10 @@ class PCA:
         Returns:
             float: Similarity as average cosine similarity per sample PC-vector in self and other.
         """
-        transformed_self = self.transform_self_to_other(other)
+        # TODO: check whether the sample IDs match -> we can only compare PCAs for the same samples
 
-        # TODO: somehow normalize this difference to [0, 1] to reflect the degree of similarity
-        other_data = other.get_pca_data_numpy()
-        other_data = other_data / np.linalg.norm(other_data)
-
-        sample_similarity = cosine_similarity(other_data, transformed_self).diagonal()
+        standardized_other, transformed_self, _ = procrustes(other.pc_vectors, self.pc_vectors)
+        sample_similarity = cosine_similarity(standardized_other, transformed_self).diagonal()
 
         return sample_similarity.mean()
 
@@ -199,13 +187,11 @@ class PCA:
         best_k = -1
         best_score = -1
 
-        pca_data_np = self.get_pca_data_numpy()
-
         for k in range(min_n, max_n):
             # TODO: what range is reasonable?
             kmeans = KMeans(random_state=42, n_clusters=k, n_init=10)
-            kmeans.fit(pca_data_np)
-            score = silhouette_score(pca_data_np, kmeans.labels_)
+            kmeans.fit(self.pc_vectors)
+            score = silhouette_score(self.pc_vectors, kmeans.labels_)
             best_k = k if score > best_score else best_k
             best_score = max(score, best_score)
 
@@ -222,7 +208,7 @@ class PCA:
         Returns:
             KMeans: Scikit-learn KMeans object that with n_clusters that is fitted to self.pca_data.
         """
-        pca_data_np = self.get_pca_data_numpy()
+        pca_data_np = self.pc_vectors
         if n_clusters is None:
             n_clusters = self.get_optimal_n_clusters()
         if weighted:
@@ -252,8 +238,8 @@ class PCA:
         self_kmeans = self.cluster(n_clusters=n_clusters, weighted=weighted)
         other_kmeans = other.cluster(n_clusters=n_clusters, weighted=weighted)
 
-        self_cluster_labels = self_kmeans.predict(self.get_pca_data_numpy())
-        other_cluster_labels = other_kmeans.predict(other.get_pca_data_numpy())
+        self_cluster_labels = self_kmeans.predict(self.pc_vectors)
+        other_cluster_labels = other_kmeans.predict(other.pc_vectors)
 
         scores = {
             "Random Score": rand_score(other_cluster_labels, self_cluster_labels),
@@ -338,6 +324,69 @@ class PCA:
         fig.update_yaxes(title=ytitle)
         fig.update_layout(template="plotly_white", height=1000, width=1000)
         return fig
+
+
+def transform_pca_to_reference(pca: PCA, pca_reference: PCA) -> Tuple[PCA, PCA]:
+    """
+    Finds a transformation matrix that most closely matches pca to pca_reference and transforms pca.
+    Both PCAs are standardized prior to transformation.
+
+    Args:
+        pca (PCA): The PCA that should be transformed
+        pca_reference (PCA): The PCA that pca1 should be transformed towards
+
+    Returns:
+        Tuple[PCA, PCA]: Two new PCA objects, the first one is the transformed pca and the second one is the standardized pca_reference.
+            In all downstream comparisons or pairwise plotting, use these PCA objects.
+    """
+
+    # TODO: check whether the sample IDs match -> we can only compare PCAs for the same samples
+
+    pca_data = pca.pc_vectors
+    pca_ref_data = pca_reference.pc_vectors
+
+    if pca_data.shape != pca_ref_data.shape:
+        raise ValueError(
+            "Mismatch in PCA size: PCA1 and PCA2 need to have the same number of samples and the same number of PCs."
+        )
+
+    # TODO: reorder PCs (if we find a dataset where this is needed...don't want to blindly implement something)
+    standardized_pca_reference, transformed_pca1, _ = procrustes(pca_ref_data, pca_data)
+
+    pca = PCA(
+        pca_data=transformed_pca1,
+        explained_variances=pca.explained_variances,
+        n_pcs=pca.n_pcs,
+        sample_ids=pca.pca_data.sample_id,
+        populations=pca.pca_data.population
+    )
+
+    pca_reference = PCA(
+        pca_data=standardized_pca_reference,
+        explained_variances=pca_reference.explained_variances,
+        n_pcs=pca_reference.n_pcs,
+        sample_ids=pca_reference.pca_data.sample_id,
+        populations=pca_reference.pca_data.population
+    )
+
+    return pca, pca_reference
+
+
+# TODO: transformation als extra Methode die zwei neue PCA Objekte zurück gibt
+# def transform_self_to_other(
+#     self, other: PCA
+# ) -> np.ndarray:
+#
+#
+#     standardized_other, transformed_self, _ = procrustes(other.pc_vectors, self.pc_vectors)
+#
+#     # create two new PCA objects:
+#     # - a standardized
+#
+#     transformation, _ = orthogonal_procrustes(self.pc_vectors, other.pc_vectors)
+#     transformed_self = self.pc_vectors @ transformation
+#
+#     return transformed_self
 
 
 def from_smartpca(smartpca_evec_file: FilePath) -> PCA:

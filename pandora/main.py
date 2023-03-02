@@ -1,4 +1,5 @@
 import argparse
+import datetime
 import multiprocessing
 import time
 import sys
@@ -8,7 +9,7 @@ from pandora.bootstrapping import create_bootstrap_pcas
 from pandora.converter import eigen_to_plink
 from pandora.custom_types import *
 from pandora.logger import logger, fmt_message, SCRIPT_START
-from pandora.pca import determine_number_of_pcs
+from pandora.pca import determine_number_of_pcs, transform_pca_to_reference
 
 
 def print_header():
@@ -198,18 +199,48 @@ def main():
     for i, bootstrap_pca in enumerate(bootstrap_pcas):
 
         if plot_pcas:
-            # TODO: plot once with populations and once with clusters? or only clusters?
+            # plot Bootstrap with annotated populations
             bootstrap_pca.set_populations(empirical_pca.pca_data.population)
 
             fig = bootstrap_pca.plot(
                 pc1=pc1,
                 pc2=pc2,
-                plot_populations=True,
+                annotation="population",
             )
 
-            fp = bootstrap_dir / f"bootstrap_{i + 1}.pca.pdf"
+            fp = bootstrap_dir / f"bootstrap_{i + 1}_with_populations.pca.pdf"
             fig.write_image(fp)
-            logger.info(fmt_message(f"Plotted bootstrap PCA #{i + 1}: {fp}"))
+
+            # plot Bootstrap only with annotated clusters
+            fig = bootstrap_pca.plot(
+                pc1=pc1,
+                pc2=pc2,
+                annotation="cluster",
+                n_clusters=n_clusters
+            )
+            fp = bootstrap_dir / f"bootstrap_{i + 1}_with_clusters.pca.pdf"
+            fig.write_image(fp)
+
+            # Plot transformed bootstrap and empirical data jointly
+            # for this, we first need to transform the empirical and bootstrap data
+            transformed_bootstrap, scaled_empirical = transform_pca_to_reference(bootstrap_pca, empirical_pca)
+            fig = scaled_empirical.plot(
+                pc1=pc1,
+                pc2=pc2,
+                name="Scaled empirical"
+            )
+
+            fig = transformed_bootstrap.plot(
+                pc1=pc1,
+                pc2=pc2,
+                name="Transformed Bootstrap",
+                fig=fig
+            )
+
+            fp = bootstrap_dir / f"bootstrap_{i + 1}_with_empirical.pca.pdf"
+            fig.write_image(fp)
+
+            logger.info(fmt_message(f"Plotted bootstrap PCA #{i + 1}"))
 
         similarity = bootstrap_pca.compare(other=empirical_pca)
         similarities.append(similarity)
@@ -236,7 +267,9 @@ def main():
     logger.info("K-Means clustering:")
     logger.info("- uncertainty: TODO: select the best measure")
 
-    # TODO: print total runtime
+    SCRIPT_END = time.perf_counter()
+    total_runtime = SCRIPT_END - SCRIPT_START
+    logger.info(f"\nTotal runtime: {datetime.timedelta(seconds=total_runtime)} ({total_runtime} seconds)")
 
     print("Clustering measures ", [(k, round(np.mean(v), 2)) for k, v in clustering_scores.items()])
 

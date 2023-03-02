@@ -4,12 +4,12 @@ import math
 import tempfile
 import subprocess
 import textwrap
+import warnings
 
 import numpy as np
 from plotly import graph_objects as go
 from plotly.colors import n_colors
 
-from scipy.linalg import orthogonal_procrustes
 from scipy.spatial import procrustes
 from sklearn.cluster import KMeans
 from sklearn.metrics import (
@@ -263,7 +263,8 @@ class PCA:
         self,
         pc1: int = 0,
         pc2: int = 1,
-        plot_populations: bool = False,
+        annotation: str = None,
+        n_clusters: int = None,
         fig: go.Figure = None,
         name: str = "",
     ) -> go.Figure:
@@ -275,7 +276,9 @@ class PCA:
                 The PCs are 0-indexed, so to plot the first principal component, set pc1 = 0. Defaults to 0.
             pc2 (int): Number of the PC to plot on the y-axis.
                 The PCs are 0-indexed, so to plot the second principal component, set pc2 = 1. Defaults to 1.
-            plot_populations (bool): If true, each population is attributed a distinct color in the resulting plot.
+            annotation (bool): If None, plots alls samples with the same color.
+                If "population", plots each population with a different color.
+                If "cluster", applies K-Means clustering and plots each cluster with a different color.
             fig (go.Figure): If set, appends the PCA data to this fig. Default is to plot on a new, empty figure.
             name (str): Name of the trace in the resulting plot. Setting a name will only have an effect if
                 plot_populations = False and fig is not None.
@@ -286,7 +289,10 @@ class PCA:
         if not fig:
             fig = go.Figure()
 
-        if plot_populations:
+        if n_clusters is not None and annotation != "cluster":
+            warnings.warn(f"Parameter n_clusters ignored for annotation setting {annotation}.")
+
+        if annotation == "population":
             if self.pca_data.population.isna().all():
                 raise ValueError("Cannot plot populations: no populations associated with PCA data.")
 
@@ -306,7 +312,28 @@ class PCA:
                         name=population
                     )
                 )
-        else:
+        elif annotation == "cluster":
+            n_clusters = n_clusters if n_clusters is not None else self.get_optimal_n_clusters()
+            cluster_labels = self.cluster(n_clusters=n_clusters).labels_
+
+            _pca_data = self.pca_data
+            _pca_data["cluster"] = cluster_labels
+
+            colors = _get_colors(n_clusters)
+
+            for i in range(n_clusters):
+                _data = _pca_data.loc[_pca_data.cluster == i]
+                fig.add_trace(
+                    go.Scatter(
+                        x=_data[f"PC{pc1}"],
+                        y=_data[f"PC{pc2}"],
+                        mode="markers",
+                        marker_color=colors[i],
+                        name=f"Cluster {i + 1}"
+                    )
+                )
+
+        elif annotation is None:
             fig.add_trace(
                 go.Scatter(
                     x=self.pca_data[f"PC{pc1}"],
@@ -316,6 +343,9 @@ class PCA:
                     name=name
                 )
             )
+        else:
+            raise ValueError(f"Unrecognized annotation option {annotation}. "
+                             f"Allowed options are None, 'population', and 'cluster'.")
 
         xtitle = f"PC {pc1 + 1} ({round(self.explained_variances[pc1], 1)}%)"
         ytitle = f"PC {pc2 + 1} ({round(self.explained_variances[pc2], 1)}%)"

@@ -95,7 +95,8 @@ def main():
         type=int,
         default=95,
         help="Cutoff to use when determining the number of PCs required. "
-             "Pandora will automatically find the number of PCs required to explain at least <varianceCutoff>%% variance in the data."
+             "Pandora will automatically find the number of PCs required to explain at least "
+             "<varianceCutoff>%% variance in the data. Default is 95%."
     )
     parser.add_argument(
         "--plot",
@@ -180,19 +181,33 @@ def main():
     pc1 = 0
     pc2 = 1
 
-    if plot_pcas:
+    n_clusters = empirical_pca.get_optimal_n_clusters()
+    logger.info(fmt_message(f"Optimal number of clusters determined to be: {n_clusters}"))
 
+    if plot_pcas:
+        # plot with annotated populations
         fig = empirical_pca.plot(
             pc1=pc1,
             pc2=pc2,
-            plot_populations=True,
+            annotation="population",
         )
-        fp = f"{outfile_prefix}.pdf"
-        fig.write_image(fp)
-        logger.info(fmt_message(f"Plotted empirical PCA: {fp}"))
 
-    n_clusters = empirical_pca.get_optimal_n_clusters()
-    logger.info(fmt_message(f"Optimal number of clusters determined to be: {n_clusters}"))
+        fp = f"{outfile_prefix}_with_populations.pdf"
+        fig.write_image(fp)
+
+        # plot with annotated clusters
+        fig = empirical_pca.plot(
+            pc1=pc1,
+            pc2=pc2,
+            annotation="cluster",
+            n_clusters=n_clusters
+        )
+
+        fp = f"{outfile_prefix}_with_clusters.pdf"
+        fig.write_image(fp)
+
+        logger.info(fmt_message(f"Plotted empirical PCA."))
+
     similarities = []
     clustering_scores = None
 

@@ -117,6 +117,7 @@ class PCA:
         Raises:
             ValueError: if new_n_pcs is greater or equal than the current n_pcs
         """
+        # update the PCA_data
         if new_n_pcs >= self.n_pcs:
             raise ValueError(
                 "New number of PCs has to be smaller than the current number."
@@ -125,7 +126,15 @@ class PCA:
         self.pca_data = self.pca_data[
             ["sample_id", "population", *[f"PC{i}" for i in range(new_n_pcs)]]
         ]
+
+        # update the explained variances
         self.explained_variances = self.explained_variances[:new_n_pcs]
+
+        # update the numpy PC_vectors
+        # Normalize the PC vectors to [0, 1]
+        pc_vectors = self._get_pca_data_numpy()
+        pc_vectors = pc_vectors / np.linalg.norm(pc_vectors)
+        self.pc_vectors = pc_vectors
 
     def set_populations(self, populations: Union[List, pd.Series]):
         """

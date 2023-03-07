@@ -507,8 +507,11 @@ def run_smartpca(
 
 
 def check_pcs_sufficient(explained_variances: List, cutoff: float) -> Union[int, None]:
-    # at least one PC explains less than <cutoff>% variance
-    # -> find the index of the last PC explaining more than <cutoff>%
+    # if all PCs explain more than 1 - <cutoff>% variance we consider the number of PCs to be insufficient
+    if all([e > (1 - cutoff) for e in explained_variances]):
+        return
+
+    # otherwise, find the index of the last PC explaining more than <cutoff>%
     sum_variances = 0
     for i, var in enumerate(explained_variances, start=1):
         sum_variances += var

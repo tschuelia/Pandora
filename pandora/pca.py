@@ -23,6 +23,7 @@ from sklearn.metrics import (
 from sklearn.metrics.pairwise import cosine_similarity
 
 from pandora.custom_types import *
+from pandora.converter import plink_to_bplink
 from pandora.logger import logger, fmt_message
 
 
@@ -411,23 +412,6 @@ def transform_pca_to_reference(pca: PCA, pca_reference: PCA) -> Tuple[PCA, PCA]:
     return pca, pca_reference
 
 
-# TODO: transformation als extra Methode die zwei neue PCA Objekte zurück gibt
-# def transform_self_to_other(
-#     self, other: PCA
-# ) -> np.ndarray:
-#
-#
-#     standardized_other, transformed_self, _ = procrustes(other.pc_vectors, self.pc_vectors)
-#
-#     # create two new PCA objects:
-#     # - a standardized
-#
-#     transformation, _ = orthogonal_procrustes(self.pc_vectors, other.pc_vectors)
-#     transformed_self = self.pc_vectors @ transformation
-#
-#     return transformed_self
-
-
 def from_smartpca(smartpca_evec_file: FilePath) -> PCA:
     """
     Creates a PCA object from a smartPCA results file.
@@ -452,7 +436,7 @@ def from_smartpca(smartpca_evec_file: FilePath) -> PCA:
 
     n_pcs = pca_data.shape[1] - 2
 
-    cols = ["sample_id"] + [f"PC{i}" for i in range(n_pcs)] + ["population"]
+    cols = ["sample_id", *[f"PC{i}" for i in range(n_pcs)], "population"]
     pca_data = pca_data.rename(columns=dict(zip(pca_data.columns, cols)))
     pca_data = pca_data.sort_values(by="sample_id").reset_index(drop=True)
 
@@ -617,3 +601,64 @@ def determine_number_of_pcs(
         # number of PCs not sufficient, write checkpoint and increase n_pcs
         pca_checkpoint.write_text(f"{n_pcs} 0 {sum(pca.explained_variances)}")
         n_pcs = int(1.5 * n_pcs)
+
+
+def from_plink(plink_evec_file: FilePath, plink_eval_file: FilePath) -> PCA:
+    with open(plink_evec_file) as f:
+        # first, read the eigenvalues
+        # the first line is the header, we are going to ignore this
+        f.readline()
+
+        # next, read the PCs per sample
+        pca_data = pd.read_table(f, delimiter="\t", skipinitialspace=False, header=None)
+
+    n_pcs = pca_data.shape[1] - 2
+    cols = ["fid", "sample_id", *[f"PC{i}" for i in range(n_pcs)]]
+    pca_data = pca_data.rename(columns=dict(zip(pca_data.columns, cols)))
+    pca_data = pca_data.drop("fid", axis=1)
+    pca_data = pca_data.sort_values(by="sample_id").reset_index(drop=True)
+
+    # next, read the eigenvalues
+    eigenvalues = [float(ev.strip()) for ev in open(plink_eval_file)]
+    explained_variances = [ev / sum(eigenvalues) for ev in eigenvalues]
+
+    return PCA(pca_data=pca_data, explained_variances=explained_variances, n_pcs=n_pcs)
+
+
+def run_plink(
+    infile_prefix: FilePath,
+    outfile_prefix: FilePath,
+    convertf: Executable,
+    plink: Executable,
+    n_pcs: int = 20,
+    redo: bool = False
+) -> PCA:
+    plink_to_bplink(
+        plink_prefix=infile_prefix,
+        convertf=convertf,
+        redo=redo
+    )
+
+    evec_out = pathlib.Path(f"{outfile_prefix}.eigenvec")
+    eval_out = pathlib.Path(f"{outfile_prefix}.eigenval")
+
+    if eval_out.exists() and eval_out.exists() and not redo:
+        # TODO: das reicht nicht als check, bei unfertigen runs sind die files einfach nicht vollständig aber leider noch vorhanden
+        logger.info(
+            fmt_message(f"Skipping plink PCA. Files {outfile_prefix}.* already exist.")
+        )
+        return from_plink(evec_out, eval_out)
+
+    pca_cmd = [
+        plink,
+        "--pca",
+        str(n_pcs),
+        "--bfile",
+        infile_prefix,
+        "--out",
+        outfile_prefix
+    ]
+
+    subprocess.check_output(pca_cmd)
+
+    return from_plink(evec_out, eval_out)

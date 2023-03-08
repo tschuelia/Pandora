@@ -85,3 +85,36 @@ def plink_to_eigen(plink_prefix: FilePath, eigen_prefix: FilePath, convertf: Exe
 
     ind_out.open("w").write("\n".join(corrected_content))
 
+
+def plink_to_bplink(plink_prefix: FilePath, convertf: Executable, redo: bool = False):
+    bed = pathlib.Path(f"{plink_prefix}.bed")
+    bim = pathlib.Path(f"{plink_prefix}.bim")
+    bfam = pathlib.Path(f"{plink_prefix}.bfam")
+
+    if bed.exists() and bim.exists() and bfam.exists() and not redo:
+        logger.info(
+            fmt_message("Skipping file conversion from PLINK to binary PLINK. Files already converted.")
+        )
+        return
+
+    with tempfile.NamedTemporaryFile(mode="w") as tmpfile:
+        conversion_content = f"""
+        genotypename:    {plink_prefix}.ped
+        snpname:         {plink_prefix}.map
+        indivname:       {plink_prefix}.fam
+        outputformat:    EIGENSTRAT
+        genotypeoutname: {bed}
+        snpoutname:      {bim}
+        indivoutname:    {bfam}
+        """
+
+        tmpfile.write(textwrap.dedent(conversion_content))
+        tmpfile.flush()
+
+        cmd = [
+            convertf,
+            "-p",
+            tmpfile.name
+        ]
+
+        subprocess.check_output(cmd)

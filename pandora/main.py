@@ -9,7 +9,7 @@ from pandora.bootstrapping import create_bootstrap_pcas
 from pandora.converter import eigen_to_plink
 from pandora.custom_types import *
 from pandora.logger import logger, fmt_message, SCRIPT_START
-from pandora.pca import determine_number_of_pcs, transform_pca_to_reference
+from pandora.pca import *
 
 
 def print_header():
@@ -86,6 +86,14 @@ def main():
              "Specify a path if convertf is not installed system-wide on your machine."
     )
     parser.add_argument(
+        "--plink2",
+        type=str,
+        required=False,
+        default="plink2",
+        help="Optional path to the plink2 executable. Per default, Pandora will use 'plink2'. "
+             "Specify a path if plink2 is not installed system-wide on your machine."
+    )
+    parser.add_argument(
         "--redo",
         action="store_true",
         help="If set, reruns the analysis. Careful: this will overwrite existing results!"
@@ -109,7 +117,9 @@ def main():
     """
     Pandora main program
     """
+    # =======================================
     # initialize options and directories
+    # =======================================
     infile_prefix = pathlib.Path(args.input)
     dataset = infile_prefix.name
 
@@ -117,6 +127,7 @@ def main():
     outfile_prefix = outfile_base / dataset
     convertf_dir = outfile_base / "convertf"
     bootstrap_dir = outfile_base / "bootstrap"
+    alternative_tools_dir = outfile_base / "alternativeTools"
 
     seed = args.seed
     n_bootstraps = args.bootstraps if args.bootstraps else 100  # TODO: what number should we use as default?
@@ -128,6 +139,7 @@ def main():
 
     smartpca = args.smartpca
     convertf = args.convertf
+    plink2 = args.plink2
 
     _arguments_str = [f"{k}: {v}" for k, v in vars(args).items()]
     _command_line = " ".join(sys.argv)
@@ -136,11 +148,14 @@ def main():
     logger.info("\n".join(_arguments_str))
     logger.info(f"\nCommand line: {_command_line}")
 
+    # =======================================
     # start computation
+    # =======================================
     logger.info("\n--------- STARTING COMPUTATION ---------")
 
     outfile_base.mkdir(exist_ok=True, parents=True)
 
+    # Empirical PCA using smartPCA and no bootstrapping
     empirical_pca = determine_number_of_pcs(
         infile_prefix=infile_prefix,
         outfile_prefix=outfile_prefix,
@@ -150,6 +165,7 @@ def main():
         redo=redo,
     )
 
+    # Bootstrapped PCA
     logger.info(fmt_message("Converting Input files to PLINK format for bootstrapping."))
 
     convertf_dir.mkdir(exist_ok=True)
@@ -176,6 +192,27 @@ def main():
         redo=redo
     )
 
+    # PCA with alternative tools
+    logger.info(fmt_message("Running PLINK PCA"))
+    alternative_tools_dir.mkdir(exist_ok=True)
+    alternative_tools_prefix = alternative_tools_dir / dataset
+
+    run_plink(
+        infile_prefix=convert_prefix,
+        outfile_prefix=alternative_tools_prefix,
+        convertf=convertf,
+        plink=plink2,
+        n_pcs=empirical_pca.n_pcs,
+        redo=redo
+    )
+    plink_pca = from_plink(
+        plink_evec_file=pathlib.Path(f"{alternative_tools_prefix}.eigenvec"),
+        plink_eval_file=pathlib.Path(f"{alternative_tools_prefix}.eigenval"),
+    )
+
+    # =======================================
+    # Compare results
+    # =======================================
     logger.info(fmt_message(f"Comparing PCA results."))
     # TODO: make plotted PCs command line settable
     pc1 = 0
@@ -208,6 +245,7 @@ def main():
 
         logger.info(fmt_message(f"Plotted empirical PCA."))
 
+    # Compare Empirical <> Bootstraps
     similarities = []
     clustering_scores = None
 
@@ -273,20 +311,29 @@ def main():
         output = [f"{i + 1}\t{sim}" for i, sim in enumerate(similarities)]
         f.write("\n".join(output))
 
+    # Compare Empirical <> alternative tools
+    plink_similarity = plink_pca.compare(other=empirical_pca)
+    plink_cluster_similarity = plink_pca.compare_clustering(other=empirical_pca, n_clusters=n_clusters)
+
     # TODO: also log the output into a log file
 
-    logger.info("--------- PANDORA RESULTS ---------")
-    logger.info("PCA:")
-    logger.info(f"- number of PCs required to explain at least {variance_cutoff}% variance: {empirical_pca.n_pcs}")
-    logger.info(f"=> uncertainty: {round(np.mean(similarities), 2)} ± {round(np.std(similarities), 2)}")
-    logger.info("K-Means clustering:")
-    logger.info("- uncertainty: TODO: select the best measure")
+    logger.info("========= PANDORA RESULTS =========")
+    logger.info(f"number of PCs required to explain at least {variance_cutoff}% variance: {empirical_pca.n_pcs}\n")
+    logger.info("PCA <> Bootstraps")
+    logger.info("------------------")
+    logger.info(f"> number of Bootstrap replicates: {n_bootstraps}")
+    logger.info(f"PCA uncertainty: {round(np.mean(similarities), 2)} ± {round(np.std(similarities), 2)}\n")
+    logger.info(f"K-Means clustering uncertainty:TODO\n")
+    logger.info("SmartPCA <> Alternative Tools")
+    logger.info("------------------")
+    logger.info(f"SmartPCA <> Plink2: {round(plink_similarity), 2}")  # TODO: clustering
 
     SCRIPT_END = time.perf_counter()
     total_runtime = SCRIPT_END - SCRIPT_START
     logger.info(f"\nTotal runtime: {datetime.timedelta(seconds=total_runtime)} ({total_runtime} seconds)")
 
     print("Clustering measures ", [(k, round(np.mean(v), 2)) for k, v in clustering_scores.items()])
+    print("Plink clustering measures: ", [(k, round(np.mean(v), 2)) for k, v in plink_cluster_similarity.items()])
 
 
 if __name__ == "__main__":

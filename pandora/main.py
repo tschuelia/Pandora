@@ -229,7 +229,13 @@ def main():
     pc1 = 0
     pc2 = 1
 
-    n_clusters = empirical_pca.get_optimal_n_clusters()
+    n_clusters_ckp = outfile_prefix / "kmeans.ckp"
+    if n_clusters_ckp.exists() and not redo:
+        n_clusters = int(open(n_clusters_ckp).readline())
+    else:
+        n_clusters = empirical_pca.get_optimal_n_clusters()
+        n_clusters_ckp.open("w").write(n_clusters)
+
     logger.info(fmt_message(f"Optimal number of clusters determined to be: {n_clusters}"))
 
     if plot_pcas:

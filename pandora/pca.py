@@ -347,8 +347,8 @@ class PCA:
             raise ValueError(f"Unrecognized annotation option {annotation}. "
                              f"Allowed options are None, 'population', and 'cluster'.")
 
-        xtitle = f"PC {pc1 + 1} ({round(self.explained_variances[pc1], 1)}%)"
-        ytitle = f"PC {pc2 + 1} ({round(self.explained_variances[pc2], 1)}%)"
+        xtitle = f"PC {pc1 + 1} ({round(self.explained_variances[pc1] * 100, 1)}%)"
+        ytitle = f"PC {pc2 + 1} ({round(self.explained_variances[pc2] * 100, 1)}%)"
 
         fig.update_xaxes(title=xtitle)
         fig.update_yaxes(title=ytitle)

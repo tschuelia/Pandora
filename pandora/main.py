@@ -337,7 +337,7 @@ def main():
     logger.info(f"K-Means clustering uncertainty:TODO\n")
     logger.info("SmartPCA <> Alternative Tools")
     logger.info("------------------")
-    logger.info(f"SmartPCA <> Plink2: {round(plink_similarity), 2}")  # TODO: clustering
+    logger.info(f"SmartPCA <> Plink2: {round(plink_similarity, 2)}")  # TODO: clustering
 
     SCRIPT_END = time.perf_counter()
     total_runtime = SCRIPT_END - SCRIPT_START

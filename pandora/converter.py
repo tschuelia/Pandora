@@ -102,10 +102,11 @@ def plink_to_bplink(plink_prefix: FilePath, bplink_prefix: FilePath, convertf: E
         genotypename:    {plink_prefix}.ped
         snpname:         {plink_prefix}.map
         indivname:       {plink_prefix}.fam
-        outputformat:    EIGENSTRAT
+        outputformat:    PACKEDPED
         genotypeoutname: {bed}
         snpoutname:      {bim}
         indivoutname:    {bfam}
+        familynames:     NO
         """
 
         tmpfile.write(textwrap.dedent(conversion_content))

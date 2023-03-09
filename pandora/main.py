@@ -322,6 +322,25 @@ def main():
     plink_similarity = plink_pca.compare(other=empirical_pca)
     plink_cluster_similarity = plink_pca.compare_clustering(other=empirical_pca, n_clusters=n_clusters)
 
+    if plot_pcas:# Plot transformed PLINK and smartPCA data jointly
+        # for this, we first need to transform the empirical and bootstrap data
+        transformed_plink, scaled_empirical = transform_pca_to_reference(plink_pca, empirical_pca)
+        fig = scaled_empirical.plot(
+            pc1=pc1,
+            pc2=pc2,
+            name="Scaled SmartPCA"
+        )
+
+        fig = transformed_plink.plot(
+            pc1=pc1,
+            pc2=pc2,
+            name="Transformed PLINK",
+            fig=fig
+        )
+
+        fp = alternative_tools_dir / "plink_with_smartpca.pca.pdf"
+        fig.write_image(fp)
+
     # TODO: also log the output into a log file
 
     logger.info("========= PANDORA RESULTS =========")
@@ -329,14 +348,14 @@ def main():
     logger.info("------------------")
     logger.info("PCA <> Bootstraps")
     logger.info("------------------")
-    logger.info(f"> number of Bootstrap replicates: {n_bootstraps}")
-    logger.info(f"PCA uncertainty: {round(np.mean(similarities), 2)} ± {round(np.std(similarities), 2)}\n")
-    logger.info(f"K-Means clustering uncertainty:{round(np.mean(clustering_scores), 2)} ± {round(np.std(clustering_scores), 2)}\n")
+    logger.info(f"> number of Bootstrap replicates: {n_bootstraps}\n")
+    logger.info(f"PCA similarity: {round(np.mean(similarities), 2)} ± {round(np.std(similarities), 2)}")
+    logger.info(f"K-Means clustering similarity:{round(np.mean(clustering_scores), 2)} ± {round(np.std(clustering_scores), 2)}")
     logger.info("------------------")
     logger.info("SmartPCA <> Plink2")
     logger.info("------------------")
-    logger.info(f"PCA uncertainty: {round(plink_similarity, 2)}")  # TODO: clustering
-    logger.info(f"K-Means clustering uncertainty:{round(np.mean(plink_cluster_similarity), 2)}\n")
+    logger.info(f"PCA similarity: {round(plink_similarity, 2)}")  # TODO: clustering
+    logger.info(f"K-Means clustering similarity:{round(np.mean(plink_cluster_similarity), 2)}\n")
 
     total_runtime = math.ceil(time.perf_counter() - SCRIPT_START)
     logger.info(f"\nTotal runtime: {datetime.timedelta(seconds=total_runtime)} ({total_runtime} seconds)")

@@ -229,7 +229,7 @@ def main():
     pc1 = 0
     pc2 = 1
 
-    n_clusters_ckp = outfile_prefix / "kmeans.ckp"
+    n_clusters_ckp = outfile_base / "kmeans.ckp"
     if n_clusters_ckp.exists() and not redo:
         n_clusters = int(open(n_clusters_ckp).readline())
     else:

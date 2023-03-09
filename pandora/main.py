@@ -340,7 +340,7 @@ def main():
     logger.info(f"SmartPCA <> Plink2: {round(plink_similarity, 2)}")  # TODO: clustering
 
     SCRIPT_END = time.perf_counter()
-    total_runtime = SCRIPT_END - SCRIPT_START
+    total_runtime = math.ceil(SCRIPT_END - SCRIPT_START)
     logger.info(f"\nTotal runtime: {datetime.timedelta(seconds=total_runtime)} ({total_runtime} seconds)")
 
     print("Clustering measures ", [(k, round(np.mean(v), 2)) for k, v in clustering_scores.items()])

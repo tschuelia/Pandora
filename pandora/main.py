@@ -194,13 +194,24 @@ def main():
 
     # PCA with alternative tools
     logger.info(fmt_message("Running PLINK PCA"))
+    bconvert_dir = convertf_dir / "binary"
+
+    bconvert_dir.mkdir(exist_ok=True)
+    bconvert_prefix = bconvert_dir / dataset
+
     alternative_tools_dir.mkdir(exist_ok=True)
     alternative_tools_prefix = alternative_tools_dir / dataset
 
-    run_plink(
-        infile_prefix=convert_prefix,
-        outfile_prefix=alternative_tools_prefix,
+    plink_to_bplink(
+        plink_prefix=convert_prefix,
+        bplink_prefix=bconvert_prefix,
         convertf=convertf,
+        redo=redo
+    )
+
+    run_plink(
+        infile_prefix=bconvert_prefix,
+        outfile_prefix=alternative_tools_prefix,
         plink=plink2,
         n_pcs=empirical_pca.n_pcs,
         redo=redo

@@ -86,10 +86,10 @@ def plink_to_eigen(plink_prefix: FilePath, eigen_prefix: FilePath, convertf: Exe
     ind_out.open("w").write("\n".join(corrected_content))
 
 
-def plink_to_bplink(plink_prefix: FilePath, convertf: Executable, redo: bool = False):
-    bed = pathlib.Path(f"{plink_prefix}.bed")
-    bim = pathlib.Path(f"{plink_prefix}.bim")
-    bfam = pathlib.Path(f"{plink_prefix}.bfam")
+def plink_to_bplink(plink_prefix: FilePath, bplink_prefix: FilePath, convertf: Executable, redo: bool = False):
+    bed = pathlib.Path(f"{bplink_prefix}.bed")
+    bim = pathlib.Path(f"{bplink_prefix}.bim")
+    bfam = pathlib.Path(f"{bplink_prefix}.fam")
 
     if bed.exists() and bim.exists() and bfam.exists() and not redo:
         logger.info(

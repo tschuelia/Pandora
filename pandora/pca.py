@@ -628,17 +628,10 @@ def from_plink(plink_evec_file: FilePath, plink_eval_file: FilePath) -> PCA:
 def run_plink(
     infile_prefix: FilePath,
     outfile_prefix: FilePath,
-    convertf: Executable,
     plink: Executable,
     n_pcs: int = 20,
     redo: bool = False
 ) -> PCA:
-    plink_to_bplink(
-        plink_prefix=infile_prefix,
-        convertf=convertf,
-        redo=redo
-    )
-
     evec_out = pathlib.Path(f"{outfile_prefix}.eigenvec")
     eval_out = pathlib.Path(f"{outfile_prefix}.eigenval")
 

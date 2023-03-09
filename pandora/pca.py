@@ -227,7 +227,7 @@ class PCA:
         kmeans.fit(pca_data_np)
         return kmeans
 
-    def compare_clustering(self, other: PCA, n_clusters: int = None, weighted: bool = True) -> Dict[str, float]:
+    def compare_clustering(self, other: PCA, n_clusters: int = None, weighted: bool = True) -> float:
         """
         Compare self clustering to other clustering using other as ground truth.
 
@@ -237,7 +237,7 @@ class PCA:
             weighted (bool): If set, scales the PCA data of self and other according to the respective explained variances prior to clustering.
 
         Returns:
-            Dict[str, float]: A dictionary containing various cluster comparison metrics.
+            float: The Fowlkes-Mallow score of Cluster similarity between the clusters of self and other
         """
         if n_clusters is None:
             # we are comparing self to other -> use other as ground truth
@@ -251,23 +251,7 @@ class PCA:
         self_cluster_labels = self_kmeans.predict(self.pc_vectors)
         other_cluster_labels = other_kmeans.predict(other.pc_vectors)
 
-        scores = {
-            "Random Score": rand_score(other_cluster_labels, self_cluster_labels),
-            "Adjusted random score": adjusted_rand_score(
-                other_cluster_labels, self_cluster_labels
-            ),
-            "V-Measure score": v_measure_score(
-                other_cluster_labels, self_cluster_labels
-            ),
-            "Adjusted Mutual info score": adjusted_mutual_info_score(
-                other_cluster_labels, self_cluster_labels
-            ),
-            "Fowlkes-Mallows-Score": fowlkes_mallows_score(
-                other_cluster_labels, self_cluster_labels
-            ),
-        }
-
-        return scores
+        return fowlkes_mallows_score(other_cluster_labels, self_cluster_labels)
 
     def plot(
         self,

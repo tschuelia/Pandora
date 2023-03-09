@@ -258,7 +258,7 @@ def main():
 
     # Compare Empirical <> Bootstraps
     similarities = []
-    clustering_scores = None
+    clustering_scores = []
 
     for i, bootstrap_pca in enumerate(bootstrap_pcas):
 
@@ -309,13 +309,9 @@ def main():
         similarity = bootstrap_pca.compare(other=empirical_pca)
         similarities.append(similarity)
 
-        scores = bootstrap_pca.compare_clustering(other=empirical_pca, n_clusters=n_clusters)
+        clustering_score = bootstrap_pca.compare_clustering(other=empirical_pca, n_clusters=n_clusters)
+        clustering_scores.append(clustering_score)
 
-        if clustering_scores is None:
-            clustering_scores = dict([(k, [v]) for k, v in scores.items()])
-        else:
-            for k, v in scores.items():
-                clustering_scores[k].append(v)
 
     # write similarities of all bootstraps to file
     with open(f"{outfile_prefix}.pandora.txt", "w") as f:
@@ -330,21 +326,20 @@ def main():
 
     logger.info("========= PANDORA RESULTS =========")
     logger.info(f"number of PCs required to explain at least {variance_cutoff}% variance: {empirical_pca.n_pcs}\n")
+    logger.info("------------------")
     logger.info("PCA <> Bootstraps")
     logger.info("------------------")
     logger.info(f"> number of Bootstrap replicates: {n_bootstraps}")
     logger.info(f"PCA uncertainty: {round(np.mean(similarities), 2)} ± {round(np.std(similarities), 2)}\n")
-    logger.info(f"K-Means clustering uncertainty:TODO\n")
-    logger.info("SmartPCA <> Alternative Tools")
+    logger.info(f"K-Means clustering uncertainty:{round(np.mean(clustering_scores), 2)} ± {round(np.std(clustering_scores), 2)}\n")
     logger.info("------------------")
-    logger.info(f"SmartPCA <> Plink2: {round(plink_similarity, 2)}")  # TODO: clustering
+    logger.info("SmartPCA <> Plink2")
+    logger.info("------------------")
+    logger.info(f"PCA uncertainty: {round(plink_similarity, 2)}")  # TODO: clustering
+    logger.info(f"K-Means clustering uncertainty:{round(np.mean(plink_cluster_similarity), 2)}\n")
 
-    SCRIPT_END = time.perf_counter()
-    total_runtime = math.ceil(SCRIPT_END - SCRIPT_START)
+    total_runtime = math.ceil(time.perf_counter() - SCRIPT_START)
     logger.info(f"\nTotal runtime: {datetime.timedelta(seconds=total_runtime)} ({total_runtime} seconds)")
-
-    print("Clustering measures ", [(k, round(np.mean(v), 2)) for k, v in clustering_scores.items()])
-    print("Plink clustering measures: ", [(k, round(np.mean(v), 2)) for k, v in plink_cluster_similarity.items()])
 
 
 if __name__ == "__main__":

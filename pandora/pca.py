@@ -11,19 +11,15 @@ from plotly import graph_objects as go
 from plotly.colors import n_colors
 
 from scipy.spatial import procrustes
+from sklearn.preprocessing import normalize
 from sklearn.cluster import KMeans
 from sklearn.metrics import (
     silhouette_score,
-    rand_score,
-    adjusted_rand_score,
-    v_measure_score,
-    adjusted_mutual_info_score,
     fowlkes_mallows_score,
 )
 from sklearn.metrics.pairwise import cosine_similarity
 
 from pandora.custom_types import *
-from pandora.converter import plink_to_bplink
 from pandora.logger import logger, fmt_message
 
 
@@ -105,7 +101,7 @@ class PCA:
 
         # Normalize the PC vectors to [0, 1]
         pc_vectors = self._get_pca_data_numpy()
-        pc_vectors = pc_vectors / np.linalg.norm(pc_vectors)
+        pc_vectors = normalize(pc_vectors)
         self.pc_vectors = pc_vectors
 
     def cutoff_pcs(self, new_n_pcs: int):

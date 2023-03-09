@@ -336,14 +336,18 @@ def main():
             fig = scaled_empirical.plot(
                 pc1=pc1,
                 pc2=pc2,
-                name="Scaled SmartPCA"
+                name="Scaled SmartPCA",
+                marker_color="darkblue",
+                marker_symbol="circle",
             )
 
             fig = transformed_plink.plot(
                 pc1=pc1,
                 pc2=pc2,
                 name="Transformed PLINK",
-                fig=fig
+                fig=fig,
+                marker_color="orange",
+                marker_symbol="star",
             )
 
             fig.write_image(fp)

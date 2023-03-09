@@ -234,7 +234,7 @@ def main():
         n_clusters = int(open(n_clusters_ckp).readline())
     else:
         n_clusters = empirical_pca.get_optimal_n_clusters()
-        n_clusters_ckp.open("w").write(n_clusters)
+        n_clusters_ckp.open("w").write(str(n_clusters))
 
     logger.info(fmt_message(f"Optimal number of clusters determined to be: {n_clusters}"))
 

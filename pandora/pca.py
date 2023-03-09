@@ -260,10 +260,13 @@ class PCA:
         annotation: str = None,
         n_clusters: int = None,
         fig: go.Figure = None,
+        marker_color="darkseagreen",
         name: str = "",
+        **kwargs
     ) -> go.Figure:
         """
         Plots the PCA data for pc1 and pc2.
+        TODO: update args description
 
         Args:
             pc1 (int): Number of the PC to plot on the x-axis.
@@ -303,7 +306,8 @@ class PCA:
                         y=_data[f"PC{pc2}"],
                         mode="markers",
                         marker_color=colors[i],
-                        name=population
+                        name=population,
+                        **kwargs
                     )
                 )
         elif annotation == "cluster":
@@ -323,7 +327,8 @@ class PCA:
                         y=_data[f"PC{pc2}"],
                         mode="markers",
                         marker_color=colors[i],
-                        name=f"Cluster {i + 1}"
+                        name=f"Cluster {i + 1}",
+                        **kwargs
                     )
                 )
 
@@ -333,8 +338,9 @@ class PCA:
                     x=self.pca_data[f"PC{pc1}"],
                     y=self.pca_data[f"PC{pc2}"],
                     mode="markers",
-                    marker_color="darkseagreen",
-                    name=name
+                    marker_color=marker_color,
+                    name=name,
+                    **kwargs
                 )
             )
         else:

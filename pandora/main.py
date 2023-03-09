@@ -263,46 +263,53 @@ def main():
     for i, bootstrap_pca in enumerate(bootstrap_pcas):
 
         if plot_pcas:
-            # plot Bootstrap with annotated populations
             bootstrap_pca.set_populations(empirical_pca.pca_data.population)
 
-            fig = bootstrap_pca.plot(
-                pc1=pc1,
-                pc2=pc2,
-                annotation="population",
-            )
-
             fp = bootstrap_dir / f"bootstrap_{i + 1}_with_populations.pca.pdf"
-            fig.write_image(fp)
+            if redo or not fp.exists():
+                # plot Bootstrap with annotated populations
+                fig = bootstrap_pca.plot(
+                    pc1=pc1,
+                    pc2=pc2,
+                    annotation="population",
+                )
 
-            # plot Bootstrap only with annotated clusters
-            fig = bootstrap_pca.plot(
-                pc1=pc1,
-                pc2=pc2,
-                annotation="cluster",
-                n_clusters=n_clusters
-            )
+                fig.write_image(fp)
+
             fp = bootstrap_dir / f"bootstrap_{i + 1}_with_clusters.pca.pdf"
-            fig.write_image(fp)
-
-            # Plot transformed bootstrap and empirical data jointly
-            # for this, we first need to transform the empirical and bootstrap data
-            transformed_bootstrap, scaled_empirical = transform_pca_to_reference(bootstrap_pca, empirical_pca)
-            fig = scaled_empirical.plot(
-                pc1=pc1,
-                pc2=pc2,
-                name="Scaled empirical"
-            )
-
-            fig = transformed_bootstrap.plot(
-                pc1=pc1,
-                pc2=pc2,
-                name="Transformed Bootstrap",
-                fig=fig
-            )
+            if redo or not fp.exists():
+                # plot Bootstrap only with annotated clusters
+                fig = bootstrap_pca.plot(
+                    pc1=pc1,
+                    pc2=pc2,
+                    annotation="cluster",
+                    n_clusters=n_clusters
+                )
+                fig.write_image(fp)
 
             fp = bootstrap_dir / f"bootstrap_{i + 1}_with_empirical.pca.pdf"
-            fig.write_image(fp)
+            if redo or not fp.exists():
+                # Plot transformed bootstrap and empirical data jointly
+                # for this, we first need to transform the empirical and bootstrap data
+                transformed_bootstrap, scaled_empirical = transform_pca_to_reference(bootstrap_pca, empirical_pca)
+                fig = scaled_empirical.plot(
+                    pc1=pc1,
+                    pc2=pc2,
+                    name="Scaled empirical",
+                    marker_color="darkblue",
+                    marker_symbol="circle",
+                )
+
+                fig = transformed_bootstrap.plot(
+                    pc1=pc1,
+                    pc2=pc2,
+                    name="Transformed Bootstrap",
+                    fig=fig,
+                    marker_color="orange",
+                    marker_symbol="star",
+                )
+
+                fig.write_image(fp)
 
             logger.info(fmt_message(f"Plotted bootstrap PCA #{i + 1}"))
 
@@ -311,7 +318,6 @@ def main():
 
         clustering_score = bootstrap_pca.compare_clustering(other=empirical_pca, n_clusters=n_clusters)
         clustering_scores.append(clustering_score)
-
 
     # write similarities of all bootstraps to file
     with open(f"{outfile_prefix}.pandora.txt", "w") as f:
@@ -324,22 +330,23 @@ def main():
 
     if plot_pcas:# Plot transformed PLINK and smartPCA data jointly
         # for this, we first need to transform the empirical and bootstrap data
-        transformed_plink, scaled_empirical = transform_pca_to_reference(plink_pca, empirical_pca)
-        fig = scaled_empirical.plot(
-            pc1=pc1,
-            pc2=pc2,
-            name="Scaled SmartPCA"
-        )
-
-        fig = transformed_plink.plot(
-            pc1=pc1,
-            pc2=pc2,
-            name="Transformed PLINK",
-            fig=fig
-        )
-
         fp = alternative_tools_dir / "plink_with_smartpca.pca.pdf"
-        fig.write_image(fp)
+        if redo or not fp.exists():
+            transformed_plink, scaled_empirical = transform_pca_to_reference(plink_pca, empirical_pca)
+            fig = scaled_empirical.plot(
+                pc1=pc1,
+                pc2=pc2,
+                name="Scaled SmartPCA"
+            )
+
+            fig = transformed_plink.plot(
+                pc1=pc1,
+                pc2=pc2,
+                name="Transformed PLINK",
+                fig=fig
+            )
+
+            fig.write_image(fp)
 
     # TODO: also log the output into a log file
 

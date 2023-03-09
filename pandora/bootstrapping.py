@@ -86,10 +86,6 @@ def bootstrap_snp_level(
             ped_out_handle.write("\n")
 
 
-def bootstrap_indiv_level():
-    raise NotImplementedError()
-
-
 def _run(args):
     _i, _seed, _in, _out, _redo, _convertf, _smartpca, _npcs = args
     bootstrap_prefix = _out / f"bootstrap_{_i}"
@@ -138,6 +134,7 @@ def _run(args):
         outfile_prefix=pca_prefix,
         smartpca=_smartpca,
         n_pcs=_npcs,
+        redo=_redo
     )
 
     logger.info(fmt_message(f"Finished PCA for bootstrapped dataset #{_i}"))

@@ -6,7 +6,7 @@ import sys
 
 from pandora import __version__
 from pandora.bootstrapping import create_bootstrap_pcas
-from pandora.converter import eigen_to_plink
+from pandora.converter import eigen_to_plink, plink_to_bplink
 from pandora.custom_types import *
 from pandora.logger import logger, fmt_message, SCRIPT_START
 from pandora.pca import *
@@ -172,7 +172,7 @@ def main():
     convert_prefix = convertf_dir / dataset
 
     eigen_to_plink(
-        eigen_prefix=infile_prefix, plink_prefix=convert_prefix, convertf=convertf
+        eigen_prefix=infile_prefix, plink_prefix=convert_prefix, convertf=convertf, redo=redo
     )
 
     # TODO: implement bootstopping

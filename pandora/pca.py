@@ -523,7 +523,6 @@ def determine_number_of_pcs(
 ) -> int:
     n_pcs = 20
     pca_checkpoint = pathlib.Path(f"{outfile_prefix}.ckp")
-    evec_file = pathlib.Path(f"{outfile_prefix}.evec")
 
     if pca_checkpoint.exists() and not redo:
         # checkpointing file contains three values: an int, a bool, and a float
@@ -535,9 +534,7 @@ def determine_number_of_pcs(
         finished = bool(int(finished))
 
         if finished:
-            # smartPCA run finished properly, check if n_pcs is sufficient
-            pca = from_smartpca(evec_file)
-
+            # smartPCA run finished properly, check if n_pcs is the correct value
             logger.info(
                 fmt_message(
                     f"Resuming from checkpoint: "
@@ -577,6 +574,14 @@ def determine_number_of_pcs(
             pca.explained_variances, explained_variance_cutoff
         )
         if best_pcs:
+            # run again with the final number of PCs we want to use
+            run_smartpca(
+                infile_prefix=infile_prefix,
+                outfile_prefix=outfile_prefix,
+                smartpca=smartpca,
+                n_pcs=best_pcs,
+                redo=True,
+            )
             pca_checkpoint.write_text(f"{best_pcs} 1")
             return best_pcs
 

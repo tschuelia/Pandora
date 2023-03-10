@@ -165,13 +165,7 @@ def main():
         redo=redo,
     )
     # now run the empirical PCA again using the determined number of n_pcs
-    empirical_pca = run_smartpca(
-        infile_prefix=infile_prefix,
-        outfile_prefix=outfile_prefix,
-        smartpca=smartpca,
-        n_pcs=n_pcs,
-        redo=True
-    )
+    empirical_pca = from_smartpca(pathlib.Path(f"{outfile_prefix}.evec"))
 
     # Bootstrapped PCA
     logger.info(fmt_message("Converting Input files to PLINK format for bootstrapping."))

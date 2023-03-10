@@ -260,7 +260,7 @@ def main():
             pc1=pc1,
             pc2=pc2,
             annotation="population",
-            outfile=f"{outfile_prefix}_with_populations.pdf",
+            outfile=pathlib.Path(f"{outfile_prefix}_with_populations.pdf"),
             redo=redo
         )
 
@@ -270,7 +270,7 @@ def main():
             pc2=pc2,
             annotation="cluster",
             n_clusters=n_clusters,
-            outfile=f"{outfile_prefix}_with_clusters.pdf",
+            outfile=pathlib.Path(f"{outfile_prefix}_with_clusters.pdf"),
             redo=redo
         )
 
@@ -291,7 +291,7 @@ def main():
                 pc1=pc1,
                 pc2=pc2,
                 annotation="population",
-                outfile=bootstrap_dir / f"bootstrap_{i + 1}_with_populations.pca.pdf",
+                outfile=pathlib.Path(bootstrap_dir / f"bootstrap_{i + 1}_with_populations.pca.pdf"),
                 redo=redo
             )
 
@@ -301,7 +301,7 @@ def main():
                 pc2=pc2,
                 annotation="cluster",
                 n_clusters=n_clusters,
-                outfile=bootstrap_dir / f"bootstrap_{i + 1}_with_clusters.pca.pdf",
+                outfile=pathlib.Path(bootstrap_dir / f"bootstrap_{i + 1}_with_clusters.pca.pdf"),
                 redo=redo
             )
 
@@ -323,7 +323,7 @@ def main():
                 fig=fig,
                 marker_color="orange",
                 marker_symbol="star",
-                outfile=bootstrap_dir / f"bootstrap_{i + 1}_with_empirical.pca.pdf",
+                outfile=pathlib.Path(bootstrap_dir / f"bootstrap_{i + 1}_with_empirical.pca.pdf"),
                 redo=redo
             )
 
@@ -366,7 +366,7 @@ def main():
             fig=fig,
             marker_color="orange",
             marker_symbol="star",
-            outfile=alternative_tools_dir / "plink_with_smartpca.pca.pdf"
+            outfile=pathlib.Path(alternative_tools_dir / "plink_with_smartpca.pca.pdf")
         )
 
         transformed_sklearn, scaled_empirical = transform_pca_to_reference(sklearn_pca, empirical_pca)
@@ -385,7 +385,7 @@ def main():
             fig=fig,
             marker_color="orange",
             marker_symbol="star",
-            outfile=alternative_tools_dir / "sklearn_with_smartpca.pca.pdf"
+            outfile=pathlib.Path(alternative_tools_dir / "sklearn_with_smartpca.pca.pdf")
         )
 
     # TODO: also log the output into a log file

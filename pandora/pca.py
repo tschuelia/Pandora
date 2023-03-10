@@ -33,6 +33,9 @@ def _get_colors(n: int) -> List[str]:
         List[str]: List of n plotly RGB color strings.
 
     """
+    if n <= 3:
+        return ["rgb(255, 0, 0)", "rgb(0,255,0)", "rgb(0,0,255)"]
+    
     red_green = n_colors(
         lowcolor="rgb(255,0,0)",
         highcolor="rgb(0,255,0)",

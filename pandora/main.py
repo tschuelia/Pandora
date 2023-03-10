@@ -11,6 +11,13 @@ from pandora.custom_types import *
 from pandora.logger import logger, fmt_message, SCRIPT_START
 from pandora.pca import *
 
+"""
+TODO: 
+- bootstopping
+- check bei jedem PCA das geskippt wird ob die Anzahl PCs auch mit der bestimmten Anzahl PCs die verwendet werden sollten 
+    übereinstimmt -> falls nein, neu berechnen 
+"""
+
 
 def print_header():
     logger.info(

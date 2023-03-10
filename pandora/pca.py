@@ -661,13 +661,13 @@ def scikit_learn_pca(
     snp_array_file = pathlib.Path(f"{outfile_prefix}.npy")
     sklearn_pca_result = pathlib.Path(f"{outfile_prefix}.pca.sklearn")
 
-    if redo or not snp_array_file.exists():
+    with ped.open() as f:
+        sample_ids = []
+        for line in f:
+            _, ind_id, *_ = line[:100].split()
+            sample_ids.append(ind_id)
 
-        with ped.open() as f:
-            sample_ids = []
-            for line in f:
-                _, ind_id, *_ = line[:100].split()
-                sample_ids.append(ind_id)
+    if redo or not snp_array_file.exists():
 
         snp_array = []
         with ped.open() as f:

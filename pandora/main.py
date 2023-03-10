@@ -156,7 +156,7 @@ def main():
     outfile_base.mkdir(exist_ok=True, parents=True)
 
     # Empirical PCA using smartPCA and no bootstrapping
-    _empirical_pca = determine_number_of_pcs(
+    n_pcs = determine_number_of_pcs(
         infile_prefix=infile_prefix,
         outfile_prefix=outfile_prefix,
         smartpca=smartpca,
@@ -169,7 +169,7 @@ def main():
         infile_prefix=infile_prefix,
         outfile_prefix=outfile_prefix,
         smartpca=smartpca,
-        n_pcs=_empirical_pca.n_pcs,
+        n_pcs=n_pcs,
         redo=True
     )
 

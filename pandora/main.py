@@ -156,13 +156,21 @@ def main():
     outfile_base.mkdir(exist_ok=True, parents=True)
 
     # Empirical PCA using smartPCA and no bootstrapping
-    empirical_pca = determine_number_of_pcs(
+    _empirical_pca = determine_number_of_pcs(
         infile_prefix=infile_prefix,
         outfile_prefix=outfile_prefix,
         smartpca=smartpca,
         # TODO: what is a meaningful variance cutoff?
         explained_variance_cutoff=variance_cutoff / 100,
         redo=redo,
+    )
+    # now run the empirical PCA again using the determined number of n_pcs
+    empirical_pca = run_smartpca(
+        infile_prefix=infile_prefix,
+        outfile_prefix=outfile_prefix,
+        smartpca=smartpca,
+        n_pcs=_empirical_pca.n_pcs,
+        redo=True
     )
 
     # Bootstrapped PCA

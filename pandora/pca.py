@@ -100,9 +100,8 @@ class PCA:
         self.pca_data = pca_data.sort_values(by="sample_id").reset_index(drop=True)
 
         # Normalize the PC vectors to [0, 1]
-        pc_vectors = self._get_pca_data_numpy()
-        pc_vectors = normalize(pc_vectors)
-        self.pc_vectors = pc_vectors
+        self.pc_vectors = self._get_pca_data_numpy()
+        self.pc_vectors_normalized = normalize(self.pc_vectors)
 
     def cutoff_pcs(self, new_n_pcs: int):
         """
@@ -129,9 +128,8 @@ class PCA:
 
         # update the numpy PC_vectors
         # Normalize the PC vectors to [0, 1]
-        pc_vectors = self._get_pca_data_numpy()
-        pc_vectors = pc_vectors / np.linalg.norm(pc_vectors)
-        self.pc_vectors = pc_vectors
+        self.pc_vectors = self._get_pca_data_numpy()
+        self.pc_vectors_normalized = normalize(self.pc_vectors)
 
     def set_populations(self, populations: Union[List, pd.Series]):
         """
@@ -174,7 +172,7 @@ class PCA:
         """
         # TODO: check whether the sample IDs match -> we can only compare PCAs for the same samples
 
-        standardized_other, transformed_self, _ = procrustes(other.pc_vectors, self.pc_vectors)
+        standardized_other, transformed_self, _ = procrustes(other.pc_vectors_normalized, self.pc_vectors_normalized)
         sample_similarity = cosine_similarity(standardized_other, transformed_self).diagonal()
 
         return sample_similarity.mean()
@@ -196,8 +194,8 @@ class PCA:
         for k in range(min_n, max_n):
             # TODO: what range is reasonable?
             kmeans = KMeans(random_state=42, n_clusters=k, n_init=10)
-            kmeans.fit(self.pc_vectors)
-            score = silhouette_score(self.pc_vectors, kmeans.labels_)
+            kmeans.fit(self.pc_vectors_normalized)
+            score = silhouette_score(self.pc_vectors_normalized, kmeans.labels_)
             best_k = k if score > best_score else best_k
             best_score = max(score, best_score)
 
@@ -214,7 +212,7 @@ class PCA:
         Returns:
             KMeans: Scikit-learn KMeans object that with n_clusters that is fitted to self.pca_data.
         """
-        pca_data_np = self.pc_vectors
+        pca_data_np = self.pc_vectors_normalized
         if n_clusters is None:
             n_clusters = self.get_optimal_n_clusters()
         if weighted:
@@ -244,8 +242,8 @@ class PCA:
         self_kmeans = self.cluster(n_clusters=n_clusters, weighted=weighted)
         other_kmeans = other.cluster(n_clusters=n_clusters, weighted=weighted)
 
-        self_cluster_labels = self_kmeans.predict(self.pc_vectors)
-        other_cluster_labels = other_kmeans.predict(other.pc_vectors)
+        self_cluster_labels = self_kmeans.predict(self.pc_vectors_normalized)
+        other_cluster_labels = other_kmeans.predict(other.pc_vectors_normalized)
 
         return fowlkes_mallows_score(other_cluster_labels, self_cluster_labels)
 
@@ -368,8 +366,8 @@ def transform_pca_to_reference(pca: PCA, pca_reference: PCA) -> Tuple[PCA, PCA]:
 
     # TODO: check whether the sample IDs match -> we can only compare PCAs for the same samples
 
-    pca_data = pca.pc_vectors
-    pca_ref_data = pca_reference.pc_vectors
+    pca_data = pca.pc_vectors_normalized
+    pca_ref_data = pca_reference.pc_vectors_normalized
 
     if pca_data.shape != pca_ref_data.shape:
         raise ValueError(

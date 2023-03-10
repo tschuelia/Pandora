@@ -16,6 +16,7 @@ TODO:
 - bootstopping
 - check bei jedem PCA das geskippt wird ob die Anzahl PCs auch mit der bestimmten Anzahl PCs die verwendet werden sollten 
     übereinstimmt -> falls nein, neu berechnen 
+- % explained variance sinnlos wenn man 2 PCs gegeneinander plottet
 """
 
 
@@ -230,11 +231,16 @@ def main():
         plink_eval_file=pathlib.Path(f"{alternative_tools_prefix}.eigenval"),
     )
 
-    sklearn_pca = scikit_learn_pca(
+    run_sklearn(
         infile_prefix=convert_prefix,
         outfile_prefix=alternative_tools_prefix,
         n_pcs=empirical_pca.n_pcs,
         redo=redo
+    )
+    sklearn_pca = from_sklearn(
+        fitted_pca_model=pathlib.Path(f"{alternative_tools_prefix}.pca.sklearn.model"),
+        pca_data=pathlib.Path(f"{alternative_tools_prefix}.pca.output.npy"),
+        sample_ids=pathlib.Path(f"{alternative_tools_prefix}.pca.sample.ids")
     )
 
     # =======================================
@@ -284,7 +290,6 @@ def main():
 
         if plot_pcas:
             bootstrap_pca.set_populations(empirical_pca.pca_data.population)
-
 
             # plot Bootstrap with annotated populations
             bootstrap_pca.plot(

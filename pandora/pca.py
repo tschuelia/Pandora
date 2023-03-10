@@ -56,20 +56,21 @@ def _get_colors(n: int) -> List[str]:
 
 class PCA:
     """Class structure for PCA results.
-    
+
     This class provides methods for dealing with PCA results.
-    
+
     Attributes:
         - pca_data (pd.DataFrame): Pandas dataframe with shape (n_samples, n_pcs + 2) that contains the PCA results.
                 Has the following columns:
                     - sample_id (str or None): name for each sample, None if a np.ndarray is passed in the constructor
                     - population (str or None): population for each sample, None if a np.ndarray is passed in the constructor
-                    - PC{i} for i in range(n_pcs) (float): data for the i-th PC for each sample, 
+                    - PC{i} for i in range(n_pcs) (float): data for the i-th PC for each sample,
                       0-indexed, so the first PC corresponds to column PC0
         - explained_variances (List[float]): List of explained variances for each PC
         - n_pcs (int): number of principal components
         - pc_vectors: TODO
     """
+
     def __init__(
         self,
         pca_data: Union[pd.DataFrame, np.ndarray],
@@ -178,8 +179,12 @@ class PCA:
         """
         # TODO: check whether the sample IDs match -> we can only compare PCAs for the same samples
 
-        standardized_other, transformed_self, _ = procrustes(other.pc_vectors_normalized, self.pc_vectors_normalized)
-        sample_similarity = cosine_similarity(standardized_other, transformed_self).diagonal()
+        standardized_other, transformed_self, _ = procrustes(
+            other.pc_vectors_normalized, self.pc_vectors_normalized
+        )
+        sample_similarity = cosine_similarity(
+            standardized_other, transformed_self
+        ).diagonal()
 
         return sample_similarity.mean()
 
@@ -227,7 +232,9 @@ class PCA:
         kmeans.fit(pca_data_np)
         return kmeans
 
-    def compare_clustering(self, other: PCA, n_clusters: int = None, weighted: bool = True) -> float:
+    def compare_clustering(
+        self, other: PCA, n_clusters: int = None, weighted: bool = True
+    ) -> float:
         """
         Compare self clustering to other clustering using other as ground truth.
 
@@ -264,7 +271,7 @@ class PCA:
         name: str = "",
         outfile: FilePath = None,
         redo: bool = False,
-        **kwargs
+        **kwargs,
     ) -> go.Figure:
         """
         Plots the PCA data for pc1 and pc2.
@@ -289,11 +296,15 @@ class PCA:
             fig = go.Figure()
 
         if n_clusters is not None and annotation != "cluster":
-            warnings.warn(f"Parameter n_clusters ignored for annotation setting {annotation}.")
+            warnings.warn(
+                f"Parameter n_clusters ignored for annotation setting {annotation}."
+            )
 
         if annotation == "population":
             if self.pca_data.population.isna().all():
-                raise ValueError("Cannot plot populations: no populations associated with PCA data.")
+                raise ValueError(
+                    "Cannot plot populations: no populations associated with PCA data."
+                )
 
             populations = self.pca_data.population.unique()
             colors = _get_colors(len(populations))
@@ -309,11 +320,13 @@ class PCA:
                         mode="markers",
                         marker_color=colors[i],
                         name=population,
-                        **kwargs
+                        **kwargs,
                     )
                 )
         elif annotation == "cluster":
-            n_clusters = n_clusters if n_clusters is not None else self.get_optimal_n_clusters()
+            n_clusters = (
+                n_clusters if n_clusters is not None else self.get_optimal_n_clusters()
+            )
             cluster_labels = self.cluster(n_clusters=n_clusters).labels_
 
             _pca_data = self.pca_data
@@ -330,7 +343,7 @@ class PCA:
                         mode="markers",
                         marker_color=colors[i],
                         name=f"Cluster {i + 1}",
-                        **kwargs
+                        **kwargs,
                     )
                 )
 
@@ -342,12 +355,14 @@ class PCA:
                     mode="markers",
                     marker_color=marker_color,
                     name=name,
-                    **kwargs
+                    **kwargs,
                 )
             )
         else:
-            raise ValueError(f"Unrecognized annotation option {annotation}. "
-                             f"Allowed options are None, 'population', and 'cluster'.")
+            raise ValueError(
+                f"Unrecognized annotation option {annotation}. "
+                f"Allowed options are None, 'population', and 'cluster'."
+            )
 
         xtitle = f"PC {pc1 + 1} ({round(self.explained_variances[pc1] * 100, 1)}%)"
         ytitle = f"PC {pc2 + 1} ({round(self.explained_variances[pc2] * 100, 1)}%)"
@@ -395,7 +410,7 @@ def transform_pca_to_reference(pca: PCA, pca_reference: PCA) -> Tuple[PCA, PCA]:
         explained_variances=pca.explained_variances,
         n_pcs=pca.n_pcs,
         sample_ids=pca.pca_data.sample_id,
-        populations=pca.pca_data.population
+        populations=pca.pca_data.population,
     )
 
     pca_reference = PCA(
@@ -403,7 +418,7 @@ def transform_pca_to_reference(pca: PCA, pca_reference: PCA) -> Tuple[PCA, PCA]:
         explained_variances=pca_reference.explained_variances,
         n_pcs=pca_reference.n_pcs,
         sample_ids=pca_reference.pca_data.sample_id,
-        populations=pca_reference.pca_data.population
+        populations=pca_reference.pca_data.population,
     )
 
     return pca, pca_reference
@@ -469,7 +484,9 @@ def run_smartpca(
         return from_smartpca(evec_out)
 
     with tempfile.NamedTemporaryFile(mode="w") as tmpfile:
-        _df = pd.read_table(f"{infile_prefix}.ind", delimiter=" ", skipinitialspace=True, header=None)
+        _df = pd.read_table(
+            f"{infile_prefix}.ind", delimiter=" ", skipinitialspace=True, header=None
+        )
         num_populations = _df[2].unique().shape[0]
 
         conversion_content = f"""
@@ -624,7 +641,7 @@ def run_plink(
     outfile_prefix: FilePath,
     plink: Executable,
     n_pcs: int = 20,
-    redo: bool = False
+    redo: bool = False,
 ) -> PCA:
     evec_out = pathlib.Path(f"{outfile_prefix}.eigenvec")
     eval_out = pathlib.Path(f"{outfile_prefix}.eigenval")
@@ -643,7 +660,7 @@ def run_plink(
         "--bfile",
         infile_prefix,
         "--out",
-        outfile_prefix
+        outfile_prefix,
     ]
 
     subprocess.check_output(pca_cmd)
@@ -651,23 +668,28 @@ def run_plink(
     return from_plink(evec_out, eval_out)
 
 
-def scikit_learn_pca(
-        infile_prefix: FilePath,
-        outfile_prefix: FilePath,
-        n_pcs: int = 20,
-        redo: bool = False
-) -> PCA:
+def run_sklearn(
+    infile_prefix: FilePath,
+    outfile_prefix: FilePath,
+    n_pcs: int = 20,
+    redo: bool = False,
+):
     ped = pathlib.Path(f"{infile_prefix}.ped")
-    snp_array_file = pathlib.Path(f"{outfile_prefix}.npy")
-    sklearn_pca_result = pathlib.Path(f"{outfile_prefix}.pca.sklearn")
+    sample_ids_file = pathlib.Path(f"{outfile_prefix}.pca.sample.ids")
+    input_data = pathlib.Path(f"{outfile_prefix}.pca.input.npy")
+    fitted_pca_model = pathlib.Path(f"{outfile_prefix}.pca.sklearn.model")
+    pca_data_file = pathlib.Path(f"{outfile_prefix}.pca.output.npy")
 
-    with ped.open() as f:
-        sample_ids = []
-        for line in f:
-            _, ind_id, *_ = line[:100].split()
-            sample_ids.append(ind_id)
+    if redo or not sample_ids_file.exists():
+        with ped.open() as f:
+            sample_ids = []
+            for line in f:
+                _, ind_id, *_ = line[:100].split()
+                sample_ids.append(ind_id)
 
-    if redo or not snp_array_file.exists():
+        sample_ids_file.open("w").write("\n".join(sample_ids))
+
+    if redo or not input_data.exists():
 
         snp_array = []
         with ped.open() as f:
@@ -676,17 +698,40 @@ def scikit_learn_pca(
                 snp_array.append(snps)
 
         snp_array = np.array(snp_array)
-        np.save(snp_array_file, snp_array)
+        np.save(input_data, snp_array)
     else:
-        snp_array = np.load(snp_array_file)
+        snp_array = np.load(input_data)
 
-    if redo or not sklearn_pca_result.exists():
+    if redo or not fitted_pca_model.exists():
         skpca = sklearnPCA(n_components=n_pcs)
         skpca.fit(snp_array)
-        dump(skpca, sklearn_pca_result)
+        dump(skpca, fitted_pca_model)
     else:
-        skpca = load(sklearn_pca_result)
+        skpca = load(fitted_pca_model)
 
     pca_data = skpca.transform(snp_array)
+    np.save(pca_data_file, pca_data)
 
-    return PCA(pca_data=pca_data, explained_variances=skpca.explained_variance_ratio_, n_pcs=n_pcs, sample_ids=sample_ids)
+
+def from_sklearn(
+    fitted_pca_model: Union[FilePath, sklearnPCA],
+    pca_data: Union[FilePath, np.ndarray],
+    sample_ids: Union[FilePath, List],
+) -> PCA:
+    if isinstance(fitted_pca_model, FilePath):
+        fitted_pca_model = load(fitted_pca_model)
+
+    if isinstance(pca_data, FilePath):
+        pca_data = np.load(pca_data)
+
+    if isinstance(sample_ids, FilePath):
+        sample_ids = [l.strip() for l in sample_ids.open().readlines()]
+
+    n_pcs = pca_data.shape[1]
+
+    return PCA(
+        pca_data=pca_data,
+        explained_variances=fitted_pca_model.explained_variance_ratio_,
+        n_pcs=n_pcs,
+        sample_ids=sample_ids,
+    )

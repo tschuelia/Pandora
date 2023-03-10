@@ -35,7 +35,7 @@ def _get_colors(n: int) -> List[str]:
     """
     if n <= 3:
         return ["rgb(255, 0, 0)", "rgb(0,255,0)", "rgb(0,0,255)"]
-    
+
     red_green = n_colors(
         lowcolor="rgb(255,0,0)",
         highcolor="rgb(0,255,0)",
@@ -510,7 +510,7 @@ def determine_number_of_pcs(
     smartpca: Executable,
     explained_variance_cutoff: float = 0.95,
     redo: bool = False,
-):
+) -> int:
     n_pcs = 20
     pca_checkpoint = pathlib.Path(f"{outfile_prefix}.ckp")
     evec_file = pathlib.Path(f"{outfile_prefix}.evec")
@@ -520,7 +520,7 @@ def determine_number_of_pcs(
         # the int is the number of PCs that was last tested
         # the bool says whether the analysis finished properly or not
         # the float (ignored here) is the amount of variance explained by the current number of PCs (used for debugging)
-        n_pcs, finished, _ = pca_checkpoint.open().readline().strip().split()
+        n_pcs, finished = pca_checkpoint.open().readline().strip().split()
         n_pcs = int(n_pcs)
         finished = bool(int(finished))
 
@@ -543,8 +543,7 @@ def determine_number_of_pcs(
             )
 
             if best_pcs:
-                pca.cutoff_pcs(best_pcs)
-                return pca
+                return best_pcs
 
         # otherwise, running smartPCA was aborted and did not finnish properly, resume from last tested n_pcs
         logger.info(
@@ -573,10 +572,8 @@ def determine_number_of_pcs(
             pca.explained_variances, explained_variance_cutoff
         )
         if best_pcs:
-            pca.cutoff_pcs(best_pcs)
-            # initial PCA analysis finished -> write checkpoint: best_pcs and True
-            pca_checkpoint.write_text(f"{best_pcs} 1 {sum(pca.explained_variances)}")
-            return pca
+            pca_checkpoint.write_text(f"{best_pcs} 1")
+            return best_pcs
 
         # if all PCs explain >= <cutoff>% variance, rerun the PCA with an increased number of PCs
         # we increase the number by a factor of 1.5

@@ -675,7 +675,7 @@ def scikit_learn_pca(
     else:
         snp_array = np.load(snp_array_file)
 
-    if redo or not sklearn_pca_result:
+    if redo or not sklearn_pca_result.exists():
         skpca = sklearnPCA(n_components=n_pcs)
         skpca.fit(snp_array)
         dump(skpca, sklearn_pca_result)

@@ -548,12 +548,7 @@ def determine_number_of_pcs(
 
             # check if the last smartpca run already had the optimal number of PCs present
             # if yes, create a new PCA object and truncate the data to the optimal number of PCs
-            best_pcs = check_pcs_sufficient(
-                pca.explained_variances, explained_variance_cutoff
-            )
-
-            if best_pcs:
-                return best_pcs
+            return n_pcs
 
         # otherwise, running smartPCA was aborted and did not finnish properly, resume from last tested n_pcs
         logger.info(

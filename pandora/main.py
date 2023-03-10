@@ -229,6 +229,13 @@ def main():
         plink_eval_file=pathlib.Path(f"{alternative_tools_prefix}.eigenval"),
     )
 
+    sklearn_pca = scikit_learn_pca(
+        infile_prefix=convert_prefix,
+        outfile_prefix=alternative_tools_prefix,
+        n_pcs=empirical_pca.n_pcs,
+        redo=redo
+    )
+
     # =======================================
     # Compare results
     # =======================================
@@ -248,25 +255,23 @@ def main():
 
     if plot_pcas:
         # plot with annotated populations
-        fig = empirical_pca.plot(
+        empirical_pca.plot(
             pc1=pc1,
             pc2=pc2,
             annotation="population",
+            outfile=f"{outfile_prefix}_with_populations.pdf",
+            redo=redo
         )
 
-        fp = f"{outfile_prefix}_with_populations.pdf"
-        fig.write_image(fp)
-
         # plot with annotated clusters
-        fig = empirical_pca.plot(
+        empirical_pca.plot(
             pc1=pc1,
             pc2=pc2,
             annotation="cluster",
-            n_clusters=n_clusters
+            n_clusters=n_clusters,
+            outfile=f"{outfile_prefix}_with_clusters.pdf",
+            redo=redo
         )
-
-        fp = f"{outfile_prefix}_with_clusters.pdf"
-        fig.write_image(fp)
 
         logger.info(fmt_message(f"Plotted empirical PCA."))
 
@@ -279,51 +284,47 @@ def main():
         if plot_pcas:
             bootstrap_pca.set_populations(empirical_pca.pca_data.population)
 
-            fp = bootstrap_dir / f"bootstrap_{i + 1}_with_populations.pca.pdf"
-            if redo or not fp.exists():
-                # plot Bootstrap with annotated populations
-                fig = bootstrap_pca.plot(
-                    pc1=pc1,
-                    pc2=pc2,
-                    annotation="population",
-                )
 
-                fig.write_image(fp)
+            # plot Bootstrap with annotated populations
+            bootstrap_pca.plot(
+                pc1=pc1,
+                pc2=pc2,
+                annotation="population",
+                outfile=bootstrap_dir / f"bootstrap_{i + 1}_with_populations.pca.pdf",
+                redo=redo
+            )
 
-            fp = bootstrap_dir / f"bootstrap_{i + 1}_with_clusters.pca.pdf"
-            if redo or not fp.exists():
-                # plot Bootstrap only with annotated clusters
-                fig = bootstrap_pca.plot(
-                    pc1=pc1,
-                    pc2=pc2,
-                    annotation="cluster",
-                    n_clusters=n_clusters
-                )
-                fig.write_image(fp)
+            # plot Bootstrap only with annotated clusters
+            bootstrap_pca.plot(
+                pc1=pc1,
+                pc2=pc2,
+                annotation="cluster",
+                n_clusters=n_clusters,
+                outfile=bootstrap_dir / f"bootstrap_{i + 1}_with_clusters.pca.pdf",
+                redo=redo
+            )
 
-            fp = bootstrap_dir / f"bootstrap_{i + 1}_with_empirical.pca.pdf"
-            if redo or not fp.exists():
-                # Plot transformed bootstrap and empirical data jointly
-                # for this, we first need to transform the empirical and bootstrap data
-                transformed_bootstrap, scaled_empirical = transform_pca_to_reference(bootstrap_pca, empirical_pca)
-                fig = scaled_empirical.plot(
-                    pc1=pc1,
-                    pc2=pc2,
-                    name="Scaled empirical",
-                    marker_color="darkblue",
-                    marker_symbol="circle",
-                )
+            # Plot transformed bootstrap and empirical data jointly
+            # for this, we first need to transform the empirical and bootstrap data
+            transformed_bootstrap, scaled_empirical = transform_pca_to_reference(bootstrap_pca, empirical_pca)
+            fig = scaled_empirical.plot(
+                pc1=pc1,
+                pc2=pc2,
+                name="Scaled empirical",
+                marker_color="darkblue",
+                marker_symbol="circle",
+            )
 
-                fig = transformed_bootstrap.plot(
-                    pc1=pc1,
-                    pc2=pc2,
-                    name="Transformed Bootstrap",
-                    fig=fig,
-                    marker_color="orange",
-                    marker_symbol="star",
-                )
-
-                fig.write_image(fp)
+            transformed_bootstrap.plot(
+                pc1=pc1,
+                pc2=pc2,
+                name="Transformed Bootstrap",
+                fig=fig,
+                marker_color="orange",
+                marker_symbol="star",
+                outfile=bootstrap_dir / f"bootstrap_{i + 1}_with_empirical.pca.pdf",
+                redo=redo
+            )
 
             logger.info(fmt_message(f"Plotted bootstrap PCA #{i + 1}"))
 
@@ -342,45 +343,74 @@ def main():
     plink_similarity = plink_pca.compare(other=empirical_pca)
     plink_cluster_similarity = plink_pca.compare_clustering(other=empirical_pca, n_clusters=n_clusters)
 
-    if plot_pcas:# Plot transformed PLINK and smartPCA data jointly
+    sklearn_similarity = sklearn_pca.compare(other=empirical_pca)
+    sklearn_cluster_similarity = sklearn_pca.compare_clustering(other=empirical_pca, n_clusters=n_clusters)
+
+    if plot_pcas:
+        # Plot transformed alternative Tools and smartPCA data jointly
         # for this, we first need to transform the empirical and bootstrap data
-        fp = alternative_tools_dir / "plink_with_smartpca.pca.pdf"
-        if redo or not fp.exists():
-            transformed_plink, scaled_empirical = transform_pca_to_reference(plink_pca, empirical_pca)
-            fig = scaled_empirical.plot(
-                pc1=pc1,
-                pc2=pc2,
-                name="Scaled SmartPCA",
-                marker_color="darkblue",
-                marker_symbol="circle",
-            )
+        transformed_plink, scaled_empirical = transform_pca_to_reference(plink_pca, empirical_pca)
+        fig = scaled_empirical.plot(
+            pc1=pc1,
+            pc2=pc2,
+            name="Scaled SmartPCA",
+            marker_color="darkblue",
+            marker_symbol="circle",
+        )
 
-            fig = transformed_plink.plot(
-                pc1=pc1,
-                pc2=pc2,
-                name="Transformed PLINK",
-                fig=fig,
-                marker_color="orange",
-                marker_symbol="star",
-            )
+        transformed_plink.plot(
+            pc1=pc1,
+            pc2=pc2,
+            name="Transformed PLINK",
+            fig=fig,
+            marker_color="orange",
+            marker_symbol="star",
+            outfile=alternative_tools_dir / "plink_with_smartpca.pca.pdf"
+        )
 
-            fig.write_image(fp)
+        transformed_sklearn, scaled_empirical = transform_pca_to_reference(sklearn_pca, empirical_pca)
+        fig = scaled_empirical.plot(
+            pc1=pc1,
+            pc2=pc2,
+            name="Scaled SmartPCA",
+            marker_color="darkblue",
+            marker_symbol="circle",
+        )
+
+        transformed_sklearn.plot(
+            pc1=pc1,
+            pc2=pc2,
+            name="Transformed Scikit-learn",
+            fig=fig,
+            marker_color="orange",
+            marker_symbol="star",
+            outfile=alternative_tools_dir / "sklearn_with_smartpca.pca.pdf"
+        )
 
     # TODO: also log the output into a log file
 
     logger.info("========= PANDORA RESULTS =========")
     logger.info(f"number of PCs required to explain at least {variance_cutoff}% variance: {empirical_pca.n_pcs}\n")
     logger.info("------------------")
+
     logger.info("PCA <> Bootstraps")
     logger.info("------------------")
     logger.info(f"> number of Bootstrap replicates: {n_bootstraps}\n")
     logger.info(f"PCA similarity: {round(np.mean(similarities), 2)} ± {round(np.std(similarities), 2)}")
     logger.info(f"K-Means clustering similarity:{round(np.mean(clustering_scores), 2)} ± {round(np.std(clustering_scores), 2)}")
     logger.info("------------------")
+
     logger.info("SmartPCA <> Plink2")
     logger.info("------------------")
-    logger.info(f"PCA similarity: {round(plink_similarity, 2)}")  # TODO: clustering
+    logger.info(f"PCA similarity: {round(plink_similarity, 2)}")
     logger.info(f"K-Means clustering similarity:{round(np.mean(plink_cluster_similarity), 2)}\n")
+    logger.info("------------------")
+
+    logger.info("SmartPCA <> Scikit-Learn")
+    logger.info("------------------")
+    logger.info(f"PCA similarity: {round(sklearn_similarity, 2)}")
+    logger.info(f"K-Means clustering similarity:{round(np.mean(sklearn_cluster_similarity), 2)}\n")
+    logger.info("------------------")
 
     total_runtime = math.ceil(time.perf_counter() - SCRIPT_START)
     logger.info(f"\nTotal runtime: {datetime.timedelta(seconds=total_runtime)} ({total_runtime} seconds)")

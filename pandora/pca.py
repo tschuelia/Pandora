@@ -1,12 +1,14 @@
 from __future__ import annotations  # allows type hint PCA inside PCA class
 
 import math
+import pathlib
 import tempfile
 import subprocess
 import textwrap
 import warnings
 
 import numpy as np
+from joblib import dump, load
 from plotly import graph_objects as go
 from plotly.colors import n_colors
 
@@ -18,6 +20,7 @@ from sklearn.metrics import (
     fowlkes_mallows_score,
 )
 from sklearn.metrics.pairwise import cosine_similarity
+from sklearn.decomposition import PCA as sklearnPCA
 
 from pandora.custom_types import *
 from pandora.logger import logger, fmt_message
@@ -259,6 +262,8 @@ class PCA:
         fig: go.Figure = None,
         marker_color="darkseagreen",
         name: str = "",
+        outfile: FilePath = None,
+        redo: bool = False,
         **kwargs
     ) -> go.Figure:
         """
@@ -350,6 +355,11 @@ class PCA:
         fig.update_xaxes(title=xtitle)
         fig.update_yaxes(title=ytitle)
         fig.update_layout(template="plotly_white", height=1000, width=1000)
+
+        if outfile is not None:
+            if redo or not outfile.exists():
+                fig.write_image(outfile)
+
         return fig
 
 
@@ -639,3 +649,44 @@ def run_plink(
     subprocess.check_output(pca_cmd)
 
     return from_plink(evec_out, eval_out)
+
+
+def scikit_learn_pca(
+        infile_prefix: FilePath,
+        outfile_prefix: FilePath,
+        n_pcs: int = 20,
+        redo: bool = False
+) -> PCA:
+    ped = pathlib.Path(f"{infile_prefix}.ped")
+    snp_array_file = pathlib.Path(f"{outfile_prefix}.npy")
+    sklearn_pca_result = pathlib.Path(f"{outfile_prefix}.pca.sklearn")
+
+    if redo or not snp_array_file.exists():
+
+        with ped.open() as f:
+            sample_ids = []
+            for line in f:
+                _, ind_id, *_ = line[:100].split()
+                sample_ids.append(ind_id)
+
+        snp_array = []
+        with ped.open() as f:
+            for i, line in enumerate(f):
+                snps = line.split()[6:]
+                snp_array.append(snps)
+
+        snp_array = np.array(snp_array)
+        np.save(snp_array_file, snp_array)
+    else:
+        snp_array = np.load(snp_array_file)
+
+    if redo or not sklearn_pca_result:
+        skpca = sklearnPCA(n_components=n_pcs)
+        skpca.fit(snp_array)
+        dump(skpca, sklearn_pca_result)
+    else:
+        skpca = load(sklearn_pca_result)
+
+    pca_data = skpca.transform(snp_array)
+
+    return PCA(pca_data=pca_data, explained_variances=skpca.explained_variance_ratio_, n_pcs=n_pcs, sample_ids=sample_ids)

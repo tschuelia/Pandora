@@ -1,7 +1,6 @@
 from __future__ import annotations  # allows type hint PCA inside PCA class
 
 import math
-import pathlib
 import tempfile
 import subprocess
 import textwrap
@@ -12,8 +11,7 @@ from joblib import dump, load
 from plotly import graph_objects as go
 from plotly.colors import n_colors
 
-from scipy.spatial import procrustes
-from sklearn.preprocessing import normalize
+from scipy.linalg import orthogonal_procrustes
 from sklearn.cluster import KMeans
 from sklearn.metrics import (
     silhouette_score,
@@ -106,9 +104,7 @@ class PCA:
 
         self.pca_data = pca_data.sort_values(by="sample_id").reset_index(drop=True)
 
-        # Normalize the PC vectors to [0, 1]
         self.pc_vectors = self._get_pca_data_numpy()
-        self.pc_vectors_normalized = normalize(self.pc_vectors)
 
     def cutoff_pcs(self, new_n_pcs: int):
         """
@@ -134,9 +130,7 @@ class PCA:
         self.explained_variances = self.explained_variances[:new_n_pcs]
 
         # update the numpy PC_vectors
-        # Normalize the PC vectors to [0, 1]
         self.pc_vectors = self._get_pca_data_numpy()
-        self.pc_vectors_normalized = normalize(self.pc_vectors)
 
     def set_populations(self, populations: Union[List, pd.Series]):
         """
@@ -178,12 +172,14 @@ class PCA:
             float: Similarity as average cosine similarity per sample PC-vector in self and other.
         """
         # TODO: check whether the sample IDs match -> we can only compare PCAs for the same samples
-
-        standardized_other, transformed_self, _ = procrustes(
-            other.pc_vectors_normalized, self.pc_vectors_normalized
+        transformation_matrix, _ = orthogonal_procrustes(
+            A=self.pc_vectors,
+            B=other.pc_vectors
         )
+        transformed_self = self.pc_vectors @ transformation_matrix
+
         sample_similarity = cosine_similarity(
-            standardized_other, transformed_self
+            other.pc_vectors, transformed_self
         ).diagonal()
 
         return sample_similarity.mean()
@@ -205,8 +201,8 @@ class PCA:
         for k in range(min_n, max_n):
             # TODO: what range is reasonable?
             kmeans = KMeans(random_state=42, n_clusters=k, n_init=10)
-            kmeans.fit(self.pc_vectors_normalized)
-            score = silhouette_score(self.pc_vectors_normalized, kmeans.labels_)
+            kmeans.fit(self.pc_vectors)
+            score = silhouette_score(self.pc_vectors, kmeans.labels_)
             best_k = k if score > best_score else best_k
             best_score = max(score, best_score)
 
@@ -223,7 +219,7 @@ class PCA:
         Returns:
             KMeans: Scikit-learn KMeans object that with n_clusters that is fitted to self.pca_data.
         """
-        pca_data_np = self.pc_vectors_normalized
+        pca_data_np = self.pc_vectors
         if n_clusters is None:
             n_clusters = self.get_optimal_n_clusters()
         if weighted:
@@ -255,8 +251,8 @@ class PCA:
         self_kmeans = self.cluster(n_clusters=n_clusters, weighted=weighted)
         other_kmeans = other.cluster(n_clusters=n_clusters, weighted=weighted)
 
-        self_cluster_labels = self_kmeans.predict(self.pc_vectors_normalized)
-        other_cluster_labels = other_kmeans.predict(other.pc_vectors_normalized)
+        self_cluster_labels = self_kmeans.predict(self.pc_vectors)
+        other_cluster_labels = other_kmeans.predict(other.pc_vectors)
 
         return fowlkes_mallows_score(other_cluster_labels, self_cluster_labels)
 
@@ -378,7 +374,7 @@ class PCA:
         return fig
 
 
-def transform_pca_to_reference(pca: PCA, pca_reference: PCA) -> Tuple[PCA, PCA]:
+def transform_pca_to_reference(pca: PCA, pca_reference: PCA) -> PCA:
     """
     Finds a transformation matrix that most closely matches pca to pca_reference and transforms pca.
     Both PCAs are standardized prior to transformation.
@@ -388,14 +384,15 @@ def transform_pca_to_reference(pca: PCA, pca_reference: PCA) -> Tuple[PCA, PCA]:
         pca_reference (PCA): The PCA that pca1 should be transformed towards
 
     Returns:
+        TODO: update Docstring
         Tuple[PCA, PCA]: Two new PCA objects, the first one is the transformed pca and the second one is the standardized pca_reference.
             In all downstream comparisons or pairwise plotting, use these PCA objects.
     """
 
     # TODO: check whether the sample IDs match -> we can only compare PCAs for the same samples
 
-    pca_data = pca.pc_vectors_normalized
-    pca_ref_data = pca_reference.pc_vectors_normalized
+    pca_data = pca.pc_vectors
+    pca_ref_data = pca_reference.pc_vectors
 
     if pca_data.shape != pca_ref_data.shape:
         raise ValueError(
@@ -403,25 +400,16 @@ def transform_pca_to_reference(pca: PCA, pca_reference: PCA) -> Tuple[PCA, PCA]:
         )
 
     # TODO: reorder PCs (if we find a dataset where this is needed...don't want to blindly implement something)
-    standardized_pca_reference, transformed_pca1, _ = procrustes(pca_ref_data, pca_data)
+    transformation_matrix, _ = orthogonal_procrustes(pca_data, pca_ref_data)
+    transformed_pca = pca_data @ transformation_matrix
 
-    pca = PCA(
-        pca_data=transformed_pca1,
+    return PCA(
+        pca_data=transformed_pca,
         explained_variances=pca.explained_variances,
         n_pcs=pca.n_pcs,
         sample_ids=pca.pca_data.sample_id,
         populations=pca.pca_data.population,
     )
-
-    pca_reference = PCA(
-        pca_data=standardized_pca_reference,
-        explained_variances=pca_reference.explained_variances,
-        n_pcs=pca_reference.n_pcs,
-        sample_ids=pca_reference.pca_data.sample_id,
-        populations=pca_reference.pca_data.population,
-    )
-
-    return pca, pca_reference
 
 
 def from_smartpca(smartpca_evec_file: FilePath) -> PCA:

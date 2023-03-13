@@ -166,9 +166,7 @@ def main():
     bootstrap_pcas = run_bootstrap_pcas(pandora_config, n_pcs=empirical_pca.n_pcs)
 
     # PCA with alternative tools
-    run_alternative_pcas(pandora_config, n_pcs=empirical_pca.n_pcs)
-    logger.info(fmt_message("Running PLINK PCA"))
-
+    logger.info(fmt_message("Running PCA using Plink and scikit-learn"))
     alternative_tool_pcas = run_alternative_pcas(pandora_config, n_pcs=empirical_pca.n_pcs)
 
     # =======================================

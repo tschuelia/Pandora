@@ -1,5 +1,6 @@
 import argparse
 import datetime
+import logging
 import multiprocessing
 import time
 import sys
@@ -162,8 +163,13 @@ def main():
     logger.info("\n--------- STARTING COMPUTATION ---------")
 
     outfile_base.mkdir(exist_ok=True, parents=True)
+    pandora_logfile = outfile_base / "pandora.log"
+
+    # connect logfile to the logger
+    logger.addHandler(logging.FileHandler(pandora_logfile))
 
     # Empirical PCA using smartPCA and no bootstrapping
+    # First, determine the number of PCs we are going to use
     n_pcs = determine_number_of_pcs(
         infile_prefix=infile_prefix,
         outfile_prefix=outfile_prefix,
@@ -171,6 +177,13 @@ def main():
         # TODO: what is a meaningful variance cutoff?
         explained_variance_cutoff=variance_cutoff / 100,
         redo=redo,
+    )
+    # Next, run SmartPCA with the determined number of PCs on the unmodified input dataset
+    run_smartpca(
+        infile_prefix=infile_prefix,
+        outfile_prefix=outfile_prefix,
+        smartpca=smartpca,
+        n_pcs=n_pcs
     )
     # now run the empirical PCA again using the determined number of n_pcs
     empirical_pca = from_smartpca(pathlib.Path(f"{outfile_prefix}.evec"))

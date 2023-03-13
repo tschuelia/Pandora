@@ -580,27 +580,21 @@ def determine_number_of_pcs(
         )
 
     while True:
-        pca = run_smartpca(
-            infile_prefix=infile_prefix,
-            outfile_prefix=outfile_prefix,
-            smartpca=smartpca,
-            n_pcs=n_pcs,
-            redo=True,
-        )
-        best_pcs = check_pcs_sufficient(
-            pca.explained_variances, explained_variance_cutoff
-        )
-        if best_pcs:
-            # run again with the final number of PCs we want to use
-            run_smartpca(
+        with tempfile.TemporaryDirectory() as tmp_outdir:
+            tmp_outfile_prefix = tmp_outdir / "determine_npcs"
+            pca = run_smartpca(
                 infile_prefix=infile_prefix,
-                outfile_prefix=outfile_prefix,
+                outfile_prefix=tmp_outfile_prefix,
                 smartpca=smartpca,
-                n_pcs=best_pcs,
+                n_pcs=n_pcs,
                 redo=True,
             )
-            pca_checkpoint.write_text(f"{best_pcs} 1")
-            return best_pcs
+            best_pcs = check_pcs_sufficient(
+                pca.explained_variances, explained_variance_cutoff
+            )
+            if best_pcs:
+                pca_checkpoint.write_text(f"{best_pcs} 1")
+                return best_pcs
 
         # if all PCs explain >= <cutoff>% variance, rerun the PCA with an increased number of PCs
         # we increase the number by a factor of 1.5

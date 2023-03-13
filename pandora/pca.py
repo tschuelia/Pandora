@@ -37,7 +37,7 @@ def _get_colors(n: int) -> List[str]:
 
     """
     if n <= 3:
-        return ["rgb(255, 0, 0)", "rgb(0,255,0)", "rgb(0,0,255)"]
+        return ["rgb(255, 0, 0)", "rgb(0,255,0)", "rgb(0,0,255)"][:n]
 
     red_green = n_colors(
         lowcolor="rgb(255,0,0)",

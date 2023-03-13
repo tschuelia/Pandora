@@ -103,7 +103,7 @@ def _run(args):
             infile_prefix=_in, outfile_prefix=bootstrap_prefix, seed=_seed, redo=_redo
         )
 
-        logger.info(fmt_message(f"Finished drawing bootstrap dataset #{_i}"))
+        logger.debug(fmt_message(f"Finished drawing bootstrap dataset #{_i}"))
 
         plink_to_eigen(
             plink_prefix=bootstrap_prefix,
@@ -112,9 +112,9 @@ def _run(args):
             redo=_redo,
         )
 
-        logger.info(fmt_message(f"Finished converting bootstrap dataset #{_i}"))
+        logger.debug(fmt_message(f"Finished converting bootstrap dataset #{_i}"))
     else:
-        logger.info(fmt_message(f"Bootstrapped dataset #{_i} already exists."))
+        logger.debug(fmt_message(f"Bootstrapped dataset #{_i} already exists."))
 
     # to not waste disk space, we remove the input files once the conversion is done
     # we don't want to save the data redundantly in different file types

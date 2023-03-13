@@ -1,17 +1,13 @@
 import argparse
 import datetime
-import itertools
 import logging
 import multiprocessing
 import time
 import sys
 
 from pandora import __version__
-from pandora.bootstrapping import create_bootstrap_pcas
-from pandora.converter import eigen_to_plink, plink_to_bplink
-from pandora.custom_types import *
-from pandora.logger import logger, fmt_message, SCRIPT_START
-from pandora.pca import *
+from pandora.logger import *
+from pandora.pandora import *
 
 """
 TODO: 
@@ -32,11 +28,7 @@ def print_header():
     )
 
 
-def main():
-    print_header()
-    """
-    Command line parser 
-    """
+def argument_parser():
     parser = argparse.ArgumentParser(prog="Pandora", description="Command line parser for Pandora options.")
     parser.add_argument(
         "-i",
@@ -118,7 +110,15 @@ def main():
         help="If set, plots the individual PCAs with the resulting K-Means clusters annotated."
     )
 
-    args = parser.parse_args()
+    return parser.parse_args()
+
+
+def main():
+    print_header()
+    """
+    Command line parser 
+    """
+    args = argument_parser()
 
     """
     Pandora main program
@@ -126,27 +126,28 @@ def main():
     # =======================================
     # initialize options and directories
     # =======================================
-    infile_prefix = pathlib.Path(args.input)
-    dataset = infile_prefix.name
 
-    outfile_base = pathlib.Path(args.output)
-    outfile_prefix = outfile_base / dataset
-    convertf_dir = outfile_base / "convertf"
-    bootstrap_dir = outfile_base / "bootstrap"
-    alternative_tools_dir = outfile_base / "alternativeTools"
+    pandora_config = PandoraConfig(
+        infile_prefix=pathlib.Path(args.input),
+        outdir=pathlib.Path(args.output),
+        n_bootstraps=args.bootstraps,
+        threads=args.threads,
+        seed=args.seed,
+        redo=args.redo,
+        variance_cutoff=args.varianceCutoff,
+        smartpca=args.smartpca,
+        convertf=args.convertf,
+        plink2=args.plink2,
+        run_bootstrapping=True,
+        run_alternative=True,
+        run_plotting=args.plot,
+    )
 
-    seed = args.seed
-    n_bootstraps = args.bootstraps if args.bootstraps else 100  # TODO: what number should we use as default?
-    n_threads = args.threads
-    redo = args.redo
-    variance_cutoff = args.varianceCutoff
-    plot_pcas = args.plot
+    # TODO: manuell noch den heaeder in das logfile schreiben (wegen Version etc.)
+    logger.addHandler(logging.FileHandler(pandora_config.logfile))
+    pandora_config.create_outdirs()
 
-    smartpca = args.smartpca
-    convertf = args.convertf
-    plink2 = args.plink2
-
-    _arguments_str = [f"{k}: {v}" for k, v in vars(args).items()]
+    _arguments_str = [f"{k}: {v}" for k, v in pandora_config.get_configuration().items()]
     _command_line = " ".join(sys.argv)
 
     logger.info("--------- PANDORA CONFIGURATION ---------")
@@ -158,255 +159,55 @@ def main():
     # =======================================
     logger.info("\n--------- STARTING COMPUTATION ---------")
 
-    outfile_base.mkdir(exist_ok=True, parents=True)
-    pandora_logfile = outfile_base / "pandora.log"
-
-    # connect logfile to the logger
-    # TODO: das weiter oben schon setzten damit auch alles ins log geschrieben wird inklusive configuration
-    logger.addHandler(logging.FileHandler(pandora_logfile))
-
     # Empirical PCA using smartPCA and no bootstrapping
-    # First, determine the number of PCs we are going to use
-    n_pcs = determine_number_of_pcs(
-        infile_prefix=infile_prefix,
-        outfile_prefix=outfile_prefix,
-        smartpca=smartpca,
-        # TODO: what is a meaningful variance cutoff?
-        explained_variance_cutoff=variance_cutoff / 100,
-        redo=redo,
-    )
-    # Next, run SmartPCA with the determined number of PCs on the unmodified input dataset
-    run_smartpca(
-        infile_prefix=infile_prefix,
-        outfile_prefix=outfile_prefix,
-        smartpca=smartpca,
-        n_pcs=n_pcs
-    )
-    # now run the empirical PCA again using the determined number of n_pcs
-    empirical_pca = from_smartpca(pathlib.Path(f"{outfile_prefix}.evec"))
+    empirical_pca = run_empirical_pca(pandora_config)
 
     # Bootstrapped PCA
-    logger.info(fmt_message("Converting Input files to PLINK format for bootstrapping."))
-
-    convertf_dir.mkdir(exist_ok=True)
-    convert_prefix = convertf_dir / dataset
-
-    eigen_to_plink(
-        eigen_prefix=infile_prefix, plink_prefix=convert_prefix, convertf=convertf, redo=redo
-    )
-
-    # TODO: implement bootstopping
-    logger.info(fmt_message(f"Drawing {n_bootstraps} bootstrapped datasets."))
-
-    bootstrap_dir.mkdir(exist_ok=True)
-
-    bootstrap_pcas = create_bootstrap_pcas(
-        infile_prefix=convert_prefix,
-        bootstrap_outdir=bootstrap_dir,
-        convertf=convertf,
-        smartpca=smartpca,
-        n_bootstraps=n_bootstraps,
-        seed=seed,
-        n_pcs=empirical_pca.n_pcs,
-        n_threads=n_threads,
-        redo=redo
-    )
+    bootstrap_pcas = run_bootstrap_pcas(pandora_config, n_pcs=empirical_pca.n_pcs)
 
     # PCA with alternative tools
+    run_alternative_pcas(pandora_config, n_pcs=empirical_pca.n_pcs)
     logger.info(fmt_message("Running PLINK PCA"))
-    bconvert_dir = convertf_dir / "binary"
 
-    bconvert_dir.mkdir(exist_ok=True)
-    bconvert_prefix = bconvert_dir / dataset
-
-    alternative_tools_dir.mkdir(exist_ok=True)
-    alternative_tools_prefix = alternative_tools_dir / dataset
-
-    plink_to_bplink(
-        plink_prefix=convert_prefix,
-        bplink_prefix=bconvert_prefix,
-        convertf=convertf,
-        redo=redo
-    )
-
-    run_plink(
-        infile_prefix=bconvert_prefix,
-        outfile_prefix=alternative_tools_prefix,
-        plink=plink2,
-        n_pcs=empirical_pca.n_pcs,
-        redo=redo
-    )
-    plink_pca = from_plink(
-        plink_evec_file=pathlib.Path(f"{alternative_tools_prefix}.eigenvec"),
-        plink_eval_file=pathlib.Path(f"{alternative_tools_prefix}.eigenval"),
-    )
-
-    run_sklearn(
-        infile_prefix=convert_prefix,
-        outfile_prefix=alternative_tools_prefix,
-        n_pcs=empirical_pca.n_pcs,
-        redo=redo
-    )
-    sklearn_pca = from_sklearn(
-        fitted_pca_model=pathlib.Path(f"{alternative_tools_prefix}.pca.sklearn.model"),
-        pca_data=pathlib.Path(f"{alternative_tools_prefix}.pca.output.npy"),
-        sample_ids=pathlib.Path(f"{alternative_tools_prefix}.pca.sample.ids")
-    )
+    alternative_tool_pcas = run_alternative_pcas(pandora_config, n_pcs=empirical_pca.n_pcs)
 
     # =======================================
     # Compare results
     # =======================================
     logger.info(fmt_message(f"Comparing PCA results."))
-    # TODO: make plotted PCs command line settable
-    pc1 = 0
-    pc2 = 1
 
-    n_clusters_ckp = outfile_base / "kmeans.ckp"
-    if n_clusters_ckp.exists() and not redo:
-        n_clusters = int(open(n_clusters_ckp).readline())
-    else:
-        n_clusters = empirical_pca.get_optimal_n_clusters()
-        n_clusters_ckp.open("w").write(str(n_clusters))
+    n_clusters = get_n_clusters(pandora_config, empirical_pca)
 
-    logger.info(fmt_message(f"Optimal number of clusters determined to be: {n_clusters}"))
-
-    if plot_pcas:
-        # plot with annotated populations
-        empirical_pca.plot(
-            pc1=pc1,
-            pc2=pc2,
-            annotation="population",
-            outfile=pathlib.Path(f"{outfile_prefix}_with_populations.pdf"),
-            redo=redo
-        )
-
-        # plot with annotated clusters
-        empirical_pca.plot(
-            pc1=pc1,
-            pc2=pc2,
-            annotation="cluster",
-            n_clusters=n_clusters,
-            outfile=pathlib.Path(f"{outfile_prefix}_with_clusters.pdf"),
-            redo=redo
-        )
-
-        logger.info(fmt_message(f"Plotted empirical PCA."))
-
-    # Compare Empirical <> Bootstraps
-    bootstrap_similarities = []
-    bootstrap_cluster_similarities = []
-
-    for i, bootstrap_pca in enumerate(bootstrap_pcas):
-
-        if plot_pcas:
-            bootstrap_pca.set_populations(empirical_pca.pca_data.population)
-
-            # plot Bootstrap with annotated populations
-            bootstrap_pca.plot(
-                pc1=pc1,
-                pc2=pc2,
-                annotation="population",
-                outfile=pathlib.Path(bootstrap_dir / f"bootstrap_{i + 1}_with_populations.pca.pdf"),
-                redo=redo
-            )
-
-            # plot Bootstrap only with annotated clusters
-            bootstrap_pca.plot(
-                pc1=pc1,
-                pc2=pc2,
-                annotation="cluster",
-                n_clusters=n_clusters,
-                outfile=pathlib.Path(bootstrap_dir / f"bootstrap_{i + 1}_with_clusters.pca.pdf"),
-                redo=redo
-            )
-
-            # Plot transformed bootstrap and empirical data jointly
-            # for this, we first need to transform the empirical and bootstrap data
-            transformed_bootstrap, scaled_empirical = transform_pca_to_reference(bootstrap_pca, empirical_pca)
-            fig = scaled_empirical.plot(
-                pc1=pc1,
-                pc2=pc2,
-                name="Scaled empirical",
-                marker_color="darkblue",
-                marker_symbol="circle",
-            )
-
-            transformed_bootstrap.plot(
-                pc1=pc1,
-                pc2=pc2,
-                name="Transformed Bootstrap",
-                fig=fig,
-                marker_color="orange",
-                marker_symbol="star",
-                outfile=pathlib.Path(bootstrap_dir / f"bootstrap_{i + 1}_with_empirical.pca.pdf"),
-                redo=redo
-            )
-
-            logger.info(fmt_message(f"Plotted bootstrap PCA #{i + 1}"))
-
-        similarity = bootstrap_pca.compare(other=empirical_pca)
-        bootstrap_similarities.append(similarity)
-
-        clustering_score = bootstrap_pca.compare_clustering(other=empirical_pca, n_clusters=n_clusters)
-        bootstrap_cluster_similarities.append(clustering_score)
-
-    # write similarities of all bootstraps to file
-    with open(f"{outfile_prefix}.pandora.bootstrap.txt", "w") as f:
-        output = [f"{i + 1}\t{sim}" for i, sim in enumerate(bootstrap_similarities)]
-        f.write("\n".join(output))
+    bootstrap_similarities, bootstrap_cluster_similarities = compare_bootstrap_results(
+        pandora_config, empirical_pca, bootstrap_pcas, n_clusters
+    )
 
     # Compare Empirical <> alternative tools
-    tool_similarities = []
-    tool_cluster_similarities = []
-    for p1, p2 in itertools.combinations([empirical_pca, plink_pca, sklearn_pca], r=2):
-        tool_similarities.append(p1.compare(other=p2))
-        tool_cluster_similarities.append(p1.compare_clustering(other=p2, n_clusters=n_clusters))
+    tool_similarities, tool_cluster_similarities, pairwise_similarities = compare_alternative_tool_results(
+        empirical_pca, alternative_tool_pcas, n_clusters)
 
-    if plot_pcas:
-        # Plot transformed alternative Tools and smartPCA data jointly
-        # for this, we first need to transform the empirical and bootstrap data
-        transformed_plink, scaled_empirical = transform_pca_to_reference(plink_pca, empirical_pca)
-        fig = scaled_empirical.plot(
-            pc1=pc1,
-            pc2=pc2,
-            name="Scaled SmartPCA",
-            marker_color="darkblue",
-            marker_symbol="circle",
+    # =======================================
+    # Plot results
+    # =======================================
+    if pandora_config.run_plotting:
+        plot_results(
+            pandora_config,
+            empirical_pca,
+            bootstrap_pcas,
+            n_clusters
         )
 
-        transformed_plink.plot(
-            pc1=pc1,
-            pc2=pc2,
-            name="Transformed PLINK",
-            fig=fig,
-            marker_color="orange",
-            marker_symbol="star",
-            outfile=pathlib.Path(alternative_tools_dir / "plink_with_smartpca.pca.pdf")
-        )
-
-        transformed_sklearn, scaled_empirical = transform_pca_to_reference(sklearn_pca, empirical_pca)
-        fig = scaled_empirical.plot(
-            pc1=pc1,
-            pc2=pc2,
-            name="Scaled SmartPCA",
-            marker_color="darkblue",
-            marker_symbol="circle",
-        )
-
-        transformed_sklearn.plot(
-            pc1=pc1,
-            pc2=pc2,
-            name="Transformed Scikit-learn",
-            fig=fig,
-            marker_color="orange",
-            marker_symbol="star",
-            outfile=pathlib.Path(alternative_tools_dir / "sklearn_with_smartpca.pca.pdf")
+        plot_alternative_tools(
+            pandora_config,
+            empirical_pca,
+            alternative_tool_pcas,
+            n_clusters
         )
 
     logger.info("\n\n========= PANDORA RESULTS =========")
-    logger.info(f"> Input dataset: {infile_prefix}")
-    logger.info(f"> Number of Bootstrap replicates computed: {n_bootstraps}")
-    logger.info(f"> Number of PCs required to explain at least {variance_cutoff}% variance: {empirical_pca.n_pcs}")
+    logger.info(f"> Input dataset: {pandora_config.infile_prefix}")
+    logger.info(f"> Number of Bootstrap replicates computed: {pandora_config.n_bootstraps}")
+    logger.info(f"> Number of PCs required to explain at least {pandora_config.variance_cutoff}% variance: {empirical_pca.n_pcs}")
     logger.info(f"> Optimal number of clusters: {n_clusters}")
     logger.info("\n------------------")
     logger.info("Bootstrapping Similarity")
@@ -424,9 +225,8 @@ def main():
     logger.info(f"\nTotal runtime: {datetime.timedelta(seconds=total_runtime)} ({total_runtime} seconds)")
 
     # For debugging now:
-    print("PLINK <> SMARTPCA ", round(plink_pca.compare(empirical_pca), 2), round(plink_pca.compare_clustering(empirical_pca, n_clusters), 2))
-    print("SKLEARN <> SMARTPCA ", round(sklearn_pca.compare(empirical_pca), 2), round(sklearn_pca.compare_clustering(empirical_pca, n_clusters), 2))
-    print("SKLEARN <> PLINK ", round(sklearn_pca.compare(plink_pca), 2), round(sklearn_pca.compare_clustering(plink_pca, n_clusters), 2))
+    for tool, (pca, cluster) in pairwise_similarities:
+        print(tool, round(pca, 2), round(cluster, 2))
 
 
 if __name__ == "__main__":

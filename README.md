@@ -28,6 +28,12 @@ The `-e` flag is a development flag I would recommend to set. Changes in the cod
 On some machines this option does not work. If you encounter any errors, try again using `pip install .`
 
 ## Usage
+### Input
+The following input types are currently supported:
+- EIGEN format
+
+Pandora applies no preprocessing so make sure to provide a preprocessed dataset. More specifically, apply LD pruning *before* running Pandora.
+
 ### Command line interface
 Not yet implemented, coming soon...
 

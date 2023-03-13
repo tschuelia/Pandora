@@ -477,7 +477,8 @@ def run_smartpca(
     eval_out = pathlib.Path(f"{outfile_prefix}.eval")
 
     if eval_out.exists() and eval_out.exists() and not redo:
-        # TODO: das reicht nicht als check, bei unfertigen runs sind die files einfach nicht vollständig aber leider noch vorhanden
+        # TODO: das reicht nicht als check, bei unfertigen runs sind die files einfach nicht vollständig aber
+        #  leider noch vorhanden
         logger.info(
             fmt_message(f"Skipping smartpca. Files {outfile_prefix}.* already exist.")
         )

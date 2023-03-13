@@ -6,33 +6,34 @@ from pandora.custom_types import *
 from pandora.logger import logger, fmt_message
 
 
-def eigen_to_plink(eigen_prefix: FilePath, plink_prefix: FilePath, convertf: Executable, redo: bool = False):
-    ped_out = pathlib.Path(f"{plink_prefix}.ped")
-    map_out = pathlib.Path(f"{plink_prefix}.map")
-    fam_out = pathlib.Path(f"{plink_prefix}.fam")
-
-    if ped_out.exists() and map_out.exists() and fam_out.exists() and not redo:
+def run_convertf(
+        convertf: Executable,
+        genotype_in: FilePath,
+        snp_in: FilePath,
+        ind_in: FilePath,
+        genotype_out: FilePath,
+        snp_out: FilePath,
+        ind_out: FilePath,
+        outputformat: str,
+        redo: bool = False
+):
+    if genotype_out.exists() and snp_out.exists() and ind_out.exists() and not redo:
         logger.info(
-            fmt_message("Skipping file conversion from EIGEN to PLINK. Files already converted.")
+            fmt_message(f"Skipping file conversion to {outputformat}. Files already converted.")
         )
-        return
 
     with tempfile.NamedTemporaryFile(mode="w") as tmpfile:
         conversion_content = f"""
-               genotypename: {eigen_prefix}.geno
-               snpname: {eigen_prefix}.snp
-               indivname: {eigen_prefix}.ind
-               outputformat: PED
-               genotypeoutname: {ped_out} 
-               snpoutname: {map_out} 
-               indivoutname: {fam_out} 
-               """
+                       genotypename: {genotype_in}
+                       snpname: {snp_in}
+                       indivname: {ind_in}
+                       outputformat: {outputformat}
+                       genotypeoutname: {genotype_out} 
+                       snpoutname: {snp_out} 
+                       indivoutname: {ind_out} 
+                       """
         tmpfile.write(textwrap.dedent(conversion_content))
         tmpfile.flush()
-
-        logger.info(
-            fmt_message("Converting EIGEN files to PLINK.")
-        )
 
         cmd = [
             convertf,
@@ -42,41 +43,9 @@ def eigen_to_plink(eigen_prefix: FilePath, plink_prefix: FilePath, convertf: Exe
         subprocess.check_output(cmd)
 
 
-def plink_to_eigen(plink_prefix: FilePath, eigen_prefix: FilePath, convertf: Executable, redo: bool = False):
-    geno_out = pathlib.Path(f"{eigen_prefix}.geno")
-    snp_out = pathlib.Path(f"{eigen_prefix}.snp")
-    ind_out = pathlib.Path(f"{eigen_prefix}.ind")
-
-    if geno_out.exists() and snp_out.exists() and ind_out.exists() and not redo:
-        logger.info(
-            fmt_message("Skipping file conversion from PLINK to EIGEN. Files already converted.")
-        )
-        return
-
-    with tempfile.NamedTemporaryFile(mode="w") as tmpfile:
-        conversion_content = f"""
-        genotypename:    {plink_prefix}.ped
-        snpname:         {plink_prefix}.map
-        indivname:       {plink_prefix}.fam
-        outputformat:    EIGENSTRAT
-        genotypeoutname: {geno_out}
-        snpoutname:      {snp_out}
-        indivoutname:    {ind_out}
-        """
-
-        tmpfile.write(textwrap.dedent(conversion_content))
-        tmpfile.flush()
-
-        cmd = [
-            convertf,
-            "-p",
-            tmpfile.name
-        ]
-
-        subprocess.check_output(cmd)
-
-    # for some reason, the file conversion results in weird sample IDs -> clean them  to match the original IDs
-    # the affected file is the ind_out file
+def clean_converted_names(ind_out: FilePath):
+    # for some reason, the file conversion from PLINK to EIGEN results in weird sample IDs
+    # -> clean them  to match the original IDs the affected file is the ind_out file
     corrected_content = []
     for line in ind_out.open():
         line = line.strip()
@@ -86,36 +55,80 @@ def plink_to_eigen(plink_prefix: FilePath, eigen_prefix: FilePath, convertf: Exe
     ind_out.open("w").write("\n".join(corrected_content))
 
 
+def eigen_to_plink(eigen_prefix: FilePath, plink_prefix: FilePath, convertf: Executable, redo: bool = False):
+    run_convertf(
+        convertf=convertf,
+        genotype_in=eigen_prefix.with_suffix(".geno"),
+        snp_in=eigen_prefix.with_suffix(".snp"),
+        ind_in=eigen_prefix.with_suffix(".ind"),
+        genotype_out=plink_prefix.with_suffix(".ped"),
+        snp_out=plink_prefix.with_suffix(".map"),
+        ind_out=plink_prefix.with_suffix(".fam"),
+        outputformat="PED",
+        redo=redo,
+    )
+
+
+def plink_to_eigen(plink_prefix: FilePath, eigen_prefix: FilePath, convertf: Executable, redo: bool = False):
+    ind_out = eigen_prefix.with_suffix(".fam")
+
+    run_convertf(
+        convertf=convertf,
+        genotype_in=plink_prefix.with_suffix(".geno"),
+        snp_in=plink_prefix.with_suffix(".snp"),
+        ind_in=plink_prefix.with_suffix(".ind"),
+        genotype_out=eigen_prefix.with_suffix(".ped"),
+        snp_out=eigen_prefix.with_suffix(".map"),
+        ind_out=ind_out,
+        outputformat="EIGENSTRAT",
+        redo=redo,
+    )
+
+    clean_converted_names(ind_out)
+
+
 def plink_to_bplink(plink_prefix: FilePath, bplink_prefix: FilePath, convertf: Executable, redo: bool = False):
-    bed = pathlib.Path(f"{bplink_prefix}.bed")
-    bim = pathlib.Path(f"{bplink_prefix}.bim")
-    bfam = pathlib.Path(f"{bplink_prefix}.fam")
+    run_convertf(
+        convertf=convertf,
+        genotype_in=plink_prefix.with_suffix(".geno"),
+        snp_in=plink_prefix.with_suffix(".snp"),
+        ind_in=plink_prefix.with_suffix(".ind"),
+        genotype_out=bplink_prefix.with_suffix(".ped"),
+        snp_out=bplink_prefix.with_suffix(".map"),
+        ind_out=bplink_prefix.with_suffix(".fam"),
+        outputformat="PACKEDPED",
+        redo=redo,
+    )
 
-    if bed.exists() and bim.exists() and bfam.exists() and not redo:
-        logger.info(
-            fmt_message("Skipping file conversion from PLINK to binary PLINK. Files already converted.")
-        )
-        return
 
-    with tempfile.NamedTemporaryFile(mode="w") as tmpfile:
-        conversion_content = f"""
-        genotypename:    {plink_prefix}.ped
-        snpname:         {plink_prefix}.map
-        indivname:       {plink_prefix}.fam
-        outputformat:    PACKEDPED
-        genotypeoutname: {bed}
-        snpoutname:      {bim}
-        indivoutname:    {bfam}
-        familynames:     NO
-        """
+def eigen_to_bplink(eigen_prefix: FilePath, bplink_prefix: FilePath, convertf: Executable, redo: bool = False):
+    run_convertf(
+        convertf=convertf,
+        genotype_in=eigen_prefix.with_suffix(".geno"),
+        snp_in=eigen_prefix.with_suffix(".snp"),
+        ind_in=eigen_prefix.with_suffix(".ind"),
+        genotype_out=bplink_prefix.with_suffix(".bed"),
+        snp_out=bplink_prefix.with_suffix(".bim"),
+        ind_out=bplink_prefix.with_suffix(".fam"),
+        outputformat="PACKEDPED",
+        redo=redo,
+    )
 
-        tmpfile.write(textwrap.dedent(conversion_content))
-        tmpfile.flush()
 
-        cmd = [
-            convertf,
-            "-p",
-            tmpfile.name
-        ]
+def bplink_to_eigen(bplink_prefix: FilePath, eigen_prefix: FilePath, convertf: Executable, redo: bool = False):
+    ind_out = eigen_prefix.with_suffix(".fam")
 
-        subprocess.check_output(cmd)
+    run_convertf(
+        convertf=convertf,
+        genotype_in=bplink_prefix.with_suffix(".geno"),
+        snp_in=bplink_prefix.with_suffix(".snp"),
+        ind_in=bplink_prefix.with_suffix(".ind"),
+        genotype_out=eigen_prefix.with_suffix(".ped"),
+        snp_out=eigen_prefix.with_suffix(".map"),
+        ind_out=ind_out,
+        outputformat="EIGENSTRAT",
+        redo=redo,
+    )
+
+    clean_converted_names(ind_out)
+    

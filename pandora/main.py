@@ -18,6 +18,7 @@ TODO:
 - check bei jedem PCA das geskippt wird ob die Anzahl PCs auch mit der bestimmten Anzahl PCs die verwendet werden sollten 
     übereinstimmt -> falls nein, neu berechnen 
 - % explained variance sinnlos wenn man 2 PCs gegeneinander plottet
+- config file statt tausend command line optionen erlauben (und bei einem run das config file immer in den results ordner packen für reproduzierbarkeit)
 """
 
 
@@ -57,11 +58,6 @@ def main():
         required=False,
         default=100,
         help="Maximum number of bootstrap replicates to compute (default = TODO)."
-    )
-    parser.add_argument(
-        "--disableBootstopping",
-        action="store_true",
-        help="If set, disables the automatic bootstopping check and infers the maximum number of bootstrap replicates."
     )
     parser.add_argument(
         "-t",
@@ -140,7 +136,6 @@ def main():
 
     seed = args.seed
     n_bootstraps = args.bootstraps if args.bootstraps else 100  # TODO: what number should we use as default?
-    disable_bootstopping = args.disableBootstopping  # TODO: implement bootstopping
     n_threads = args.threads
     redo = args.redo
     variance_cutoff = args.varianceCutoff
@@ -166,6 +161,7 @@ def main():
     pandora_logfile = outfile_base / "pandora.log"
 
     # connect logfile to the logger
+    # TODO: das weiter oben schon setzten damit auch alles ins log geschrieben wird inklusive configuration
     logger.addHandler(logging.FileHandler(pandora_logfile))
 
     # Empirical PCA using smartPCA and no bootstrapping
@@ -199,7 +195,7 @@ def main():
     )
 
     # TODO: implement bootstopping
-    logger.info(fmt_message(f"Drawing {n_bootstraps} bootstrapped datasets, converting them to EIGEN format and running smartpca."))
+    logger.info(fmt_message(f"Drawing {n_bootstraps} bootstrapped datasets."))
 
     bootstrap_dir.mkdir(exist_ok=True)
 

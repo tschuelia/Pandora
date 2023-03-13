@@ -1,5 +1,6 @@
 import argparse
 import datetime
+import itertools
 import logging
 import multiprocessing
 import time
@@ -292,8 +293,8 @@ def main():
         logger.info(fmt_message(f"Plotted empirical PCA."))
 
     # Compare Empirical <> Bootstraps
-    similarities = []
-    clustering_scores = []
+    bootstrap_similarities = []
+    bootstrap_cluster_similarities = []
 
     for i, bootstrap_pca in enumerate(bootstrap_pcas):
 
@@ -344,22 +345,22 @@ def main():
             logger.info(fmt_message(f"Plotted bootstrap PCA #{i + 1}"))
 
         similarity = bootstrap_pca.compare(other=empirical_pca)
-        similarities.append(similarity)
+        bootstrap_similarities.append(similarity)
 
         clustering_score = bootstrap_pca.compare_clustering(other=empirical_pca, n_clusters=n_clusters)
-        clustering_scores.append(clustering_score)
+        bootstrap_cluster_similarities.append(clustering_score)
 
     # write similarities of all bootstraps to file
-    with open(f"{outfile_prefix}.pandora.txt", "w") as f:
-        output = [f"{i + 1}\t{sim}" for i, sim in enumerate(similarities)]
+    with open(f"{outfile_prefix}.pandora.bootstrap.txt", "w") as f:
+        output = [f"{i + 1}\t{sim}" for i, sim in enumerate(bootstrap_similarities)]
         f.write("\n".join(output))
 
     # Compare Empirical <> alternative tools
-    plink_similarity = plink_pca.compare(other=empirical_pca)
-    plink_cluster_similarity = plink_pca.compare_clustering(other=empirical_pca, n_clusters=n_clusters)
-
-    sklearn_similarity = sklearn_pca.compare(other=empirical_pca)
-    sklearn_cluster_similarity = sklearn_pca.compare_clustering(other=empirical_pca, n_clusters=n_clusters)
+    tool_similarities = []
+    tool_cluster_similarities = []
+    for p1, p2 in itertools.combinations([empirical_pca, plink_pca, sklearn_pca], r=2):
+        tool_similarities.append(p1.compare(other=p2))
+        tool_cluster_similarities.append(p1.compare_clustering(other=p2, n_clusters=n_clusters))
 
     if plot_pcas:
         # Plot transformed alternative Tools and smartPCA data jointly
@@ -402,34 +403,30 @@ def main():
             outfile=pathlib.Path(alternative_tools_dir / "sklearn_with_smartpca.pca.pdf")
         )
 
-    # TODO: also log the output into a log file
-
     logger.info("\n\n========= PANDORA RESULTS =========")
-    logger.info(f"> number of Bootstrap replicates computed: {n_bootstraps}")
-    logger.info(f"> number of PCs required to explain at least {variance_cutoff}% variance: {empirical_pca.n_pcs}")
-    logger.info(f"> optimal number of clusters: {n_clusters}")
+    logger.info(f"> Input dataset: {infile_prefix}")
+    logger.info(f"> Number of Bootstrap replicates computed: {n_bootstraps}")
+    logger.info(f"> Number of PCs required to explain at least {variance_cutoff}% variance: {empirical_pca.n_pcs}")
+    logger.info(f"> Optimal number of clusters: {n_clusters}")
+    logger.info("\n------------------")
+    logger.info("Bootstrapping Similarity")
     logger.info("------------------")
+    logger.info(f"PCA: {round(np.mean(bootstrap_similarities), 2)} ± {round(np.std(bootstrap_similarities), 2)}")
+    logger.info(f"K-Means clustering: {round(np.mean(bootstrap_cluster_similarities), 2)} ± {round(np.std(bootstrap_cluster_similarities), 2)}")
 
-    logger.info("\nPCA <> Bootstraps")
+    logger.info("\n------------------")
+    logger.info("Alternative Tools Similarity")
     logger.info("------------------")
-    logger.info(f"PCA similarity: {round(np.mean(similarities), 2)} ± {round(np.std(similarities), 2)}")
-    logger.info(f"K-Means clustering similarity:{round(np.mean(clustering_scores), 2)} ± {round(np.std(clustering_scores), 2)}")
-    logger.info("------------------")
-
-    logger.info("\nSmartPCA <> Plink2")
-    logger.info("------------------")
-    logger.info(f"PCA similarity: {round(plink_similarity, 2)}")
-    logger.info(f"K-Means clustering similarity:{round(np.mean(plink_cluster_similarity), 2)}\n")
-    logger.info("------------------")
-
-    logger.info("\nSmartPCA <> Scikit-Learn")
-    logger.info("------------------")
-    logger.info(f"PCA similarity: {round(sklearn_similarity, 2)}")
-    logger.info(f"K-Means clustering similarity:{round(np.mean(sklearn_cluster_similarity), 2)}\n")
-    logger.info("------------------")
+    logger.info(f"PCA: {round(np.mean(tool_similarities), 2)} ± {round(np.std(tool_similarities), 2)}")
+    logger.info(f"K-Means clustering: {round(np.mean(tool_cluster_similarities), 2)} ± {round(np.std(tool_cluster_similarities), 2)}")
 
     total_runtime = math.ceil(time.perf_counter() - SCRIPT_START)
     logger.info(f"\nTotal runtime: {datetime.timedelta(seconds=total_runtime)} ({total_runtime} seconds)")
+
+    # For debugging now:
+    print("PLINK <> SMARTPCA ", round(plink_pca.compare(empirical_pca), 2), round(plink_pca.compare_clustering(empirical_pca, n_clusters), 2))
+    print("SKLEARN <> SMARTPCA ", round(sklearn_pca.compare(empirical_pca), 2), round(sklearn_pca.compare_clustering(empirical_pca, n_clusters), 2))
+    print("SKLEARN <> PLINK ", round(sklearn_pca.compare(plink_pca), 2), round(sklearn_pca.compare_clustering(plink_pca, n_clusters), 2))
 
 
 if __name__ == "__main__":

@@ -144,8 +144,8 @@ def main():
     )
 
     # TODO: manuell noch den heaeder in das logfile schreiben (wegen Version etc.)
-    logger.addHandler(logging.FileHandler(pandora_config.logfile))
     pandora_config.create_outdirs()
+    logger.addHandler(logging.FileHandler(pandora_config.logfile))
 
     _arguments_str = [f"{k}: {v}" for k, v in pandora_config.get_configuration().items()]
     _command_line = " ".join(sys.argv)

@@ -296,11 +296,11 @@ def plot_bootstraps(pandora_config: PandoraConfig, empirical_pca: PCA, bootstrap
 
         # Plot transformed bootstrap and empirical data jointly
         # for this, we first need to transform the empirical and bootstrap data
-        transformed_bootstrap, scaled_empirical = transform_pca_to_reference(bootstrap_pca, empirical_pca)
-        fig = scaled_empirical.plot(
+        transformed_bootstrap = transform_pca_to_reference(bootstrap_pca, empirical_pca)
+        fig = empirical_pca.plot(
             pc1=pc1,
             pc2=pc2,
-            name="Scaled empirical",
+            name="empirical",
             marker_color="darkblue",
             marker_symbol="circle",
         )
@@ -327,11 +327,11 @@ def plot_alternative_tools(pandora_config: PandoraConfig, empirical_pca: PCA, al
     # Plot transformed alternative Tools and smartPCA data jointly
     # for this, we first need to transform the empirical and bootstrap data
     for name, pca in alternative_pcas.items():
-        transformed_alternative, scaled_empirical = transform_pca_to_reference(pca, empirical_pca)
-        fig = scaled_empirical.plot(
+        transformed_alternative = transform_pca_to_reference(pca, empirical_pca)
+        fig = empirical_pca.plot(
             pc1=pc1,
             pc2=pc2,
-            name="Scaled SmartPCA",
+            name="SmartPCA",
             marker_color="darkblue",
             marker_symbol="circle",
         )

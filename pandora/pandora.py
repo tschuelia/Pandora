@@ -327,6 +327,13 @@ def plot_alternative_tools(pandora_config: PandoraConfig, empirical_pca: PCA, al
     # Plot transformed alternative Tools and smartPCA data jointly
     # for this, we first need to transform the empirical and bootstrap data
     for name, pca in alternative_pcas.items():
+        pca.plot(
+            pc1=pc1,
+            pc2=pc2,
+            name=f"Transformed {name}",
+            outfile=pandora_config.plot_dir / f"{name}.pca.pdf"
+        )
+
         transformed_alternative = transform_pca_to_reference(pca, empirical_pca)
         fig = empirical_pca.plot(
             pc1=pc1,

@@ -367,10 +367,6 @@ class PCA:
         fig.update_yaxes(title=ytitle)
         fig.update_layout(template="plotly_white", height=1000, width=1000)
 
-        if outfile is not None:
-            if redo or not outfile.exists():
-                fig.write_image(outfile)
-
         return fig
 
 

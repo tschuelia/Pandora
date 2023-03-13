@@ -551,12 +551,9 @@ def determine_number_of_pcs(
         finished = bool(int(finished))
 
         if finished:
-            # smartPCA run finished properly, check if n_pcs is the correct value
             logger.info(
                 fmt_message(
-                    f"Resuming from checkpoint: "
-                    f"Reading data from existing PCA outfiles {outfile_prefix}.*. "
-                    f"Delete files or set the redo flag in case you want to rerun the PCA."
+                    f"Resuming from checkpoint: determining number of PCs already finished."
                 )
             )
 

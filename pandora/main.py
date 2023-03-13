@@ -411,7 +411,7 @@ def main():
     logger.info("\n\n========= PANDORA RESULTS =========")
     logger.info(f"> number of Bootstrap replicates computed: {n_bootstraps}")
     logger.info(f"> number of PCs required to explain at least {variance_cutoff}% variance: {empirical_pca.n_pcs}")
-    logger.info(f"> optimal number of clusters: {n_clusters.n_pcs}")
+    logger.info(f"> optimal number of clusters: {n_clusters}")
     logger.info("------------------")
 
     logger.info("\nPCA <> Bootstraps")

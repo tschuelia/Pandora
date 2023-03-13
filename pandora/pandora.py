@@ -70,7 +70,7 @@ class PandoraConfig:
 
     def create_outdirs(self):
         if self.run_bootstrapping:
-            self.convertf.mkdir(exist_ok=True, parents=True)
+            self.convertf_dir.mkdir(exist_ok=True, parents=True)
             self.bootstrap_dir.mkdir(exist_ok=True, parents=True)
         if self.run_alternative:
             self.convertf_dir_binary.mkdir(exist_ok=True, parents=True)

@@ -58,27 +58,27 @@ def clean_converted_names(ind_out: FilePath):
 def eigen_to_plink(eigen_prefix: FilePath, plink_prefix: FilePath, convertf: Executable, redo: bool = False):
     run_convertf(
         convertf=convertf,
-        genotype_in=eigen_prefix.with_suffix(".geno"),
-        snp_in=eigen_prefix.with_suffix(".snp"),
-        ind_in=eigen_prefix.with_suffix(".ind"),
-        genotype_out=plink_prefix.with_suffix(".ped"),
-        snp_out=plink_prefix.with_suffix(".map"),
-        ind_out=plink_prefix.with_suffix(".fam"),
+        genotype_in=pathlib.Path(f"{eigen_prefix}.geno"),
+        snp_in=pathlib.Path(f"{eigen_prefix}.snp"),
+        ind_in=pathlib.Path(f"{eigen_prefix}.ind"),
+        genotype_out=pathlib.Path(f"{plink_prefix}.ped"),
+        snp_out=pathlib.Path(f"{plink_prefix}.map"),
+        ind_out=pathlib.Path(f"{plink_prefix}.fam"),
         outputformat="PED",
         redo=redo,
     )
 
 
 def plink_to_eigen(plink_prefix: FilePath, eigen_prefix: FilePath, convertf: Executable, redo: bool = False):
-    ind_out = eigen_prefix.with_suffix(".fam")
+    ind_out = pathlib.Path(f"{eigen_prefix}.fam")
 
     run_convertf(
         convertf=convertf,
-        genotype_in=plink_prefix.with_suffix(".geno"),
-        snp_in=plink_prefix.with_suffix(".snp"),
-        ind_in=plink_prefix.with_suffix(".ind"),
-        genotype_out=eigen_prefix.with_suffix(".ped"),
-        snp_out=eigen_prefix.with_suffix(".map"),
+        genotype_in=pathlib.Path(f"{plink_prefix}.geno"),
+        snp_in=pathlib.Path(f"{plink_prefix}.snp"),
+        ind_in=pathlib.Path(f"{plink_prefix}.ind"),
+        genotype_out=pathlib.Path(f"{eigen_prefix}.ped"),
+        snp_out=pathlib.Path(f"{eigen_prefix}.map"),
         ind_out=ind_out,
         outputformat="EIGENSTRAT",
         redo=redo,
@@ -90,12 +90,12 @@ def plink_to_eigen(plink_prefix: FilePath, eigen_prefix: FilePath, convertf: Exe
 def plink_to_bplink(plink_prefix: FilePath, bplink_prefix: FilePath, convertf: Executable, redo: bool = False):
     run_convertf(
         convertf=convertf,
-        genotype_in=plink_prefix.with_suffix(".geno"),
-        snp_in=plink_prefix.with_suffix(".snp"),
-        ind_in=plink_prefix.with_suffix(".ind"),
-        genotype_out=bplink_prefix.with_suffix(".ped"),
-        snp_out=bplink_prefix.with_suffix(".map"),
-        ind_out=bplink_prefix.with_suffix(".fam"),
+        genotype_in=pathlib.Path(f"{plink_prefix}.geno"),
+        snp_in=pathlib.Path(f"{plink_prefix}.snp"),
+        ind_in=pathlib.Path(f"{plink_prefix}.ind"),
+        genotype_out=pathlib.Path(f"{bplink_prefix}.ped"),
+        snp_out=pathlib.Path(f"{bplink_prefix}.map"),
+        ind_out=pathlib.Path(f"{bplink_prefix}.fam"),
         outputformat="PACKEDPED",
         redo=redo,
     )
@@ -104,31 +104,30 @@ def plink_to_bplink(plink_prefix: FilePath, bplink_prefix: FilePath, convertf: E
 def eigen_to_bplink(eigen_prefix: FilePath, bplink_prefix: FilePath, convertf: Executable, redo: bool = False):
     run_convertf(
         convertf=convertf,
-        genotype_in=eigen_prefix.with_suffix(".geno"),
-        snp_in=eigen_prefix.with_suffix(".snp"),
-        ind_in=eigen_prefix.with_suffix(".ind"),
-        genotype_out=bplink_prefix.with_suffix(".bed"),
-        snp_out=bplink_prefix.with_suffix(".bim"),
-        ind_out=bplink_prefix.with_suffix(".fam"),
+        genotype_in=pathlib.Path(f"{eigen_prefix}.geno"),
+        snp_in=pathlib.Path(f"{eigen_prefix}.snp"),
+        ind_in=pathlib.Path(f"{eigen_prefix}.ind"),
+        genotype_out=pathlib.Path(f"{bplink_prefix}.bed"),
+        snp_out=pathlib.Path(f"{bplink_prefix}.bim"),
+        ind_out=pathlib.Path(f"{bplink_prefix}.fam"),
         outputformat="PACKEDPED",
         redo=redo,
     )
 
 
 def bplink_to_eigen(bplink_prefix: FilePath, eigen_prefix: FilePath, convertf: Executable, redo: bool = False):
-    ind_out = eigen_prefix.with_suffix(".fam")
+    ind_out = pathlib.Path(f"{eigen_prefix}.fam")
 
     run_convertf(
         convertf=convertf,
-        genotype_in=bplink_prefix.with_suffix(".geno"),
-        snp_in=bplink_prefix.with_suffix(".snp"),
-        ind_in=bplink_prefix.with_suffix(".ind"),
-        genotype_out=eigen_prefix.with_suffix(".ped"),
-        snp_out=eigen_prefix.with_suffix(".map"),
+        genotype_in=pathlib.Path(f"{bplink_prefix}.geno"),
+        snp_in=pathlib.Path(f"{bplink_prefix}.snp"),
+        ind_in=pathlib.Path(f"{bplink_prefix}.ind"),
+        genotype_out=pathlib.Path(f"{eigen_prefix}.ped"),
+        snp_out=pathlib.Path(f"{eigen_prefix}.map"),
         ind_out=ind_out,
         outputformat="EIGENSTRAT",
         redo=redo,
     )
 
     clean_converted_names(ind_out)
-    

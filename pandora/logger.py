@@ -3,7 +3,6 @@ import time
 
 logging.basicConfig(level=logging.WARNING, format="%(message)s")
 logger = logging.getLogger(__name__)
-logger.addHandler(logging.StreamHandler())
 logger.setLevel(logging.DEBUG)
 
 SCRIPT_START = time.perf_counter()

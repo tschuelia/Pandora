@@ -578,7 +578,7 @@ def determine_number_of_pcs(
 
     while True:
         with tempfile.TemporaryDirectory() as tmp_outdir:
-            tmp_outfile_prefix = tmp_outdir / "determine_npcs"
+            tmp_outfile_prefix = pathlib.Path(tmp_outdir) / "determine_npcs"
             pca = run_smartpca(
                 infile_prefix=infile_prefix,
                 outfile_prefix=tmp_outfile_prefix,

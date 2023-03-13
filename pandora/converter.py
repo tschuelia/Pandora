@@ -70,15 +70,15 @@ def eigen_to_plink(eigen_prefix: FilePath, plink_prefix: FilePath, convertf: Exe
 
 
 def plink_to_eigen(plink_prefix: FilePath, eigen_prefix: FilePath, convertf: Executable, redo: bool = False):
-    ind_out = pathlib.Path(f"{eigen_prefix}.fam")
+    ind_out = pathlib.Path(f"{eigen_prefix}.ind")
 
     run_convertf(
         convertf=convertf,
-        genotype_in=pathlib.Path(f"{plink_prefix}.geno"),
-        snp_in=pathlib.Path(f"{plink_prefix}.snp"),
-        ind_in=pathlib.Path(f"{plink_prefix}.ind"),
-        genotype_out=pathlib.Path(f"{eigen_prefix}.ped"),
-        snp_out=pathlib.Path(f"{eigen_prefix}.map"),
+        genotype_in=pathlib.Path(f"{plink_prefix}.ped"),
+        snp_in=pathlib.Path(f"{plink_prefix}.map"),
+        ind_in=pathlib.Path(f"{plink_prefix}.fam"),
+        genotype_out=pathlib.Path(f"{eigen_prefix}.geno"),
+        snp_out=pathlib.Path(f"{eigen_prefix}.snp"),
         ind_out=ind_out,
         outputformat="EIGENSTRAT",
         redo=redo,
@@ -90,11 +90,11 @@ def plink_to_eigen(plink_prefix: FilePath, eigen_prefix: FilePath, convertf: Exe
 def plink_to_bplink(plink_prefix: FilePath, bplink_prefix: FilePath, convertf: Executable, redo: bool = False):
     run_convertf(
         convertf=convertf,
-        genotype_in=pathlib.Path(f"{plink_prefix}.geno"),
-        snp_in=pathlib.Path(f"{plink_prefix}.snp"),
-        ind_in=pathlib.Path(f"{plink_prefix}.ind"),
-        genotype_out=pathlib.Path(f"{bplink_prefix}.ped"),
-        snp_out=pathlib.Path(f"{bplink_prefix}.map"),
+        genotype_in=pathlib.Path(f"{plink_prefix}.ped"),
+        snp_in=pathlib.Path(f"{plink_prefix}.map"),
+        ind_in=pathlib.Path(f"{plink_prefix}.fam"),
+        genotype_out=pathlib.Path(f"{bplink_prefix}.bed"),
+        snp_out=pathlib.Path(f"{bplink_prefix}.bim"),
         ind_out=pathlib.Path(f"{bplink_prefix}.fam"),
         outputformat="PACKEDPED",
         redo=redo,
@@ -116,15 +116,15 @@ def eigen_to_bplink(eigen_prefix: FilePath, bplink_prefix: FilePath, convertf: E
 
 
 def bplink_to_eigen(bplink_prefix: FilePath, eigen_prefix: FilePath, convertf: Executable, redo: bool = False):
-    ind_out = pathlib.Path(f"{eigen_prefix}.fam")
+    ind_out = pathlib.Path(f"{eigen_prefix}.ind")
 
     run_convertf(
         convertf=convertf,
-        genotype_in=pathlib.Path(f"{bplink_prefix}.geno"),
-        snp_in=pathlib.Path(f"{bplink_prefix}.snp"),
-        ind_in=pathlib.Path(f"{bplink_prefix}.ind"),
-        genotype_out=pathlib.Path(f"{eigen_prefix}.ped"),
-        snp_out=pathlib.Path(f"{eigen_prefix}.map"),
+        genotype_in=pathlib.Path(f"{bplink_prefix}.bed"),
+        snp_in=pathlib.Path(f"{bplink_prefix}.bim"),
+        ind_in=pathlib.Path(f"{bplink_prefix}.fam"),
+        genotype_out=pathlib.Path(f"{eigen_prefix}.geno"),
+        snp_out=pathlib.Path(f"{eigen_prefix}.snp"),
         ind_out=ind_out,
         outputformat="EIGENSTRAT",
         redo=redo,

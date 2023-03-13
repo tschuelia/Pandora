@@ -223,7 +223,7 @@ def main():
     logger.info(f"\nTotal runtime: {datetime.timedelta(seconds=total_runtime)} ({total_runtime} seconds)")
 
     # For debugging now:
-    for tool, (pca, cluster) in pairwise_similarities:
+    for tool, (pca, cluster) in pairwise_similarities.items():
         print(tool, round(pca, 2), round(cluster, 2))
 
 

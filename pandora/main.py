@@ -408,24 +408,25 @@ def main():
 
     # TODO: also log the output into a log file
 
-    logger.info("========= PANDORA RESULTS =========")
-    logger.info(f"number of PCs required to explain at least {variance_cutoff}% variance: {empirical_pca.n_pcs}\n")
+    logger.info("\n\n========= PANDORA RESULTS =========")
+    logger.info(f"> number of Bootstrap replicates computed: {n_bootstraps}")
+    logger.info(f"> number of PCs required to explain at least {variance_cutoff}% variance: {empirical_pca.n_pcs}")
+    logger.info(f"> optimal number of clusters: {n_clusters.n_pcs}")
     logger.info("------------------")
 
-    logger.info("PCA <> Bootstraps")
+    logger.info("\nPCA <> Bootstraps")
     logger.info("------------------")
-    logger.info(f"> number of Bootstrap replicates: {n_bootstraps}\n")
     logger.info(f"PCA similarity: {round(np.mean(similarities), 2)} ± {round(np.std(similarities), 2)}")
     logger.info(f"K-Means clustering similarity:{round(np.mean(clustering_scores), 2)} ± {round(np.std(clustering_scores), 2)}")
     logger.info("------------------")
 
-    logger.info("SmartPCA <> Plink2")
+    logger.info("\nSmartPCA <> Plink2")
     logger.info("------------------")
     logger.info(f"PCA similarity: {round(plink_similarity, 2)}")
     logger.info(f"K-Means clustering similarity:{round(np.mean(plink_cluster_similarity), 2)}\n")
     logger.info("------------------")
 
-    logger.info("SmartPCA <> Scikit-Learn")
+    logger.info("\nSmartPCA <> Scikit-Learn")
     logger.info("------------------")
     logger.info(f"PCA similarity: {round(sklearn_similarity, 2)}")
     logger.info(f"K-Means clustering similarity:{round(np.mean(sklearn_cluster_similarity), 2)}\n")

@@ -3,6 +3,7 @@ import itertools
 
 from pandora.bootstrapping import create_bootstrap_pcas
 from pandora.converter import eigen_to_plink, plink_to_bplink
+from pandora.logger import *
 from pandora.pca import *
 
 
@@ -175,6 +176,7 @@ def run_sklearn_pca(pandora_config: PandoraConfig, n_pcs: int):
 
 
 def run_alternative_pcas(pandora_config: PandoraConfig, n_pcs: int):
+    # TODO: parallel ausrechnen
     plink_pca = run_plink_pca(pandora_config, n_pcs)
     sklearn_pca = run_sklearn_pca(pandora_config, n_pcs)
 
@@ -226,6 +228,7 @@ def compare_alternative_tool_results(empirical_pca: PCA, alternative_pcas: Dict[
     pairwise = {}
 
     for pca1, pca2 in itertools.combinations(alternative_pcas.items(), r=2):
+        # TODO: hier stimmt bei sklearn noch was mit den sample_ids nicht glaube ich
         name1, pca1 = pca1
         name2, pca2 = pca2
 
@@ -269,6 +272,7 @@ def plot_empirical(pandora_config: PandoraConfig, empirical_pca: PCA, n_clusters
 
 def plot_bootstraps(pandora_config: PandoraConfig, empirical_pca: PCA, bootstrap_pcas: List[PCA], n_clusters: int):
     # TODO: make plotted PCs command line settable
+    # TODO: paralleles plotten
     pc1 = 0
     pc2 = 1
 
@@ -321,6 +325,7 @@ def plot_bootstraps(pandora_config: PandoraConfig, empirical_pca: PCA, bootstrap
 
 def plot_alternative_tools(pandora_config: PandoraConfig, empirical_pca: PCA, alternative_pcas: Dict[str, PCA], n_clusters: int):
     # TODO: make plotted PCs command line settable
+    # TODO: paralleles plotten
     pc1 = 0
     pc2 = 1
 

@@ -7,6 +7,7 @@ import textwrap
 import warnings
 
 import numpy as np
+import pandas as pd
 from joblib import dump, load
 from plotly import graph_objects as go
 from plotly.colors import n_colors
@@ -22,6 +23,7 @@ from sklearn.decomposition import PCA as sklearnPCA
 
 from pandora.custom_types import *
 from pandora.logger import logger, fmt_message
+from pandora.converter import bplink_to_datamatrix
 
 
 def _get_colors(n: int) -> List[str]:
@@ -658,67 +660,58 @@ def run_plink(
 def run_sklearn(
     infile_prefix: FilePath,
     outfile_prefix: FilePath,
+    plink: Executable,
     n_pcs: int = 20,
     redo: bool = False,
-):
-    ped = pathlib.Path(f"{infile_prefix}.ped")
-    sample_ids_file = pathlib.Path(f"{outfile_prefix}.pca.sample.ids")
-    input_data = pathlib.Path(f"{outfile_prefix}.pca.input.npy")
-    fitted_pca_model = pathlib.Path(f"{outfile_prefix}.pca.sklearn.model")
-    pca_data_file = pathlib.Path(f"{outfile_prefix}.pca.output.npy")
+) -> PCA:
+    # we use PLINK to generate us the input files for the PCA analysis
+    bplink_to_datamatrix(
+        bplink_prefix=infile_prefix,
+        outfile_prefix=outfile_prefix,
+        plink=plink,
+        redo=redo
+    )
 
-    if redo or not sample_ids_file.exists():
-        with ped.open() as f:
-            sample_ids = []
-            for line in f:
-                _, ind_id, *_ = line[:100].split()
-                sample_ids.append(ind_id)
+    plink_snp_data = pathlib.Path(f"{outfile_prefix}.rel")
+    plink_sample_data = pathlib.Path(f"{outfile_prefix}.rel.id")
 
-        sample_ids_file.open("w").write("\n".join(sample_ids))
+    pc_vectors_file = pathlib.Path(f"{outfile_prefix}.sklearn.evec.npy")
+    variances_file = pathlib.Path(f"{outfile_prefix}.sklearn.eval.npy")
 
-    if redo or not input_data.exists():
+    if redo or (not pc_vectors_file.exists() and not variances_file.exists()):
+        snp_data = []
+        for line in plink_snp_data.open():
+            values = line.split()
+            values = [float(v) for v in values]
+            snp_data.append(values)
 
-        snp_array = []
-        with ped.open() as f:
-            for i, line in enumerate(f):
-                snps = line.split()[6:]
-                snp_array.append(snps)
+        snp_data = np.asarray(snp_data)
 
-        snp_array = np.array(snp_array)
-        np.save(input_data, snp_array)
-    else:
-        snp_array = np.load(input_data)
+        pca = sklearnPCA(n_components=n_pcs)
+        pca_data = pca.fit_transform(snp_data)
 
-    if redo or not fitted_pca_model.exists():
-        skpca = sklearnPCA(n_components=n_pcs)
-        skpca.fit(snp_array)
-        dump(skpca, fitted_pca_model)
-    else:
-        skpca = load(fitted_pca_model)
+        np.save(pc_vectors_file, pca_data)
+        np.save(variances_file, pca.explained_variance_ratio_)
 
-    pca_data = skpca.transform(snp_array)
-    np.save(pca_data_file, pca_data)
+    return from_sklearn(
+        evec_file=pc_vectors_file,
+        eval_file=variances_file,
+        plink_id_file=plink_sample_data
+    )
 
 
 def from_sklearn(
-    fitted_pca_model: Union[FilePath, sklearnPCA],
-    pca_data: Union[FilePath, np.ndarray],
-    sample_ids: Union[FilePath, List],
+    evec_file: FilePath,
+    eval_file: FilePath,
+    plink_id_file: FilePath
 ) -> PCA:
-    if isinstance(fitted_pca_model, FilePath):
-        fitted_pca_model = load(fitted_pca_model)
-
-    if isinstance(pca_data, FilePath):
-        pca_data = np.load(pca_data)
-
-    if isinstance(sample_ids, FilePath):
-        sample_ids = [l.strip() for l in sample_ids.open().readlines()]
-
-    n_pcs = pca_data.shape[1]
+    sample_ids = pd.read_table(plink_id_file)["IID"].to_list()
+    pca_data = np.load(evec_file)
+    explained_variances = np.load(eval_file)
 
     return PCA(
         pca_data=pca_data,
-        explained_variances=fitted_pca_model.explained_variance_ratio_,
-        n_pcs=n_pcs,
-        sample_ids=sample_ids,
+        explained_variances=explained_variances,
+        n_pcs=explained_variances.shape[0],
+        sample_ids=sample_ids
     )

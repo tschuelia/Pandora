@@ -134,3 +134,24 @@ def bplink_to_eigen(bplink_prefix: FilePath, eigen_prefix: FilePath, convertf: E
     )
 
     clean_converted_names(ind_out)
+
+
+def bplink_to_datamatrix(bplink_prefix: FilePath, outfile_prefix: FilePath, plink: Executable, redo: bool = False):
+    plink_pca_data = pathlib.Path(f"{outfile_prefix}.rel")
+    plink_sample_data = pathlib.Path(f"{outfile_prefix}.rel.id")
+
+    if plink_pca_data.exists() and plink_sample_data.exists() and not redo:
+        logger.info(
+            fmt_message(f"Skipping data matrix generation {outfile_prefix}. Datamatrix exists.")
+        )
+
+    cmd = [
+        plink,
+        "--make-rel",
+        "square",
+        "--bfile",
+        bplink_prefix,
+        "--out",
+        outfile_prefix
+    ]
+    subprocess.check_output(cmd)

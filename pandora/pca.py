@@ -9,7 +9,7 @@ import warnings
 import numpy as np
 import pandas as pd
 from plotly import graph_objects as go
-from plotly.colors import n_colors
+from plotly.colors import color_parser, label_rgb, unlabel_rgb
 
 from scipy.linalg import orthogonal_procrustes
 from sklearn.cluster import KMeans
@@ -22,6 +22,22 @@ from sklearn.decomposition import PCA as sklearnPCA
 
 from pandora.custom_types import *
 from pandora.logger import logger, fmt_message
+
+
+def _color_space(lowcolor: str, highcolor: str, n_colors: int):
+    lowcolor = unlabel_rgb(lowcolor)
+    highcolor = unlabel_rgb(highcolor)
+
+    lowred, lowblue, lowgreen = lowcolor
+    highred, highblue, highgreen = highcolor
+
+    r_values = np.linspace(lowred, highred, n_colors).clip(0, 255)
+    b_values = np.linspace(lowblue, highblue, n_colors).clip(0, 255)
+    g_values = np.linspace(lowgreen, highgreen, n_colors).clip(0, 255)
+
+    colors = zip(r_values, b_values, g_values)
+
+    return color_parser(colors, label_rgb)
 
 
 def _get_colors(n: int) -> List[str]:
@@ -37,17 +53,15 @@ def _get_colors(n: int) -> List[str]:
     if n <= 3:
         return ["rgb(255, 0, 0)", "rgb(0,255,0)", "rgb(0,0,255)"][:n]
 
-    red_green = n_colors(
+    red_green = _color_space(
         lowcolor="rgb(255,0,0)",
         highcolor="rgb(0,255,0)",
         n_colors=n // 2,
-        colortype="rgb",
     )
-    green_blue = n_colors(
+    green_blue = _color_space(
         lowcolor="rgb(0,255,0)",
         highcolor="rgb(0,0,255)",
         n_colors=math.ceil(n / 2),
-        colortype="rgb",
     )
     return red_green + green_blue
 

@@ -650,6 +650,7 @@ def run_plink(
         infile_prefix,
         "--out",
         outfile_prefix,
+        "--no-fid"
     ]
 
     subprocess.check_output(pca_cmd)

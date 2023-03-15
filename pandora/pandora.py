@@ -208,7 +208,7 @@ def compare_bootstrap_results(pandora_config: PandoraConfig, empirical_pca: PCA,
         similarity = bootstrap_pca.compare(other=empirical_pca)
         bootstrap_similarities.append(similarity)
 
-        clustering_score = bootstrap_pca.compare_clustering(other=empirical_pca, n_clusters=n_clusters, weighted=False)
+        clustering_score = bootstrap_pca.compare_clustering(other=empirical_pca, n_clusters=n_clusters, weighted=True)
         bootstrap_cluster_similarities.append(clustering_score)
 
     # write similarities of all bootstraps to file
@@ -235,7 +235,7 @@ def compare_alternative_tool_results(empirical_pca: PCA, alternative_pcas: Dict[
         similarity = pca1.compare(other=pca2)
         tool_similarities.append(similarity)
 
-        cluster_similarity = pca1.compare_clustering(other=pca2, n_clusters=n_clusters, weighted=False)
+        cluster_similarity = pca1.compare_clustering(other=pca2, n_clusters=n_clusters, weighted=True)
         tool_cluster_similarities.append(cluster_similarity)
 
         pairwise[f"{name1} <> {name2}"] = (similarity, cluster_similarity)

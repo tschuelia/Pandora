@@ -182,13 +182,13 @@ def run_alternative_pcas(pandora_config: PandoraConfig, n_pcs: int):
         plink_pca = run_plink_pca(pandora_config, n_pcs)
         alternatives["plink2"] = plink_pca
     except subprocess.CalledProcessError as e:
-        logger.warning(fmt_message("Failed to run PLINK: ", e))
+        logger.warning(fmt_message("Failed to run PLINK: " + str(e)))
 
     try:
         sklearn_pca = run_sklearn_pca(pandora_config, n_pcs)
         alternatives["scikit-learn"] = sklearn_pca
     except subprocess.CalledProcessError as e:
-        logger.warning(fmt_message("Failed to run scikit-learn: ", e))
+        logger.warning(fmt_message("Failed to run scikit-learn: " + str(e)))
 
     return alternatives
 

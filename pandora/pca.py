@@ -657,8 +657,6 @@ def run_sklearn(
 
         snp_data = np.asarray(snp_data)
 
-        scaler = StandardScaler()
-        snp_data = scaler.fit_transform(snp_data)
         pca = sklearnPCA(n_components=n_pcs)
         pca_data = pca.fit_transform(snp_data)
 

@@ -177,13 +177,20 @@ def run_sklearn_pca(pandora_config: PandoraConfig, n_pcs: int):
 
 def run_alternative_pcas(pandora_config: PandoraConfig, n_pcs: int):
     # TODO: parallel ausrechnen
-    plink_pca = run_plink_pca(pandora_config, n_pcs)
-    sklearn_pca = run_sklearn_pca(pandora_config, n_pcs)
+    alternatives = {}
+    try:
+        plink_pca = run_plink_pca(pandora_config, n_pcs)
+        alternatives["plink2"] = plink_pca
+    except subprocess.CalledProcessError as e:
+        logger.warning(fmt_message("Failed to run PLINK: ", e))
 
-    return {
-        "plink2": plink_pca,
-        "scikit-learn": sklearn_pca
-    }
+    try:
+        sklearn_pca = run_sklearn_pca(pandora_config, n_pcs)
+        alternatives["scikit-learn"] = sklearn_pca
+    except subprocess.CalledProcessError as e:
+        logger.warning(fmt_message("Failed to run scikit-learn: ", e))
+
+    return alternatives
 
 
 def get_n_clusters(pandora_config: PandoraConfig, empirical_pca: PCA):

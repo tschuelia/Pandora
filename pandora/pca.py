@@ -649,20 +649,10 @@ def run_plink(
 
 
 def run_sklearn(
-    infile_prefix: FilePath,
     outfile_prefix: FilePath,
-    plink: Executable,
     n_pcs: int = 20,
     redo: bool = False,
 ) -> PCA:
-    # we use PLINK to generate us the input files for the PCA analysis
-    bplink_to_datamatrix(
-        bplink_prefix=infile_prefix,
-        outfile_prefix=outfile_prefix,
-        plink=plink,
-        redo=redo
-    )
-
     plink_snp_data = pathlib.Path(f"{outfile_prefix}.rel")
     plink_sample_data = pathlib.Path(f"{outfile_prefix}.rel.id")
 

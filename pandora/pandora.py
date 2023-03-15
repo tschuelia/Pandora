@@ -160,19 +160,19 @@ def run_plink_pca(pandora_config: PandoraConfig, n_pcs: int):
 def run_sklearn_pca(pandora_config: PandoraConfig, n_pcs: int):
     sklearn_prefix = pandora_config.alternative_tools_dir / "sklearn"
 
-    run_sklearn(
-        infile_prefix=pandora_config.convertf_prefix,
+    # we use PLINK to generate us the input files for the PCA analysis
+    bplink_to_datamatrix(
+        bplink_prefix=pandora_config.convertf_prefix_binary,
+        outfile_prefix=sklearn_prefix,
+        plink=pandora_config.plink2,
+        redo=pandora_config.redo
+    )
+
+    return run_sklearn(
         outfile_prefix=sklearn_prefix,
         n_pcs=n_pcs,
         redo=pandora_config.redo
     )
-    sklearn_pca = from_sklearn(
-        fitted_pca_model=pathlib.Path(f"{sklearn_prefix}.pca.sklearn.model"),
-        pca_data=pathlib.Path(f"{sklearn_prefix}.pca.output.npy"),
-        sample_ids=pathlib.Path(f"{sklearn_prefix}.pca.sample.ids")
-    )
-
-    return sklearn_pca
 
 
 def run_alternative_pcas(pandora_config: PandoraConfig, n_pcs: int):

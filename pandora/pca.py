@@ -17,8 +17,9 @@ from sklearn.metrics import (
     silhouette_score,
     fowlkes_mallows_score,
 )
-from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.decomposition import PCA as sklearnPCA
+from sklearn.metrics.pairwise import cosine_similarity
+from sklearn.preprocessing import StandardScaler
 
 from pandora.custom_types import *
 from pandora.logger import logger, fmt_message
@@ -656,6 +657,8 @@ def run_sklearn(
 
         snp_data = np.asarray(snp_data)
 
+        scaler = StandardScaler()
+        snp_data = scaler.fit_transform(snp_data)
         pca = sklearnPCA(n_components=n_pcs)
         pca_data = pca.fit_transform(snp_data)
 

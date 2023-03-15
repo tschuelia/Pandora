@@ -685,7 +685,7 @@ def from_sklearn(
     eval_file: FilePath,
     plink_id_file: FilePath
 ) -> PCA:
-    sample_ids = pd.read_table(plink_id_file)["IID"].to_list()
+    sample_ids = [l.strip() for l in plink_id_file.open().readlines()[1:]]
     pca_data = np.load(evec_file)
     explained_variances = np.load(eval_file)
 

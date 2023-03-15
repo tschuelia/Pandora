@@ -8,7 +8,6 @@ import warnings
 
 import numpy as np
 import pandas as pd
-from joblib import dump, load
 from plotly import graph_objects as go
 from plotly.colors import n_colors
 
@@ -605,18 +604,9 @@ def from_plink(plink_evec_file: FilePath, plink_eval_file: FilePath) -> PCA:
         pca_data = pd.read_table(f, delimiter="\t", skipinitialspace=False, header=None)
 
     n_pcs = pca_data.shape[1] - 2
-    cols = ["fid", "sample_id", *[f"PC{i}" for i in range(n_pcs)]]
+    cols = ["sample_id", *[f"PC{i}" for i in range(n_pcs)]]
     pca_data = pca_data.rename(columns=dict(zip(pca_data.columns, cols)))
-    pca_data = pca_data.drop("fid", axis=1)
     pca_data = pca_data.sort_values(by="sample_id").reset_index(drop=True)
-
-    # f*cking Plink always modifies the sample IDs -> clean the names yet again
-    sample_ids = []
-    for idx, row in pca_data.iterrows():
-        sample_id = row.sample_id
-        _, sample_id = sample_id.split(":", maxsplit=1)
-        sample_ids.append(sample_id)
-    pca_data["sample_id"] = sample_ids
 
     # next, read the eigenvalues
     eigenvalues = [float(ev.strip()) for ev in open(plink_eval_file)]

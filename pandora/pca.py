@@ -22,7 +22,6 @@ from sklearn.decomposition import PCA as sklearnPCA
 
 from pandora.custom_types import *
 from pandora.logger import logger, fmt_message
-from pandora.converter import bplink_to_datamatrix
 
 
 def _get_colors(n: int) -> List[str]:

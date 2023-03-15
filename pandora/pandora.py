@@ -2,7 +2,7 @@ import dataclasses
 import itertools
 
 from pandora.bootstrapping import create_bootstrap_pcas
-from pandora.converter import eigen_to_plink, plink_to_bplink
+from pandora.converter import *
 from pandora.logger import *
 from pandora.pca import *
 

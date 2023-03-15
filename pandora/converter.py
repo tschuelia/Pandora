@@ -152,6 +152,7 @@ def bplink_to_datamatrix(bplink_prefix: FilePath, outfile_prefix: FilePath, plin
         "--bfile",
         bplink_prefix,
         "--out",
-        outfile_prefix
+        outfile_prefix,
+        "--no-fid"
     ]
     subprocess.check_output(cmd)

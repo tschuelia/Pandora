@@ -106,32 +106,6 @@ class PCA:
 
         self.pc_vectors = self._get_pca_data_numpy()
 
-    def cutoff_pcs(self, new_n_pcs: int):
-        """
-        Truncates the PCA data and explained variances to a smaller number of PCs.
-
-        Args:
-            new_n_pcs (int): new number of PCs
-
-        Raises:
-            ValueError: if new_n_pcs is greater or equal than the current n_pcs
-        """
-        # update the PCA_data
-        if new_n_pcs >= self.n_pcs:
-            raise ValueError(
-                "New number of PCs has to be smaller than the current number."
-            )
-        self.n_pcs = new_n_pcs
-        self.pca_data = self.pca_data[
-            ["sample_id", "population", *[f"PC{i}" for i in range(new_n_pcs)]]
-        ]
-
-        # update the explained variances
-        self.explained_variances = self.explained_variances[:new_n_pcs]
-
-        # update the numpy PC_vectors
-        self.pc_vectors = self._get_pca_data_numpy()
-
     def set_populations(self, populations: Union[List, pd.Series]):
         """
         Attributes the given populations to the PCA data. The number of populations given must be identical to the
@@ -594,22 +568,23 @@ def determine_number_of_pcs(
 
 
 def from_plink(plink_evec_file: FilePath, plink_eval_file: FilePath) -> PCA:
+    # read the eigenvalues
+    eigenvalues = [float(ev.strip()) for ev in open(plink_eval_file)]
+    explained_variances = [ev / sum(eigenvalues) for ev in eigenvalues]
+
+    n_pcs = len(explained_variances)
+    cols = ["sample_id", *[f"PC{i}" for i in range(n_pcs)]]
+
     with open(plink_evec_file) as f:
         # first, read the eigenvalues
         # the first line is the header, we are going to ignore this
         f.readline()
 
         # next, read the PCs per sample
-        pca_data = pd.read_table(f, delimiter="\t", skipinitialspace=False, header=None)
+        pca_data = pd.read_table(f, delimiter="\t", skipinitialspace=False, header=None, names=cols)
 
-    n_pcs = pca_data.shape[1] - 2
-    cols = ["sample_id", *[f"PC{i}" for i in range(n_pcs)]]
     pca_data = pca_data.rename(columns=dict(zip(pca_data.columns, cols)))
     pca_data = pca_data.sort_values(by="sample_id").reset_index(drop=True)
-
-    # next, read the eigenvalues
-    eigenvalues = [float(ev.strip()) for ev in open(plink_eval_file)]
-    explained_variances = [ev / sum(eigenvalues) for ev in eigenvalues]
 
     return PCA(pca_data=pca_data, explained_variances=explained_variances, n_pcs=n_pcs)
 

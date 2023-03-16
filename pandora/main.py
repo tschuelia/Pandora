@@ -164,8 +164,6 @@ def main():
 
     # Bootstrapped PCA
     bootstrap_pcas = run_bootstrap_pcas(pandora_config, n_pcs=empirical_pca.n_pcs)
-    for pca in bootstrap_pcas:
-        pca.set_populations(empirical_pca.pca_data.population)
 
     # PCA with alternative tools
     logger.info(fmt_message("Running PCA using Plink and scikit-learn"))

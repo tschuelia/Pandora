@@ -479,6 +479,9 @@ def run_smartpca(
             maxpops: {num_populations}
             """
         #numoutlieriter: 0
+        projection_file = pathlib.Path(f"{infile_prefix}.population")
+        if projection_file.exists():
+            conversion_content += f"\npoplistname: {projection_file}"
 
         tmpfile.write(textwrap.dedent(conversion_content))
         tmpfile.flush()

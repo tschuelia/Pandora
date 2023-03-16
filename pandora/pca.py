@@ -12,6 +12,7 @@ from plotly import graph_objects as go
 from plotly.colors import color_parser, label_rgb, unlabel_rgb
 
 from scipy.linalg import orthogonal_procrustes
+from scipy.spatial import procrustes
 from sklearn.cluster import KMeans
 from sklearn.metrics import (
     silhouette_score,
@@ -153,6 +154,7 @@ class PCA:
         Compare self to other by transforming self towards other and then computing the samplewise cosine similarity.
         Returns the average and standard deviation. The resulting similarity is on a scale of 0 to 1, with 1 meaning
         self and other are identical.
+        TODO: nope wir nehmen jetzt doch procrustes und die similarity von procrustes direkt
 
         Args:
             other (PCA): PCA object to compare self to.
@@ -161,17 +163,10 @@ class PCA:
             float: Similarity as average cosine similarity per sample PC-vector in self and other.
         """
         # TODO: check whether the sample IDs match -> we can only compare PCAs for the same samples
-        transformation_matrix, _ = orthogonal_procrustes(
-            A=self.pc_vectors,
-            B=other.pc_vectors
-        )
-        transformed_self = self.pc_vectors @ transformation_matrix
+        _, _, disparity = procrustes(self.pc_vectors, other.pc_vectors)
+        similarity = np.sqrt(1 - disparity)
 
-        sample_similarity = cosine_similarity(
-            other.pc_vectors, transformed_self
-        ).diagonal()
-
-        return sample_similarity.mean()
+        return similarity
 
     def get_optimal_n_clusters(self, min_n: int = 3, max_n: int = 50) -> int:
         """
@@ -362,7 +357,7 @@ class PCA:
         return fig
 
 
-def transform_pca_to_reference(pca: PCA, pca_reference: PCA) -> PCA:
+def transform_pca_to_reference(pca: PCA, pca_reference: PCA) -> Tuple[PCA, PCA]:
     """
     Finds a transformation matrix that most closely matches pca to pca_reference and transforms pca.
     Both PCAs are standardized prior to transformation.
@@ -372,7 +367,6 @@ def transform_pca_to_reference(pca: PCA, pca_reference: PCA) -> PCA:
         pca_reference (PCA): The PCA that pca1 should be transformed towards
 
     Returns:
-        TODO: update Docstring
         Tuple[PCA, PCA]: Two new PCA objects, the first one is the transformed pca and the second one is the standardized pca_reference.
             In all downstream comparisons or pairwise plotting, use these PCA objects.
     """
@@ -388,16 +382,25 @@ def transform_pca_to_reference(pca: PCA, pca_reference: PCA) -> PCA:
         )
 
     # TODO: reorder PCs (if we find a dataset where this is needed...don't want to blindly implement something)
-    transformation_matrix, _ = orthogonal_procrustes(pca_data, pca_ref_data)
-    transformed_pca = pca_data @ transformation_matrix
+    standardized_reference, transformed_pca, _ = procrustes(pca_ref_data, pca_data)
 
-    return PCA(
+    standardized_reference = PCA(
+        pca_data=standardized_reference,
+        explained_variances=pca_reference.explained_variances,
+        n_pcs=pca_reference.n_pcs,
+        sample_ids=pca_reference.pca_data.sample_id,
+        populations=pca_reference.pca_data.population
+    )
+
+    transformed_pca = PCA(
         pca_data=transformed_pca,
         explained_variances=pca.explained_variances,
         n_pcs=pca.n_pcs,
         sample_ids=pca.pca_data.sample_id,
         populations=pca.pca_data.population,
     )
+
+    return standardized_reference, transformed_pca
 
 
 def from_smartpca(smartpca_evec_file: FilePath) -> PCA:

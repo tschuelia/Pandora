@@ -307,11 +307,11 @@ def plot_bootstraps(pandora_config: PandoraConfig, empirical_pca: PCA, bootstrap
 
         # Plot transformed bootstrap and empirical data jointly
         # for this, we first need to transform the empirical and bootstrap data
-        transformed_bootstrap = transform_pca_to_reference(bootstrap_pca, empirical_pca)
-        fig = empirical_pca.plot(
+        standardized_empirical, transformed_bootstrap = transform_pca_to_reference(bootstrap_pca, empirical_pca)
+        fig = standardized_empirical.plot(
             pc1=pc1,
             pc2=pc2,
-            name="empirical",
+            name="empirical (standardized)",
             marker_color="darkblue",
             marker_symbol="circle",
         )
@@ -319,7 +319,7 @@ def plot_bootstraps(pandora_config: PandoraConfig, empirical_pca: PCA, bootstrap
         transformed_bootstrap.plot(
             pc1=pc1,
             pc2=pc2,
-            name="Transformed Bootstrap",
+            name="bootstrap (transformed)",
             fig=fig,
             marker_color="orange",
             marker_symbol="star",
@@ -346,11 +346,11 @@ def plot_alternative_tools(pandora_config: PandoraConfig, empirical_pca: PCA, al
             outfile=pandora_config.plot_dir / f"{name}.pca.pdf"
         )
 
-        transformed_alternative = transform_pca_to_reference(pca, empirical_pca)
-        fig = empirical_pca.plot(
+        standardized_reference, transformed_alternative = transform_pca_to_reference(pca, empirical_pca)
+        fig = standardized_reference.plot(
             pc1=pc1,
             pc2=pc2,
-            name="SmartPCA",
+            name="SmartPCA (standardized)",
             marker_color="darkblue",
             marker_symbol="circle",
         )
@@ -358,7 +358,7 @@ def plot_alternative_tools(pandora_config: PandoraConfig, empirical_pca: PCA, al
         transformed_alternative.plot(
             pc1=pc1,
             pc2=pc2,
-            name=f"Transformed {name}",
+            name=f"{name} (transformed)",
             fig=fig,
             marker_color="orange",
             marker_symbol="star",

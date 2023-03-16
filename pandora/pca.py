@@ -23,16 +23,16 @@ from pandora.custom_types import *
 from pandora.logger import logger, fmt_message
 
 
-def _color_space(lowcolor: str, highcolor: str, n_colors: int):
+def _color_space(lowcolor: str, highcolor: str, n_colors: int, endpoint: bool = True):
     lowcolor = unlabel_rgb(lowcolor)
     highcolor = unlabel_rgb(highcolor)
 
     lowred, lowblue, lowgreen = lowcolor
     highred, highblue, highgreen = highcolor
 
-    r_values = np.linspace(lowred, highred, n_colors).clip(0, 255)
-    b_values = np.linspace(lowblue, highblue, n_colors).clip(0, 255)
-    g_values = np.linspace(lowgreen, highgreen, n_colors).clip(0, 255)
+    r_values = np.linspace(lowred, highred, n_colors, endpoint=endpoint).clip(0, 255)
+    b_values = np.linspace(lowblue, highblue, n_colors, endpoint=endpoint).clip(0, 255)
+    g_values = np.linspace(lowgreen, highgreen, n_colors, endpoint=endpoint).clip(0, 255)
 
     colors = zip(r_values, b_values, g_values)
 
@@ -56,13 +56,49 @@ def _get_colors(n: int) -> List[str]:
         lowcolor="rgb(255,0,0)",
         highcolor="rgb(0,255,0)",
         n_colors=n // 2,
+        endpoint=False
     )
     green_blue = _color_space(
         lowcolor="rgb(0,255,0)",
         highcolor="rgb(0,0,255)",
         n_colors=math.ceil(n / 2),
+        endpoint=True
     )
     return red_green + green_blue
+
+
+def _correct_for_missing_samples(pca: PCA, samples_to_add: set) -> PCA:
+    # TODO: very ugly code, refactor!
+    columns = [c for c in pca.pca_data.columns if "PC" in c]
+    imputation_data = list(zip(columns, [0.0] * pca.n_pcs))
+
+    new_data = []
+    for s in samples_to_add:
+        data = [("sample_id", s)] + imputation_data
+        new_data.append(pd.DataFrame(dict(data), index=[0]))
+
+    new_data = pd.concat(new_data)
+    pca_data = pd.concat([pca.pca_data, new_data], ignore_index=True).reset_index(drop=True)
+    return PCA(
+        pca_data=pca_data,
+        explained_variances=pca.explained_variances,
+        n_pcs=pca.n_pcs
+    )
+
+
+def _impute_missing_samples_for_comparison(pca1: PCA, pca2: PCA) -> Tuple[PCA, PCA]:
+    pca1_data = pca1.pca_data
+    pca2_data = pca2.pca_data
+
+    pca1_ids = set(pca1_data.sample_id)
+    pca2_ids = set(pca2_data.sample_id)
+
+    pca1 = _correct_for_missing_samples(pca1, pca2_ids - pca1_ids)
+    pca2 = _correct_for_missing_samples(pca2, pca1_ids - pca2_ids)
+
+    assert pca1.pc_vectors.shape == pca2.pc_vectors.shape
+
+    return pca1, pca2
 
 
 class PCA:
@@ -160,7 +196,18 @@ class PCA:
             float: Similarity as average cosine similarity per sample PC-vector in self and other.
         """
         # TODO: check whether the sample IDs match -> we can only compare PCAs for the same samples
-        _, _, disparity = procrustes(self.pc_vectors, other.pc_vectors)
+
+        # check if the number of samples match for now
+        self_data = self.pc_vectors
+        other_data = other.pc_vectors
+
+        if self_data.shape[0] != other_data.shape[0]:
+            # mismatch in sample_ids, impute data by adding zero-vectors
+            _self, _other = _impute_missing_samples_for_comparison(self, other)
+            self_data = _self.pc_vectors
+            other_data = _other.pc_vectors
+
+        _, _, disparity = procrustes(self_data, other_data)
         similarity = np.sqrt(1 - disparity)
 
         return similarity
@@ -306,7 +353,7 @@ class PCA:
             )
             cluster_labels = self.cluster(n_clusters=n_clusters).labels_
 
-            _pca_data = self.pca_data
+            _pca_data = self.pca_data.copy()
             _pca_data["cluster"] = cluster_labels
 
             colors = _get_colors(n_clusters)
@@ -369,13 +416,18 @@ def transform_pca_to_reference(pca: PCA, pca_reference: PCA) -> Tuple[PCA, PCA]:
     """
 
     # TODO: check whether the sample IDs match -> we can only compare PCAs for the same samples
-
     pca_data = pca.pc_vectors
     pca_ref_data = pca_reference.pc_vectors
 
+    if pca_data.shape[0] != pca_ref_data.shape[0]:
+        # mismatch in sample_ids, impute data by adding zero-vectors
+        _pca, _pca_ref = _impute_missing_samples_for_comparison(pca, pca_reference)
+        pca_data = _pca.pc_vectors
+        pca_ref_data = _pca_ref.pc_vectors
+
     if pca_data.shape != pca_ref_data.shape:
         raise ValueError(
-            "Mismatch in PCA size: PCA1 and PCA2 need to have the same number of samples and the same number of PCs."
+            "Mismatch in PCA size: PCA1 and PCA2 need to have the same number of PCs."
         )
 
     # TODO: reorder PCs (if we find a dataset where this is needed...don't want to blindly implement something)

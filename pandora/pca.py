@@ -275,12 +275,19 @@ class PCA:
             # thus, we determine the number of clusters using other
             n_clusters = other.get_optimal_n_clusters()
 
-        # since we are only comparing the assigned cluster labels, we don't need to transform self prior to comparing
-        self_kmeans = self.cluster(n_clusters=n_clusters, weighted=weighted)
-        other_kmeans = other.cluster(n_clusters=n_clusters, weighted=weighted)
+        if self.pc_vectors.shape[0] != other.pc_vectors.shape[0]:
+            # mismatch in sample_ids, impute data by adding zero-vectors
+            _self, _other = _impute_missing_samples_for_comparison(self, other)
+        else:
+            _self = self
+            _other = other
 
-        self_cluster_labels = self_kmeans.predict(self.pc_vectors)
-        other_cluster_labels = other_kmeans.predict(other.pc_vectors)
+        # since we are only comparing the assigned cluster labels, we don't need to transform self prior to comparing
+        self_kmeans = _self.cluster(n_clusters=n_clusters, weighted=weighted)
+        other_kmeans = _other.cluster(n_clusters=n_clusters, weighted=weighted)
+
+        self_cluster_labels = self_kmeans.predict(_self.pc_vectors)
+        other_cluster_labels = other_kmeans.predict(_other.pc_vectors)
 
         return fowlkes_mallows_score(other_cluster_labels, self_cluster_labels)
 

@@ -68,6 +68,8 @@ def _get_colors(n: int) -> List[str]:
 
 
 def _correct_for_missing_samples(pca: PCA, samples_to_add: set) -> PCA:
+    if len(samples_to_add) == 0:
+        return pca
     # TODO: very ugly code, refactor!
     columns = [c for c in pca.pca_data.columns if "PC" in c]
     imputation_data = list(zip(columns, [0.0] * pca.n_pcs))

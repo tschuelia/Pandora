@@ -476,9 +476,9 @@ def run_smartpca(
             evecoutname: {evec_out}
             evaloutname: {eval_out}
             numoutevec: {n_pcs}
-            numoutlieriter: 0
             maxpops: {num_populations}
             """
+        #numoutlieriter: 0
 
         tmpfile.write(textwrap.dedent(conversion_content))
         tmpfile.flush()

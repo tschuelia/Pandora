@@ -139,6 +139,7 @@ def bplink_to_eigen(bplink_prefix: FilePath, eigen_prefix: FilePath, convertf: E
 def bplink_to_datamatrix(bplink_prefix: FilePath, outfile_prefix: FilePath, plink: Executable, redo: bool = False):
     plink_pca_data = pathlib.Path(f"{outfile_prefix}.rel")
     plink_sample_data = pathlib.Path(f"{outfile_prefix}.rel.id")
+    plink_logfile = pathlib.Path(f"{outfile_prefix}.rel.log")
 
     if plink_pca_data.exists() and plink_sample_data.exists() and not redo:
         logger.info(
@@ -155,4 +156,5 @@ def bplink_to_datamatrix(bplink_prefix: FilePath, outfile_prefix: FilePath, plin
         outfile_prefix,
         "--no-fid"
     ]
-    subprocess.check_output(cmd)
+    with plink_logfile.open("w") as logfile:
+        subprocess.run(cmd, stdout=logfile, stderr=logfile)

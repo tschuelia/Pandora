@@ -451,8 +451,11 @@ def run_smartpca(
 
     evec_out = pathlib.Path(f"{outfile_prefix}.evec")
     eval_out = pathlib.Path(f"{outfile_prefix}.eval")
+    smartpca_log = pathlib.Path(f"{outfile_prefix}.smartpca.log")
 
-    if eval_out.exists() and eval_out.exists() and not redo:
+    files_exist = all([evec_out.exists(), eval_out.exists(), smartpca_log.exists()])
+
+    if files_exist and not redo:
         # TODO: das reicht nicht als check, bei unfertigen runs sind die files einfach nicht vollständig aber
         #  leider noch vorhanden
         logger.info(
@@ -485,7 +488,8 @@ def run_smartpca(
             "-p",
             tmpfile.name,
         ]
-        subprocess.check_output(cmd)
+        with smartpca_log.open("w") as logfile:
+            subprocess.run(cmd, stdout=logfile, stderr=logfile)
 
     return from_smartpca(evec_out)
 
@@ -613,8 +617,11 @@ def run_plink(
 ) -> PCA:
     evec_out = pathlib.Path(f"{outfile_prefix}.eigenvec")
     eval_out = pathlib.Path(f"{outfile_prefix}.eigenval")
+    plink_log = pathlib.Path(f"{outfile_prefix}.plinkpca.log")
 
-    if eval_out.exists() and eval_out.exists() and not redo:
+    files_exist = all([evec_out.exists(), eval_out.exists(), plink_log.exists()])
+
+    if files_exist and not redo:
         # TODO: das reicht nicht als check, bei unfertigen runs sind die files einfach nicht vollständig aber leider noch vorhanden
         logger.info(
             fmt_message(f"Skipping plink PCA. Files {outfile_prefix}.* already exist.")
@@ -632,7 +639,8 @@ def run_plink(
         "--no-fid"
     ]
 
-    subprocess.check_output(pca_cmd)
+    with plink_log.open("w") as logfile:
+        subprocess.run(pca_cmd, stdout=logfile, stderr=logfile)
 
     return from_plink(evec_out, eval_out)
 

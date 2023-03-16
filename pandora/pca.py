@@ -11,7 +11,6 @@ import pandas as pd
 from plotly import graph_objects as go
 from plotly.colors import color_parser, label_rgb, unlabel_rgb
 
-from scipy.linalg import orthogonal_procrustes
 from scipy.spatial import procrustes
 from sklearn.cluster import KMeans
 from sklearn.metrics import (
@@ -19,8 +18,6 @@ from sklearn.metrics import (
     fowlkes_mallows_score,
 )
 from sklearn.decomposition import PCA as sklearnPCA
-from sklearn.metrics.pairwise import cosine_similarity
-from sklearn.preprocessing import StandardScaler
 
 from pandora.custom_types import *
 from pandora.logger import logger, fmt_message

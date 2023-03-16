@@ -284,7 +284,7 @@ def plot_bootstraps(pandora_config: PandoraConfig, empirical_pca: PCA, bootstrap
     pc2 = 1
 
     for i, bootstrap_pca in enumerate(bootstrap_pcas):
-        bootstrap_pca.set_populations(empirical_pca.pca_data.population)
+    #     bootstrap_pca.set_populations(empirical_pca.pca_data.population)
 
         # plot Bootstrap with annotated populations
         bootstrap_pca.plot(

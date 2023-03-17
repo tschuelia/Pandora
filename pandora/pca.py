@@ -570,11 +570,11 @@ def run_smartpca(
             evaloutname: {eval_out}
             numoutevec: {n_pcs}
             maxpops: {num_populations}
+            shrinkmode: YES 
             """
-        #numoutlieriter: 0
-        projection_file = pathlib.Path(f"{infile_prefix}.population")
-        if projection_file.exists():
-            conversion_content += f"\npoplistname: {projection_file}"
+        # projection_file = pathlib.Path(f"{infile_prefix}.population")
+        # if projection_file.exists():
+        #     conversion_content += f"\npoplistname: {projection_file}"
 
         tmpfile.write(textwrap.dedent(conversion_content))
         tmpfile.flush()

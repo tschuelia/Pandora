@@ -149,6 +149,7 @@ def bplink_to_datamatrix(bplink_prefix: FilePath, outfile_prefix: FilePath, plin
         logger.info(
             fmt_message(f"Skipping data matrix generation {outfile_prefix}. Datamatrix exists.")
         )
+        return
 
     cmd = [
         plink,

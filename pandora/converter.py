@@ -50,6 +50,9 @@ def clean_converted_names(ind_out: FilePath):
     corrected_content = []
     for line in ind_out.open():
         line = line.strip()
+        if not ":" in line:
+            # looks like the file was already cleaned
+            return
         _, line = line.split(":", maxsplit=1)
         corrected_content.append(line)
 

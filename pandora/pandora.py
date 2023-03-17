@@ -95,7 +95,8 @@ def run_empirical_pca(pandora_config: PandoraConfig):
         infile_prefix=pandora_config.infile_prefix,
         outfile_prefix=pandora_config.outfile_prefix,
         smartpca=pandora_config.smartpca,
-        n_pcs=n_pcs
+        n_pcs=n_pcs,
+        redo=pandora_config.redo,
     )
     # now run the empirical PCA again using the determined number of n_pcs
     empirical_pca = from_smartpca(pathlib.Path(f"{pandora_config.outfile_prefix}.evec"))

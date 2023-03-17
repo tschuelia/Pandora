@@ -125,6 +125,9 @@ def _clip_missing_samples_for_comparison(pca1: PCA, pca2: PCA) -> Tuple[PCA, PCA
 
     pca1 = _correct_for_missing_samples(pca1, in_both)
     pca2 = _correct_for_missing_samples(pca2, in_both)
+
+    assert pca1.pc_vectors.shape == pca2.pc_vectors.shape
+
     return pca1, pca2
 
 

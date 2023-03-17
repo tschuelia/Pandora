@@ -103,6 +103,32 @@ def _impute_missing_samples_for_comparison(pca1: PCA, pca2: PCA) -> Tuple[PCA, P
     return pca1, pca2
 
 
+def _correct_missing(pca: PCA, samples_in_both):
+    pca_data = pca.pca_data
+    pca_data = pca_data.loc[pca_data.sample_id.isin(samples_in_both)]
+
+    return PCA(
+        pca_data=pca_data,
+        explained_variances=pca.explained_variances,
+        n_pcs=pca.n_pcs
+    )
+
+
+def _clip_missing_samples_for_comparison(pca1: PCA, pca2: PCA) -> Tuple[PCA, PCA]:
+    pca1_data = pca1.pca_data
+    pca2_data = pca2.pca_data
+
+    pca1_ids = set(pca1_data.sample_id)
+    pca2_ids = set(pca2_data.sample_id)
+
+    in_both = pca1_ids.intersection(pca2_ids)
+
+    pca1 = _correct_for_missing_samples(pca1, in_both)
+    pca2 = _correct_for_missing_samples(pca2, in_both)
+    return pca1, pca2
+
+
+
 class PCA:
     """Class structure for PCA results.
 
@@ -205,7 +231,8 @@ class PCA:
 
         if self_data.shape[0] != other_data.shape[0]:
             # mismatch in sample_ids, impute data by adding zero-vectors
-            _self, _other = _impute_missing_samples_for_comparison(self, other)
+            # _self, _other = _impute_missing_samples_for_comparison(self, other)
+            _self, _other = _clip_missing_samples_for_comparison(self, other)
             self_data = _self.pc_vectors
             other_data = _other.pc_vectors
 
@@ -279,7 +306,8 @@ class PCA:
 
         if self.pc_vectors.shape[0] != other.pc_vectors.shape[0]:
             # mismatch in sample_ids, impute data by adding zero-vectors
-            _self, _other = _impute_missing_samples_for_comparison(self, other)
+            # _self, _other = _impute_missing_samples_for_comparison(self, other)
+            _self, _other = _clip_missing_samples_for_comparison(self, other)
         else:
             _self = self
             _other = other
@@ -430,7 +458,8 @@ def transform_pca_to_reference(pca: PCA, pca_reference: PCA) -> Tuple[PCA, PCA]:
 
     if pca_data.shape[0] != pca_ref_data.shape[0]:
         # mismatch in sample_ids, impute data by adding zero-vectors
-        _pca, _pca_ref = _impute_missing_samples_for_comparison(pca, pca_reference)
+        # _pca, _pca_ref = _impute_missing_samples_for_comparison(pca, pca_reference)
+        _pca, _pca_ref = _clip_missing_samples_for_comparison(pca, pca_reference)
         pca_data = _pca.pc_vectors
         pca_ref_data = _pca_ref.pc_vectors
 

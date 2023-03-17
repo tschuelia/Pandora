@@ -21,6 +21,7 @@ def run_convertf(
         logger.info(
             fmt_message(f"Skipping file conversion to {outputformat}. Files already converted.")
         )
+        return
 
     with tempfile.NamedTemporaryFile(mode="w") as tmpfile:
         conversion_content = f"""

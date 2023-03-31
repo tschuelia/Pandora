@@ -1,13 +1,16 @@
 import dataclasses
 import itertools
+import multiprocessing
+import yaml
 
 from pandora.bootstrapping import create_bootstrap_pcas
 from pandora.converter import *
 from pandora.logger import *
 from pandora.pca import *
+from pandora.pca_runner import *
 
 
-@dataclasses.dataclass
+@dataclasses.dataclass(repr=True)
 class PandoraConfig:
     infile_prefix: FilePath
     outdir: FilePath
@@ -24,6 +27,7 @@ class PandoraConfig:
 
     run_bootstrapping: bool
     run_alternative: bool
+    run_slidingWindow: bool
     run_plotting: bool
 
     @property
@@ -69,6 +73,12 @@ class PandoraConfig:
     def get_configuration(self):
         return dataclasses.asdict(self)
 
+    def to_configfile(self, configfile: FilePath):
+        # TODO: implementieren -> config verbose in ein yaml file schreiben
+        # fuer reproducibility
+        # auch pandora version als kommentar oben reinschreiben
+        raise NotImplementedError
+
     def create_outdirs(self):
         if self.run_bootstrapping:
             self.convertf_dir.mkdir(exist_ok=True, parents=True)
@@ -78,6 +88,31 @@ class PandoraConfig:
             self.alternative_tools_dir.mkdir(exist_ok=True, parents=True)
         if self.run_plotting:
             self.plot_dir.mkdir(exist_ok=True, parents=True)
+
+
+def from_config(configfile: FilePath) -> PandoraConfig:
+    config_data = yaml.load(open(configfile), yaml.Loader)
+
+    uncertainty_analyses = config_data.get("uncertainty", {})
+    # TODO: implement support values
+    sample_analyses = config_data.get("sampleProjection", {})
+
+    return PandoraConfig(
+        infile_prefix=pathlib.Path(config_data["input"]),
+        outdir=pathlib.Path(config_data["output"]),
+        n_bootstraps=config_data.get("bootstraps", 100),
+        threads=config_data.get("threads", multiprocessing.cpu_count()),
+        seed=config_data.get("seed", 0),
+        redo=config_data.get("redo", False),
+        variance_cutoff=config_data.get("varianceCutoff", 95),
+        smartpca=config_data.get("smartpca", "smartpca"),
+        convertf=config_data.get("convertf", "convertf"),
+        plink2=config_data.get("plink2", "plink2"),
+        run_bootstrapping=uncertainty_analyses.get("bootstrap", True),
+        run_alternative=uncertainty_analyses.get("alternativeTools", True),
+        run_slidingWindow=uncertainty_analyses.get("slidingWindow", False),
+        run_plotting=config_data.get("plotResults", False),
+    )
 
 
 def run_empirical_pca(pandora_config: PandoraConfig):
@@ -285,7 +320,9 @@ def plot_bootstraps(pandora_config: PandoraConfig, empirical_pca: PCA, bootstrap
     pc2 = 1
 
     for i, bootstrap_pca in enumerate(bootstrap_pcas):
-    #     bootstrap_pca.set_populations(empirical_pca.pca_data.population)
+        # TODO: populations so zu setzen funktioniert nicht mehr wenn man die outlier in smartpca raus schmeisst
+        # -> muss einmal am anfang das mapping sampleID -> population speichern
+        # bootstrap_pca.set_populations(empirical_pca.pca_data.population)
 
         # plot Bootstrap with annotated populations
         bootstrap_pca.plot(

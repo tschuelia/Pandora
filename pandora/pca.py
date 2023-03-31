@@ -1,9 +1,6 @@
 from __future__ import annotations  # allows type hint PCA inside PCA class
 
 import math
-import tempfile
-import subprocess
-import textwrap
 import warnings
 
 import numpy as np
@@ -17,90 +14,22 @@ from sklearn.metrics import (
     silhouette_score,
     fowlkes_mallows_score,
 )
-from sklearn.decomposition import PCA as sklearnPCA
+from sklearn.metrics.pairwise import euclidean_distances
 
 from pandora.custom_types import *
-from pandora.logger import logger, fmt_message
-
-
-def _color_space(lowcolor: str, highcolor: str, n_colors: int, endpoint: bool = True):
-    lowcolor = unlabel_rgb(lowcolor)
-    highcolor = unlabel_rgb(highcolor)
-
-    lowred, lowblue, lowgreen = lowcolor
-    highred, highblue, highgreen = highcolor
-
-    r_values = np.linspace(lowred, highred, n_colors, endpoint=endpoint).clip(0, 255)
-    b_values = np.linspace(lowblue, highblue, n_colors, endpoint=endpoint).clip(0, 255)
-    g_values = np.linspace(lowgreen, highgreen, n_colors, endpoint=endpoint).clip(0, 255)
-
-    colors = zip(r_values, b_values, g_values)
-
-    return color_parser(colors, label_rgb)
 
 
 def _get_colors(n: int) -> List[str]:
-    """Returns a list of n RGB colors evenly spaced in the red – green – blue space.
+    """Returns a list of n HSV colors evenly spaced in the HSV colorspace.
 
     Args:
         n (int): Number of colors to return
 
     Returns:
-        List[str]: List of n plotly RGB color strings.
+        List[str]: List of n plotly HSV color strings.
 
     """
-    if n <= 3:
-        return ["rgb(255, 0, 0)", "rgb(0,255,0)", "rgb(0,0,255)"][:n]
-
-    red_green = _color_space(
-        lowcolor="rgb(255,0,0)",
-        highcolor="rgb(0,255,0)",
-        n_colors=n // 2,
-        endpoint=False
-    )
-    green_blue = _color_space(
-        lowcolor="rgb(0,255,0)",
-        highcolor="rgb(0,0,255)",
-        n_colors=math.ceil(n / 2),
-        endpoint=True
-    )
-    return red_green + green_blue
-
-
-def _correct_for_missing_samples(pca: PCA, samples_to_add: set) -> PCA:
-    if len(samples_to_add) == 0:
-        return pca
-    # TODO: very ugly code, refactor!
-    columns = [c for c in pca.pca_data.columns if "PC" in c]
-    imputation_data = list(zip(columns, [0.0] * pca.n_pcs))
-
-    new_data = []
-    for s in samples_to_add:
-        data = [("sample_id", s)] + imputation_data
-        new_data.append(pd.DataFrame(dict(data), index=[0]))
-
-    new_data = pd.concat(new_data)
-    pca_data = pd.concat([pca.pca_data, new_data], ignore_index=True).reset_index(drop=True)
-    return PCA(
-        pca_data=pca_data,
-        explained_variances=pca.explained_variances,
-        n_pcs=pca.n_pcs
-    )
-
-
-def _impute_missing_samples_for_comparison(pca1: PCA, pca2: PCA) -> Tuple[PCA, PCA]:
-    pca1_data = pca1.pca_data
-    pca2_data = pca2.pca_data
-
-    pca1_ids = set(pca1_data.sample_id)
-    pca2_ids = set(pca2_data.sample_id)
-
-    pca1 = _correct_for_missing_samples(pca1, pca2_ids - pca1_ids)
-    pca2 = _correct_for_missing_samples(pca2, pca1_ids - pca2_ids)
-
-    assert pca1.pc_vectors.shape == pca2.pc_vectors.shape
-
-    return pca1, pca2
+    return [f"hsv({v}%, 100%, 80%)" for v in np.linspace(0, 100, n, endpoint=False)]
 
 
 def _correct_missing(pca: PCA, samples_in_both):
@@ -129,7 +58,6 @@ def _clip_missing_samples_for_comparison(pca1: PCA, pca2: PCA) -> Tuple[PCA, PCA
     assert pca1.pc_vectors.shape == pca2.pc_vectors.shape
 
     return pca1, pca2
-
 
 
 class PCA:
@@ -233,8 +161,7 @@ class PCA:
         other_data = other.pc_vectors
 
         if self_data.shape[0] != other_data.shape[0]:
-            # mismatch in sample_ids, impute data by adding zero-vectors
-            # _self, _other = _impute_missing_samples_for_comparison(self, other)
+            # mismatch in sample_ids, impute data by clipping mismatching samples
             _self, _other = _clip_missing_samples_for_comparison(self, other)
             self_data = _self.pc_vectors
             other_data = _other.pc_vectors
@@ -309,7 +236,6 @@ class PCA:
 
         if self.pc_vectors.shape[0] != other.pc_vectors.shape[0]:
             # mismatch in sample_ids, impute data by adding zero-vectors
-            # _self, _other = _impute_missing_samples_for_comparison(self, other)
             _self, _other = _clip_missing_samples_for_comparison(self, other)
         else:
             _self = self
@@ -349,15 +275,21 @@ class PCA:
             annotation (bool): If None, plots alls samples with the same color.
                 If "population", plots each population with a different color.
                 If "cluster", applies K-Means clustering and plots each cluster with a different color.
+            n_clusters (int): TODO
             fig (go.Figure): If set, appends the PCA data to this fig. Default is to plot on a new, empty figure.
+            marker_color (str): TODO
             name (str): Name of the trace in the resulting plot. Setting a name will only have an effect if
                 plot_populations = False and fig is not None.
+            outfile (FilePath): TODO
+            redo (bool): TODO
 
         Returns:
             go.Figure: Plotly figure containing a scatter plot of the PCA data.
         """
+        show_variance_in_axes = True
         if not fig:
             fig = go.Figure()
+            show_variance_in_axes = False
 
         if n_clusters is not None and annotation != "cluster":
             warnings.warn(
@@ -428,8 +360,12 @@ class PCA:
                 f"Allowed options are None, 'population', and 'cluster'."
             )
 
-        xtitle = f"PC {pc1 + 1} ({round(self.explained_variances[pc1] * 100, 1)}%)"
-        ytitle = f"PC {pc2 + 1} ({round(self.explained_variances[pc2] * 100, 1)}%)"
+        xtitle = f"PC {pc1 + 1}"
+        ytitle = f"PC {pc2 + 1}"
+
+        if show_variance_in_axes:
+            xtitle += f" ({round(self.explained_variances[pc1] * 100, 1)}%)"
+            ytitle += f" ({round(self.explained_variances[pc2] * 100, 1)}%)"
 
         fig.update_xaxes(title=xtitle)
         fig.update_yaxes(title=ytitle)
@@ -461,7 +397,6 @@ def transform_pca_to_reference(pca: PCA, pca_reference: PCA) -> Tuple[PCA, PCA]:
 
     if pca_data.shape[0] != pca_ref_data.shape[0]:
         # mismatch in sample_ids, impute data by adding zero-vectors
-        # _pca, _pca_ref = _impute_missing_samples_for_comparison(pca, pca_reference)
         _pca, _pca_ref = _clip_missing_samples_for_comparison(pca, pca_reference)
         pca_data = _pca.pc_vectors
         pca_ref_data = _pca_ref.pc_vectors
@@ -524,164 +459,6 @@ def from_smartpca(smartpca_evec_file: FilePath) -> PCA:
     return PCA(pca_data=pca_data, explained_variances=explained_variances, n_pcs=n_pcs)
 
 
-def run_smartpca(
-    infile_prefix: FilePath,
-    outfile_prefix: FilePath,
-    smartpca: Executable,
-    n_pcs: int = 20,
-    redo: bool = False,
-) -> PCA:
-    geno = pathlib.Path(f"{infile_prefix}.geno")
-    snp = pathlib.Path(f"{infile_prefix}.snp")
-    ind = pathlib.Path(f"{infile_prefix}.ind")
-
-    files_exist = all([geno.exists(), snp.exists(), ind.exists()])
-    if not files_exist:
-        raise ValueError(
-            f"Not all input files for file prefix {infile_prefix} present. "
-            f"Looking for files in EIGEN format with endings .geno, .snp, and .ind"
-        )
-
-    evec_out = pathlib.Path(f"{outfile_prefix}.evec")
-    eval_out = pathlib.Path(f"{outfile_prefix}.eval")
-    smartpca_log = pathlib.Path(f"{outfile_prefix}.smartpca.log")
-
-    files_exist = all([evec_out.exists(), eval_out.exists(), smartpca_log.exists()])
-
-    if files_exist and not redo:
-        # TODO: das reicht nicht als check, bei unfertigen runs sind die files einfach nicht vollständig aber
-        #  leider noch vorhanden
-        logger.info(
-            fmt_message(f"Skipping smartpca. Files {outfile_prefix}.* already exist.")
-        )
-        return from_smartpca(evec_out)
-
-    with tempfile.NamedTemporaryFile(mode="w") as tmpfile:
-        _df = pd.read_table(
-            f"{infile_prefix}.ind", delimiter=" ", skipinitialspace=True, header=None
-        )
-        num_populations = _df[2].unique().shape[0]
-
-        conversion_content = f"""
-            genotypename: {infile_prefix}.geno
-            snpname: {infile_prefix}.snp
-            indivname: {infile_prefix}.ind
-            evecoutname: {evec_out}
-            evaloutname: {eval_out}
-            numoutevec: {n_pcs}
-            maxpops: {num_populations}
-            shrinkmode: YES 
-            """
-        # projection_file = pathlib.Path(f"{infile_prefix}.population")
-        # if projection_file.exists():
-        #     conversion_content += f"\npoplistname: {projection_file}"
-
-        tmpfile.write(textwrap.dedent(conversion_content))
-        tmpfile.flush()
-
-        cmd = [
-            smartpca,
-            "-p",
-            tmpfile.name,
-        ]
-        with smartpca_log.open("w") as logfile:
-            subprocess.run(cmd, stdout=logfile, stderr=logfile)
-
-    return from_smartpca(evec_out)
-
-
-def check_pcs_sufficient(explained_variances: List, cutoff: float) -> Union[int, None]:
-    # if all PCs explain more than 1 - <cutoff>% variance we consider the number of PCs to be insufficient
-    if all([e > (1 - cutoff) for e in explained_variances]):
-        return
-
-    # otherwise, find the index of the last PC explaining more than <cutoff>%
-    sum_variances = 0
-    for i, var in enumerate(explained_variances, start=1):
-        sum_variances += var
-        if sum_variances >= cutoff:
-            logger.info(
-                fmt_message(
-                    f"Optimal number of PCs for explained variance cutoff {cutoff}: {i}"
-                )
-            )
-            return i
-
-
-def determine_number_of_pcs(
-    infile_prefix: FilePath,
-    outfile_prefix: FilePath,
-    smartpca: Executable,
-    explained_variance_cutoff: float = 0.95,
-    redo: bool = False,
-) -> int:
-    n_pcs = 20
-    pca_checkpoint = pathlib.Path(f"{outfile_prefix}.ckp")
-
-    if pca_checkpoint.exists() and not redo:
-        # checkpointing file contains three values: an int, a bool, and a float
-        # the int is the number of PCs that was last tested
-        # the bool says whether the analysis finished properly or not
-        # the float (ignored here) is the amount of variance explained by the current number of PCs (used for debugging)
-        n_pcs, finished = pca_checkpoint.open().readline().strip().split()
-        n_pcs = int(n_pcs)
-        finished = bool(int(finished))
-
-        if finished:
-            logger.info(
-                fmt_message(
-                    f"Resuming from checkpoint: determining number of PCs already finished."
-                )
-            )
-
-            # check if the last smartpca run already had the optimal number of PCs present
-            # if yes, create a new PCA object and truncate the data to the optimal number of PCs
-            return n_pcs
-
-        # otherwise, running smartPCA was aborted and did not finnish properly, resume from last tested n_pcs
-        logger.info(
-            fmt_message(
-                f"Resuming from checkpoint: Previously tested setting {n_pcs} not sufficient. "
-                f"Repeating with n_pcs = {int(1.5 * n_pcs)}"
-            )
-        )
-        n_pcs = int(1.5 * n_pcs)
-    else:
-        logger.info(
-            fmt_message(
-                f"Determining number of PCs. Now running PCA analysis with {n_pcs} PCs."
-            )
-        )
-
-    while True:
-        with tempfile.TemporaryDirectory() as tmp_outdir:
-            tmp_outfile_prefix = pathlib.Path(tmp_outdir) / "determine_npcs"
-            pca = run_smartpca(
-                infile_prefix=infile_prefix,
-                outfile_prefix=tmp_outfile_prefix,
-                smartpca=smartpca,
-                n_pcs=n_pcs,
-                redo=True,
-            )
-            best_pcs = check_pcs_sufficient(
-                pca.explained_variances, explained_variance_cutoff
-            )
-            if best_pcs:
-                pca_checkpoint.write_text(f"{best_pcs} 1")
-                return best_pcs
-
-        # if all PCs explain >= <cutoff>% variance, rerun the PCA with an increased number of PCs
-        # we increase the number by a factor of 1.5
-        logger.info(
-            fmt_message(
-                f"{n_pcs} PCs not sufficient. Repeating analysis with {int(1.5 * n_pcs)} PCs."
-            )
-        )
-        # number of PCs not sufficient, write checkpoint and increase n_pcs
-        pca_checkpoint.write_text(f"{n_pcs} 0 {sum(pca.explained_variances)}")
-        n_pcs = int(1.5 * n_pcs)
-
-
 def from_plink(plink_evec_file: FilePath, plink_eval_file: FilePath) -> PCA:
     # read the eigenvalues
     eigenvalues = [float(ev.strip()) for ev in open(plink_eval_file)]
@@ -702,76 +479,6 @@ def from_plink(plink_evec_file: FilePath, plink_eval_file: FilePath) -> PCA:
     pca_data = pca_data.sort_values(by="sample_id").reset_index(drop=True)
 
     return PCA(pca_data=pca_data, explained_variances=explained_variances, n_pcs=n_pcs)
-
-
-def run_plink(
-    infile_prefix: FilePath,
-    outfile_prefix: FilePath,
-    plink: Executable,
-    n_pcs: int = 20,
-    redo: bool = False,
-) -> PCA:
-    evec_out = pathlib.Path(f"{outfile_prefix}.eigenvec")
-    eval_out = pathlib.Path(f"{outfile_prefix}.eigenval")
-    plink_log = pathlib.Path(f"{outfile_prefix}.plinkpca.log")
-
-    files_exist = all([evec_out.exists(), eval_out.exists(), plink_log.exists()])
-
-    if files_exist and not redo:
-        # TODO: das reicht nicht als check, bei unfertigen runs sind die files einfach nicht vollständig aber leider noch vorhanden
-        logger.info(
-            fmt_message(f"Skipping plink PCA. Files {outfile_prefix}.* already exist.")
-        )
-        return from_plink(evec_out, eval_out)
-
-    pca_cmd = [
-        plink,
-        "--pca",
-        str(n_pcs),
-        "--bfile",
-        infile_prefix,
-        "--out",
-        outfile_prefix,
-        "--no-fid"
-    ]
-
-    with plink_log.open("w") as logfile:
-        subprocess.run(pca_cmd, stdout=logfile, stderr=logfile)
-
-    return from_plink(evec_out, eval_out)
-
-
-def run_sklearn(
-    outfile_prefix: FilePath,
-    n_pcs: int = 20,
-    redo: bool = False,
-) -> PCA:
-    plink_snp_data = pathlib.Path(f"{outfile_prefix}.rel")
-    plink_sample_data = pathlib.Path(f"{outfile_prefix}.rel.id")
-
-    pc_vectors_file = pathlib.Path(f"{outfile_prefix}.sklearn.evec.npy")
-    variances_file = pathlib.Path(f"{outfile_prefix}.sklearn.eval.npy")
-
-    if redo or (not pc_vectors_file.exists() and not variances_file.exists()):
-        snp_data = []
-        for line in plink_snp_data.open():
-            values = line.split()
-            values = [float(v) for v in values]
-            snp_data.append(values)
-
-        snp_data = np.asarray(snp_data)
-
-        pca = sklearnPCA(n_components=n_pcs)
-        pca_data = pca.fit_transform(snp_data)
-
-        np.save(pc_vectors_file, pca_data)
-        np.save(variances_file, pca.explained_variance_ratio_)
-
-    return from_sklearn(
-        evec_file=pc_vectors_file,
-        eval_file=variances_file,
-        plink_id_file=plink_sample_data
-    )
 
 
 def from_sklearn(

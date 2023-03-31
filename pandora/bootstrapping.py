@@ -7,7 +7,8 @@ from multiprocessing import Pool
 from pandora.custom_types import *
 from pandora.converter import plink_to_eigen
 from pandora.logger import logger, fmt_message
-from pandora.pca import PCA, run_smartpca
+from pandora.pca import PCA
+from pandora.pca_runner import run_smartpca
 
 
 def bootstrap_snp_level(

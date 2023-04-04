@@ -1,0 +1,55 @@
+# ===========================
+# Required settings
+# ===========================
+
+# Prefix of the input files.
+# Pandora will look for files called <input>.* so make sure all files have the same prefix.
+input: /Users/julia/Desktop/Promotion/ADNA_Popgen/input/MathiesonEtAl_genotypes/full230.pruned
+
+# Directory where to write the output to.
+output: results/localtest/MathiesonEtAl_genotypes
+
+# ===========================
+# Optional settings
+# ===========================
+uncertainty:
+  bootstrap: True
+  alternativeTools: True
+  slidingWindow: False
+
+sampleProjection:
+  projectSamples: False
+  supportValues: False
+
+# Maximum number of bootstrap replicates to compute (default = TODO, currently 100).
+bootstraps: 4
+
+# Number of threads to use for computation (default is number of cores).
+threads: 2
+
+# Seed for random number generator (default is current time).
+seed: 0
+
+# If set to True, reruns the analysis. Careful: this will overwrite existing results!
+redo: False
+
+# If set to True, plots the individual PCAs with the resulting K-Means clusters annotated.
+plotResults: True
+
+# Cutoff to use when determining the number of PCs required.
+# Pandora will automatically find the number of PCs required to explain at least
+# <varianceCutoff>%% variance in the data. Default is 95%.
+varianceCutoff: 95
+
+# Optional path to the smartPCA executable. Per default, Pandora will use 'smartpca'.
+# Specify a path if smartPCA is not installed system-wide on your machine.
+smartpca: /Users/julia/micromamba/envs/pca_micromamba/bin/smartpca
+
+# Optional path to the convertf executable. Per default, Pandora will use 'convertf'.
+# Specify a path if convertf is not installed system-wide on your machine.
+convertf: /Users/julia/micromamba/envs/pca_micromamba/bin/convertf
+
+
+# Optional path to the plink2 executable. Per default, Pandora will use 'plink2'.
+# Specify a path if plink2 is not installed system-wide on your machine.
+plink2: /Users/julia/Software/plink2

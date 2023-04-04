@@ -7,6 +7,7 @@ from pandora.bootstrapping import create_bootstrap_pcas
 from pandora.converter import *
 from pandora.logger import *
 from pandora.pca import *
+from pandora.pca_comparison import PCAComparison
 from pandora.pca_runner import *
 
 
@@ -248,10 +249,11 @@ def compare_bootstrap_results(pandora_config: PandoraConfig, empirical_pca: PCA,
     bootstrap_cluster_similarities = []
 
     for i, bootstrap_pca in enumerate(bootstrap_pcas):
-        similarity = bootstrap_pca.compare(other=empirical_pca)
+        pca_comparison = PCAComparison(comparable=bootstrap_pca, reference=empirical_pca)
+        similarity = pca_comparison.compare()
         bootstrap_similarities.append(similarity)
 
-        clustering_score = bootstrap_pca.compare_clustering(other=empirical_pca, n_clusters=n_clusters, weighted=True)
+        clustering_score = pca_comparison.compare_clustering(n_clusters=n_clusters, weighted=True)
         bootstrap_cluster_similarities.append(clustering_score)
 
     # write similarities of all bootstraps to file
@@ -275,10 +277,11 @@ def compare_alternative_tool_results(empirical_pca: PCA, alternative_pcas: Dict[
         name1, pca1 = pca1
         name2, pca2 = pca2
 
-        similarity = pca1.compare(other=pca2)
+        pca_comparison = PCAComparison(comparable=pca1, reference=pca2)
+        similarity = pca_comparison.compare()
         tool_similarities.append(similarity)
 
-        cluster_similarity = pca1.compare_clustering(other=pca2, n_clusters=n_clusters, weighted=True)
+        cluster_similarity = pca_comparison.compare_clustering(n_clusters=n_clusters, weighted=True)
         tool_cluster_similarities.append(cluster_similarity)
 
         pairwise[f"{name1} <> {name2}"] = (similarity, cluster_similarity)

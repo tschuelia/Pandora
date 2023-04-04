@@ -1,20 +1,13 @@
 from __future__ import annotations  # allows type hint PCA inside PCA class
 
-import math
 import warnings
 
 import numpy as np
 import pandas as pd
 from plotly import graph_objects as go
-from plotly.colors import color_parser, label_rgb, unlabel_rgb
-
 from scipy.spatial import procrustes
 from sklearn.cluster import KMeans
-from sklearn.metrics import (
-    silhouette_score,
-    fowlkes_mallows_score,
-)
-from sklearn.metrics.pairwise import euclidean_distances
+from sklearn.metrics import silhouette_score
 
 from pandora.custom_types import *
 
@@ -30,34 +23,6 @@ def _get_colors(n: int) -> List[str]:
 
     """
     return [f"hsv({v}%, 100%, 80%)" for v in np.linspace(0, 100, n, endpoint=False)]
-
-
-def _correct_missing(pca: PCA, samples_in_both):
-    pca_data = pca.pca_data
-    pca_data = pca_data.loc[pca_data.sample_id.isin(samples_in_both)]
-
-    return PCA(
-        pca_data=pca_data,
-        explained_variances=pca.explained_variances,
-        n_pcs=pca.n_pcs
-    )
-
-
-def _clip_missing_samples_for_comparison(pca1: PCA, pca2: PCA) -> Tuple[PCA, PCA]:
-    pca1_data = pca1.pca_data
-    pca2_data = pca2.pca_data
-
-    pca1_ids = set(pca1_data.sample_id)
-    pca2_ids = set(pca2_data.sample_id)
-
-    in_both = pca1_ids.intersection(pca2_ids)
-
-    pca1 = _correct_missing(pca1, in_both)
-    pca2 = _correct_missing(pca2, in_both)
-
-    assert pca1.pc_vectors.shape == pca2.pc_vectors.shape
-
-    return pca1, pca2
 
 
 class PCA:
@@ -141,36 +106,6 @@ class PCA:
         """
         return self.pca_data[[f"PC{i}" for i in range(self.n_pcs)]].to_numpy()
 
-    def compare(self, other: PCA) -> float:
-        """
-        Compare self to other by transforming self towards other and then computing the samplewise cosine similarity.
-        Returns the average and standard deviation. The resulting similarity is on a scale of 0 to 1, with 1 meaning
-        self and other are identical.
-        TODO: nope wir nehmen jetzt doch procrustes und die similarity von procrustes direkt
-
-        Args:
-            other (PCA): PCA object to compare self to.
-
-        Returns:
-            float: Similarity as average cosine similarity per sample PC-vector in self and other.
-        """
-        # TODO: check whether the sample IDs match -> we can only compare PCAs for the same samples
-
-        # check if the number of samples match for now
-        self_data = self.pc_vectors
-        other_data = other.pc_vectors
-
-        if self_data.shape[0] != other_data.shape[0]:
-            # mismatch in sample_ids, impute data by clipping mismatching samples
-            _self, _other = _clip_missing_samples_for_comparison(self, other)
-            self_data = _self.pc_vectors
-            other_data = _other.pc_vectors
-
-        _, _, disparity = procrustes(self_data, other_data)
-        similarity = np.sqrt(1 - disparity)
-
-        return similarity
-
     def get_optimal_n_clusters(self, min_n: int = 3, max_n: int = 50) -> int:
         """
         Determines the optimal number of clusters k for K-Means clustering.
@@ -214,41 +149,6 @@ class PCA:
         kmeans = KMeans(random_state=42, n_clusters=n_clusters, n_init=10)
         kmeans.fit(pca_data_np)
         return kmeans
-
-    def compare_clustering(
-        self, other: PCA, n_clusters: int = None, weighted: bool = True
-    ) -> float:
-        """
-        Compare self clustering to other clustering using other as ground truth.
-
-        Args:
-            other (PCA): PCA object to compare self to.
-            n_clusters (int): Number of clusters. If not set, the optimal number of clusters is determined automatically.
-            weighted (bool): If set, scales the PCA data of self and other according to the respective explained variances prior to clustering.
-
-        Returns:
-            float: The Fowlkes-Mallow score of Cluster similarity between the clusters of self and other
-        """
-        if n_clusters is None:
-            # we are comparing self to other -> use other as ground truth
-            # thus, we determine the number of clusters using other
-            n_clusters = other.get_optimal_n_clusters()
-
-        if self.pc_vectors.shape[0] != other.pc_vectors.shape[0]:
-            # mismatch in sample_ids, impute data by adding zero-vectors
-            _self, _other = _clip_missing_samples_for_comparison(self, other)
-        else:
-            _self = self
-            _other = other
-
-        # since we are only comparing the assigned cluster labels, we don't need to transform self prior to comparing
-        self_kmeans = _self.cluster(n_clusters=n_clusters, weighted=weighted)
-        other_kmeans = _other.cluster(n_clusters=n_clusters, weighted=weighted)
-
-        self_cluster_labels = self_kmeans.predict(_self.pc_vectors)
-        other_cluster_labels = other_kmeans.predict(_other.pc_vectors)
-
-        return fowlkes_mallows_score(other_cluster_labels, self_cluster_labels)
 
     def plot(
         self,

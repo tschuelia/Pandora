@@ -1,3 +1,4 @@
+from plotly import graph_objects as go
 from scipy.spatial import procrustes
 from sklearn.metrics import fowlkes_mallows_score
 from sklearn.metrics.pairwise import euclidean_distances
@@ -145,32 +146,45 @@ class PCAComparison:
         if show_rogue:
             rogue_samples = self.detect_rogue_samples(rogue_cutoff=rogue_cutoff)
             rogue_colors = dict(zip(rogue_samples, get_colors(len(rogue_samples))))
+            rogue_text = dict(zip(rogue_samples, rogue_samples))
 
             color_reference = [rogue_colors.get(sample, "lightgrey") for sample in self.comparable.pca_data.sample_id]
+            text = [rogue_text.get(sample, "") for sample in self.comparable.pca_data.sample_id]
 
             # since the sample IDs are identical for both PCAs, we can share the same list of marker colors
             color_comparable = color_reference
         else:
             color_reference = "darkblue"
             color_comparable = "orange"
+            text=[]
 
-        fig = self.reference.plot(
-            pc1=pc1,
-            pc2=pc2,
-            name="Standardized reference PCA",
-            marker_color=color_reference,
-            **kwargs
+        fig = go.Figure(
+            [
+                go.Scatter(
+                    x=self.reference.pca_data[f"PC{pc1}"],
+                    y=self.reference.pca_data[f"PC{pc2}"],
+                    marker_color=color_reference,
+                    name="Standardized reference PCA",
+                    mode="markers+text",
+                    text=text,
+                    textposition="bottom center",
+                    **kwargs,
+                ),
+                go.Scatter(
+                    x=self.comparable.pca_data[f"PC{pc1}"],
+                    y=self.comparable.pca_data[f"PC{pc2}"],
+                    marker_color=color_comparable,
+                    marker_symbol="star",
+                    name="Transformed comparable PCA",
+                    mode="markers+text",
+                    text=text,
+                    textposition="bottom center",
+                    **kwargs,
+                )
+            ]
         )
 
-        fig = self.comparable.plot(
-            fig=fig,
-            pc1=pc1,
-            pc2=pc2,
-            name="Transformed comparable PCA",
-            marker_color=color_comparable,
-            marker_symbol="star",
-            **kwargs
-        )
+        fig.update_layout(template="plotly_white", height=1000, width=1000)
 
         if outfile:
             fig.write_image(outfile)
@@ -180,15 +194,14 @@ class PCAComparison:
 
 def match_and_transform(comparable: PCA, reference: PCA) -> Tuple[PCA, PCA]:
     """
-    Finds a transformation matrix that most closely matches pca to pca_reference and transforms pca.
-    Both PCAs are standardized prior to transformation.
+    Finds a transformation matrix that most closely matches comparable to reference and transforms comparable.
 
     Args:
-        pca (PCA): The PCA that should be transformed
-        pca_reference (PCA): The PCA that pca1 should be transformed towards
+        comparable (PCA): The PCA that should be transformed
+        reference (PCA): The PCA that comparable should be transformed towards
 
     Returns:
-        Tuple[PCA, PCA]: Two new PCA objects, the first one is the transformed pca and the second one is the standardized pca_reference.
+        Tuple[PCA, PCA]: Two new PCA objects, the first one is the transformed comparable and the second one is the standardized reference.
             In all downstream comparisons or pairwise plotting, use these PCA objects.
     """
     comparable, reference = _clip_missing_samples_for_comparison(comparable, reference)

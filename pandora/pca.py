@@ -215,7 +215,7 @@ class PCA:
             _pca_data = self.pca_data.copy()
             _pca_data["cluster"] = cluster_labels
 
-            colors = _get_colors(n_clusters)
+            colors = get_colors(n_clusters)
 
             for i in range(n_clusters):
                 _data = _pca_data.loc[_pca_data.cluster == i]

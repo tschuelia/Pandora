@@ -142,11 +142,6 @@ class PCAComparison:
             rogue_cutoff: float = 0.95,
             **kwargs,
              ):
-        standardized_reference, transformed_comparable = match_and_transform(
-            comparable=self.comparable,
-            reference=self.reference
-        )
-
         if show_rogue:
             rogue_samples = self.detect_rogue_samples(rogue_cutoff=rogue_cutoff)
             rogue_colors = dict(zip(rogue_samples, get_colors(len(rogue_samples))))
@@ -159,7 +154,7 @@ class PCAComparison:
             color_reference = "darkblue"
             color_comparable = "orange"
 
-        fig = standardized_reference.plot(
+        fig = self.reference.plot(
             pc1=pc1,
             pc2=pc2,
             name="Standardized reference PCA",
@@ -167,7 +162,7 @@ class PCAComparison:
             **kwargs
         )
 
-        fig = transformed_comparable.plot(
+        fig = self.comparable.plot(
             fig=fig,
             pc1=pc1,
             pc2=pc2,

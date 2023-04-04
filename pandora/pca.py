@@ -137,6 +137,64 @@ class PCA:
         kmeans.fit(pca_data_np)
         return kmeans
 
+    def _plot_clusters(
+        self,
+        pc1: int = 0,
+        pc2: int = 1,
+        n_clusters: int = None,
+        fig: go.Figure = None,
+        **kwargs,
+    ) -> go.Figure:
+        n_clusters = (
+            n_clusters if n_clusters is not None else self.get_optimal_n_clusters()
+        )
+        cluster_labels = self.cluster(n_clusters=n_clusters).labels_
+
+        _pca_data = self.pca_data.copy()
+        _pca_data["cluster"] = cluster_labels
+
+        colors = get_colors(n_clusters)
+
+        for i in range(n_clusters):
+            _data = _pca_data.loc[_pca_data.cluster == i]
+            fig.add_trace(
+                go.Scatter(
+                    x=_data[f"PC{pc1}"],
+                    y=_data[f"PC{pc2}"],
+                    mode="markers",
+                    marker_color=colors[i],
+                    name=f"Cluster {i + 1}",
+                    **kwargs,
+                )
+            )
+
+        return fig
+
+    def _plot_populations(
+        self, pc1: int = 0, pc2: int = 1, fig: go.Figure = None, **kwargs
+    ) -> go.Figure:
+        if self.pca_data.population.isna().all():
+            raise ValueError(
+                "Cannot plot populations: no populations associated with PCA data."
+            )
+        populations = self.pca_data.population.unique()
+        colors = get_colors(len(populations))
+        assert len(populations) == len(colors), f"{len(populations)}, {len(colors)}"
+        for i, population in enumerate(populations):
+            _data = self.pca_data.loc[self.pca_data.population == population]
+            fig.add_trace(
+                go.Scatter(
+                    x=_data[f"PC{pc1}"],
+                    y=_data[f"PC{pc2}"],
+                    mode="markers",
+                    marker_color=colors[i],
+                    name=population,
+                    **kwargs,
+                )
+            )
+
+        return fig
+
     def plot(
         self,
         pc1: int = 0,
@@ -184,51 +242,11 @@ class PCA:
             )
 
         if annotation == "population":
-            if self.pca_data.population.isna().all():
-                raise ValueError(
-                    "Cannot plot populations: no populations associated with PCA data."
-                )
-
-            populations = self.pca_data.population.unique()
-            colors = get_colors(len(populations))
-
-            assert len(populations) == len(colors), f"{len(populations)}, {len(colors)}"
-
-            for i, population in enumerate(populations):
-                _data = self.pca_data.loc[self.pca_data.population == population]
-                fig.add_trace(
-                    go.Scatter(
-                        x=_data[f"PC{pc1}"],
-                        y=_data[f"PC{pc2}"],
-                        mode="markers",
-                        marker_color=colors[i],
-                        name=population,
-                        **kwargs,
-                    )
-                )
+            self._plot_populations(pc1=pc1, pc2=pc2, fig=fig, **kwargs)
         elif annotation == "cluster":
-            n_clusters = (
-                n_clusters if n_clusters is not None else self.get_optimal_n_clusters()
+            fig = self._plot_clusters(
+                pc1=pc1, pc2=pc2, n_clusters=n_clusters, fig=fig, **kwargs
             )
-            cluster_labels = self.cluster(n_clusters=n_clusters).labels_
-
-            _pca_data = self.pca_data.copy()
-            _pca_data["cluster"] = cluster_labels
-
-            colors = get_colors(n_clusters)
-
-            for i in range(n_clusters):
-                _data = _pca_data.loc[_pca_data.cluster == i]
-                fig.add_trace(
-                    go.Scatter(
-                        x=_data[f"PC{pc1}"],
-                        y=_data[f"PC{pc2}"],
-                        mode="markers",
-                        marker_color=colors[i],
-                        name=f"Cluster {i + 1}",
-                        **kwargs,
-                    )
-                )
 
         elif annotation is None:
             fig.add_trace(
@@ -309,7 +327,9 @@ def from_plink(plink_evec_file: FilePath, plink_eval_file: FilePath) -> PCA:
         f.readline()
 
         # next, read the PCs per sample
-        pca_data = pd.read_table(f, delimiter="\t", skipinitialspace=False, header=None, names=cols)
+        pca_data = pd.read_table(
+            f, delimiter="\t", skipinitialspace=False, header=None, names=cols
+        )
 
     pca_data = pca_data.rename(columns=dict(zip(pca_data.columns, cols)))
     pca_data = pca_data.sort_values(by="sample_id").reset_index(drop=True)
@@ -318,9 +338,7 @@ def from_plink(plink_evec_file: FilePath, plink_eval_file: FilePath) -> PCA:
 
 
 def from_sklearn(
-    evec_file: FilePath,
-    eval_file: FilePath,
-    plink_id_file: FilePath
+    evec_file: FilePath, eval_file: FilePath, plink_id_file: FilePath
 ) -> PCA:
     sample_ids = [l.strip() for l in plink_id_file.open().readlines()[1:]]
     pca_data = np.load(evec_file)
@@ -330,5 +348,5 @@ def from_sklearn(
         pca_data=pca_data,
         explained_variances=explained_variances,
         n_pcs=explained_variances.shape[0],
-        sample_ids=sample_ids
+        sample_ids=sample_ids,
     )

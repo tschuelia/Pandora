@@ -1,3 +1,5 @@
+import math
+
 from plotly import graph_objects as go
 from scipy.spatial import procrustes
 from sklearn.metrics import fowlkes_mallows_score
@@ -123,7 +125,13 @@ class PCAComparison:
         rogue_samples = [
             sample_id
             for dist, sample_id in zip(sample_distances, self.comparable.pca_data.sample_id)
-            if dist > rogue_threshold
+
+            if (
+                    dist > rogue_threshold
+                    # make sure we are not flagging samples as rogue due to float comparisons
+                    # this is necessary when comparing (almost) identical PCA objects
+                    and not math.isclose(dist, rogue_threshold, abs_tol=1e-6)
+            )
         ]
 
         """
@@ -156,7 +164,7 @@ class PCAComparison:
         else:
             color_reference = "darkblue"
             color_comparable = "orange"
-            text=[]
+            text = []
 
         fig = go.Figure(
             [
@@ -228,3 +236,32 @@ def match_and_transform(comparable: PCA, reference: PCA) -> Tuple[PCA, PCA]:
     )
 
     return standardized_reference, transformed_comparable
+
+
+def plot_rogue_samples(
+        pca: PCA,
+        rogue_ids: List[str],
+        rogueness: List[float],
+        pc1: int = 0,
+        pc2: int = 1,
+        **kwargs
+) -> go.Figure:
+    if len(rogue_ids) != len(rogueness):
+        raise ValueError("Number of rogue IDs and number of rogueness values need to be identical.")
+
+    rogueness = dict(zip(rogue_ids, rogueness))
+    rogue_colors = dict(zip(rogue_ids, get_colors(len(rogue_ids))))
+    rogue_text = dict([(s, f"{round(rogueness[s], 2)}<br>({s})") for s in rogue_ids])
+
+    fig = go.Figure(
+        go.Scatter(
+            x=pca.pca_data[f"PC{pc1}"],
+            y=pca.pca_data[f"PC{pc2}"],
+            marker_color=[rogue_colors.get(sample, "lightgrey") for sample in pca.pca_data.sample_id],
+            mode="markers+text",
+            text=[rogue_text.get(s, "") for s in pca.pca_data.sample_id],
+            textposition="bottom center",
+        )
+    )
+    fig.update_layout(template="plotly_white", height=1000, width=1000)
+    return fig

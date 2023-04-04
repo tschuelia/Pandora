@@ -5,24 +5,11 @@ import warnings
 import numpy as np
 import pandas as pd
 from plotly import graph_objects as go
-from scipy.spatial import procrustes
 from sklearn.cluster import KMeans
 from sklearn.metrics import silhouette_score
 
 from pandora.custom_types import *
-
-
-def _get_colors(n: int) -> List[str]:
-    """Returns a list of n HSV colors evenly spaced in the HSV colorspace.
-
-    Args:
-        n (int): Number of colors to return
-
-    Returns:
-        List[str]: List of n plotly HSV color strings.
-
-    """
-    return [f"hsv({v}%, 100%, 80%)" for v in np.linspace(0, 100, n, endpoint=False)]
+from pandora.utils import get_colors
 
 
 class PCA:
@@ -203,7 +190,7 @@ class PCA:
                 )
 
             populations = self.pca_data.population.unique()
-            colors = _get_colors(len(populations))
+            colors = get_colors(len(populations))
 
             assert len(populations) == len(colors), f"{len(populations)}, {len(colors)}"
 

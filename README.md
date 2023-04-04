@@ -28,6 +28,34 @@ The `-e` flag is a development flag I would recommend to set. Changes in the cod
 On some machines this option does not work. If you encounter any errors, try again using `pip install .`
 
 ## Usage
+### Comparing two PCAs
+E.g. comparing two different smartPCA results.
+The number of PCs in both PCs must be identical. The number of samples can vary, Pandora will take care of that.
+```python
+from pandora.pca import from_smartpca
+from pandora.pca_comparison import PCAComparison
+
+pca1 = from_smartpca("path/to/smart.pca1.evec")  # this is a PCA object, see pandora.pca::PCA for more details
+pca2 = from_smartpca("path/to/smart.pca2.evec")  # this is a PCA object, see pandora.pca::PCA for more details
+
+comparison = PCAComparison(pca1, pca2)  # this is a PCAComparison object, see pandora.pca_comparison::PCA for more details
+similarity = comparison.compare()
+print("PCA1 and PCA2 similarity: ", similarity)
+
+kmeans_cluster_similarity = comparison.compare_clustering()
+print("PCA1 and PCA2 similarity of K-Means clustering: ", kmeans_cluster_similarity)
+
+# plot each PCA individually using pca.plot:
+# outfile is a path where to write the figure to
+pca1.plot(outfile="path/to/pca1_fig.pdf")
+pca2.plot(outfile="path/to/pca2_fig.pdf")
+
+# plot pca1 and pca2 jointly
+comparison.plot(outfile="path/to/both.pdf")
+
+# Experimental Feature: plot rogue samples = samples with high distances when comparing the PC-vectors
+comparison.plot(show_rogue=True, outfile="path/to/both_with_rogue.pdf")
+```
 ### Input
 The following input types are currently supported:
 - EIGEN format
@@ -36,33 +64,6 @@ Pandora applies no preprocessing so make sure to provide a preprocessed dataset.
 
 ### Command line interface
 Not yet implemented, coming soon...
-
-### From code
-Once installed, you can use Pandora from code, e.g. to compare your own PCAs:
-
-```python
-from pandora.pca import PCA, from_smartpca
-from sklearn.decomposition import PCA as sklearnPCA
-
-
-# create 2 PCA objects
-# you can either create one using a numpy array / pandas dataframe manually
-# e.g. based on scikit-learns pca
-data = ...
-n_pcs = 10
-sklearn_pca = sklearnPCA(n_components=n_pcs)
-sklearn_pca.fit(data)
-pca1 = PCA(pca_data=sklearn_pca.transform(data), explained_variances=sklearn_pca.explained_variance_ratio_, n_pcs=n_pcs)
-
-# or, you can load a smartpca result using from_smartpca
-pca2 = from_smartpca("cool_analysis.evec")
-
-# setting pca1 as "ground truth", we match pca2 to pca1 and compute a comparison score based on the cosine similarity
-score = pca2.compare(pca1)
-
-# also, get a set of cluster metrics to compare the clustering of pca1 and pca2
-cluster_scores = pca2.compare_clustering(pca1)
-```
 
 ## How Pandora works:
 ### Bootstrapping:

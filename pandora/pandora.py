@@ -348,7 +348,8 @@ def plot_bootstraps(pandora_config: PandoraConfig, empirical_pca: PCA, bootstrap
 
         # Plot transformed bootstrap and empirical data jointly
         # for this, we first need to transform the empirical and bootstrap data
-        standardized_empirical, transformed_bootstrap = transform_pca_to_reference(bootstrap_pca, empirical_pca)
+        pca_comparison = PCAComparison(comparable=bootstrap_pca, reference=empirical_pca)
+        standardized_empirical, transformed_bootstrap = pca_comparison.transform()
         fig = standardized_empirical.plot(
             pc1=pc1,
             pc2=pc2,
@@ -387,7 +388,8 @@ def plot_alternative_tools(pandora_config: PandoraConfig, empirical_pca: PCA, al
             outfile=pandora_config.plot_dir / f"{name}.pca.pdf"
         )
 
-        standardized_reference, transformed_alternative = transform_pca_to_reference(pca, empirical_pca)
+        pca_comparison = PCAComparison(comparable=pca, reference=empirical_pca)
+        standardized_reference, transformed_alternative = pca_comparison.transform()
         fig = standardized_reference.plot(
             pc1=pc1,
             pc2=pc2,

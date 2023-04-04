@@ -20,6 +20,7 @@ class PCAComparison:
         self.comparable = comparable
         self.reference = reference
 
+        # TODO: check whether there are samples left after clipping to make sure there is something to compare...
         self._clip_missing_samples_for_comparison()
 
     def _clip_missing_samples_for_comparison(self) -> None:
@@ -128,3 +129,41 @@ class PCAComparison:
         und der support wert für das sample ist dann 1 - (# rogue / # bootstraps) oder so 
         """
         return rogue_samples
+
+    def transform(self) -> Tuple[PCA, PCA]:
+        """
+        Finds a transformation matrix that most closely matches pca to pca_reference and transforms pca.
+        Both PCAs are standardized prior to transformation.
+
+        Args:
+            pca (PCA): The PCA that should be transformed
+            pca_reference (PCA): The PCA that pca1 should be transformed towards
+
+        Returns:
+            Tuple[PCA, PCA]: Two new PCA objects, the first one is the transformed pca and the second one is the standardized pca_reference.
+                In all downstream comparisons or pairwise plotting, use these PCA objects.
+        """
+
+        comp_data = self.comparable_clipped.pc_vectors
+        ref_data = self.reference_clipped.pc_vectors
+
+        # TODO: reorder PCs (if we find a dataset where this is needed...don't want to blindly implement something)
+        standardized_reference, transformed_pca, _ = procrustes(ref_data, comp_data)
+
+        standardized_reference = PCA(
+            pca_data=standardized_reference,
+            explained_variances=self.reference_clipped.explained_variances,
+            n_pcs=self.reference_clipped.n_pcs,
+            sample_ids=self.reference_clipped.pca_data.sample_id,
+            populations=self.reference_clipped.pca_data.population
+        )
+
+        transformed_comparable = PCA(
+            pca_data=transformed_pca,
+            explained_variances=self.comparable_clipped.explained_variances,
+            n_pcs=self.comparable_clipped.n_pcs,
+            sample_ids=self.comparable_clipped.pca_data.sample_id,
+            populations=self.comparable_clipped.pca_data.population,
+        )
+
+        return standardized_reference, transformed_comparable

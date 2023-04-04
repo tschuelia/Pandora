@@ -277,57 +277,6 @@ class PCA:
         return fig
 
 
-def transform_pca_to_reference(pca: PCA, pca_reference: PCA) -> Tuple[PCA, PCA]:
-    """
-    Finds a transformation matrix that most closely matches pca to pca_reference and transforms pca.
-    Both PCAs are standardized prior to transformation.
-
-    Args:
-        pca (PCA): The PCA that should be transformed
-        pca_reference (PCA): The PCA that pca1 should be transformed towards
-
-    Returns:
-        Tuple[PCA, PCA]: Two new PCA objects, the first one is the transformed pca and the second one is the standardized pca_reference.
-            In all downstream comparisons or pairwise plotting, use these PCA objects.
-    """
-
-    # TODO: check whether the sample IDs match -> we can only compare PCAs for the same samples
-    pca_data = pca.pc_vectors
-    pca_ref_data = pca_reference.pc_vectors
-
-    if pca_data.shape[0] != pca_ref_data.shape[0]:
-        # mismatch in sample_ids, impute data by adding zero-vectors
-        _pca, _pca_ref = _clip_missing_samples_for_comparison(pca, pca_reference)
-        pca_data = _pca.pc_vectors
-        pca_ref_data = _pca_ref.pc_vectors
-
-    if pca_data.shape != pca_ref_data.shape:
-        raise ValueError(
-            "Mismatch in PCA size: PCA1 and PCA2 need to have the same number of PCs."
-        )
-
-    # TODO: reorder PCs (if we find a dataset where this is needed...don't want to blindly implement something)
-    standardized_reference, transformed_pca, _ = procrustes(pca_ref_data, pca_data)
-
-    standardized_reference = PCA(
-        pca_data=standardized_reference,
-        explained_variances=pca_reference.explained_variances,
-        n_pcs=pca_reference.n_pcs,
-        sample_ids=pca_reference.pca_data.sample_id,
-        populations=pca_reference.pca_data.population
-    )
-
-    transformed_pca = PCA(
-        pca_data=transformed_pca,
-        explained_variances=pca.explained_variances,
-        n_pcs=pca.n_pcs,
-        sample_ids=pca.pca_data.sample_id,
-        populations=pca.pca_data.population,
-    )
-
-    return standardized_reference, transformed_pca
-
-
 def from_smartpca(smartpca_evec_file: FilePath) -> PCA:
     """
     Creates a PCA object from a smartPCA results file.

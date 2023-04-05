@@ -31,6 +31,9 @@ class PandoraConfig:
     run_slidingWindow: bool
     run_plotting: bool
 
+    plot_pcx: int
+    plot_pcy: int
+
     @property
     def dataset(self):
         return self.infile_prefix.name
@@ -113,6 +116,8 @@ def from_config(configfile: FilePath) -> PandoraConfig:
         run_alternative=uncertainty_analyses.get("alternativeTools", True),
         run_slidingWindow=uncertainty_analyses.get("slidingWindow", False),
         run_plotting=config_data.get("plotResults", False),
+        plot_pcx=config_data.get("plot_pcx", 0),
+        plot_pcy=config_data.get("plot_pcy", 0),
     )
 
 
@@ -253,7 +258,7 @@ def compare_bootstrap_results(pandora_config: PandoraConfig, empirical_pca: PCA,
         similarity = pca_comparison.compare()
         bootstrap_similarities.append(similarity)
 
-        clustering_score = pca_comparison.compare_clustering(n_clusters=n_clusters, weighted=True)
+        clustering_score = pca_comparison.compare_clustering(n_clusters=n_clusters)
         bootstrap_cluster_similarities.append(clustering_score)
 
     # write similarities of all bootstraps to file
@@ -281,7 +286,7 @@ def compare_alternative_tool_results(empirical_pca: PCA, alternative_pcas: Dict[
         similarity = pca_comparison.compare()
         tool_similarities.append(similarity)
 
-        cluster_similarity = pca_comparison.compare_clustering(n_clusters=n_clusters, weighted=True)
+        cluster_similarity = pca_comparison.compare_clustering(n_clusters=n_clusters)
         tool_cluster_similarities.append(cluster_similarity)
 
         pairwise[f"{name1} <> {name2}"] = (similarity, cluster_similarity)
@@ -291,13 +296,13 @@ def compare_alternative_tool_results(empirical_pca: PCA, alternative_pcas: Dict[
 
 def plot_empirical(pandora_config: PandoraConfig, empirical_pca: PCA, n_clusters: int):
     # TODO: make plotted PCs command line settable
-    pc1 = 0
-    pc2 = 1
+    pcx = 0
+    pcy = 1
 
     # plot with annotated populations
     empirical_pca.plot(
-        pc1=pc1,
-        pc2=pc2,
+        pcx=pcx,
+        pcy=pcy,
         annotation="population",
         outfile=pandora_config.plot_dir / "empirical_with_populations.pdf",
         redo=pandora_config.redo
@@ -305,8 +310,8 @@ def plot_empirical(pandora_config: PandoraConfig, empirical_pca: PCA, n_clusters
 
     # plot with annotated clusters
     empirical_pca.plot(
-        pc1=pc1,
-        pc2=pc2,
+        pcx=pcx,
+        pcy=pcy,
         annotation="cluster",
         n_clusters=n_clusters,
         outfile=pandora_config.plot_dir / "empirical_with_clusters.pdf",
@@ -319,8 +324,8 @@ def plot_empirical(pandora_config: PandoraConfig, empirical_pca: PCA, n_clusters
 def plot_bootstraps(pandora_config: PandoraConfig, empirical_pca: PCA, bootstrap_pcas: List[PCA], n_clusters: int):
     # TODO: make plotted PCs command line settable
     # TODO: paralleles plotten
-    pc1 = 0
-    pc2 = 1
+    pcx = 0
+    pcy = 1
 
     for i, bootstrap_pca in enumerate(bootstrap_pcas):
         # TODO: populations so zu setzen funktioniert nicht mehr wenn man die outlier in smartpca raus schmeisst
@@ -329,8 +334,8 @@ def plot_bootstraps(pandora_config: PandoraConfig, empirical_pca: PCA, bootstrap
 
         # plot Bootstrap with annotated populations
         bootstrap_pca.plot(
-            pc1=pc1,
-            pc2=pc2,
+            pcx=pcx,
+            pcy=pcy,
             annotation="population",
             outfile=pandora_config.plot_dir / f"bootstrap_{i + 1}_with_populations.pca.pdf",
             redo=pandora_config.redo
@@ -338,8 +343,8 @@ def plot_bootstraps(pandora_config: PandoraConfig, empirical_pca: PCA, bootstrap
 
         # plot Bootstrap only with annotated clusters
         bootstrap_pca.plot(
-            pc1=pc1,
-            pc2=pc2,
+            pcx=pcx,
+            pcy=pcy,
             annotation="cluster",
             n_clusters=n_clusters,
             outfile=pandora_config.plot_dir / f"bootstrap_{i + 1}_with_clusters.pca.pdf",
@@ -350,16 +355,16 @@ def plot_bootstraps(pandora_config: PandoraConfig, empirical_pca: PCA, bootstrap
         # for this, we first need to transform the empirical and bootstrap data
         standardized_empirical, transformed_bootstrap = match_and_transform(comparable=bootstrap_pca, reference=empirical_pca)
         fig = standardized_empirical.plot(
-            pc1=pc1,
-            pc2=pc2,
+            pcx=pcx,
+            pcy=pcy,
             name="empirical (standardized)",
             marker_color="darkblue",
             marker_symbol="circle",
         )
 
         transformed_bootstrap.plot(
-            pc1=pc1,
-            pc2=pc2,
+            pcx=pcx,
+            pcy=pcy,
             name="bootstrap (transformed)",
             fig=fig,
             marker_color="orange",
@@ -374,31 +379,31 @@ def plot_bootstraps(pandora_config: PandoraConfig, empirical_pca: PCA, bootstrap
 def plot_alternative_tools(pandora_config: PandoraConfig, empirical_pca: PCA, alternative_pcas: Dict[str, PCA], n_clusters: int):
     # TODO: make plotted PCs command line settable
     # TODO: paralleles plotten
-    pc1 = 0
-    pc2 = 1
+    pcx = 0
+    pcy = 1
 
     # Plot transformed alternative Tools and smartPCA data jointly
     # for this, we first need to transform the empirical and bootstrap data
     for name, pca in alternative_pcas.items():
         pca.plot(
-            pc1=pc1,
-            pc2=pc2,
+            pcx=pcx,
+            pcy=pcy,
             name=f"Transformed {name}",
             outfile=pandora_config.plot_dir / f"{name}.pca.pdf"
         )
 
         standardized_reference, transformed_alternative = match_and_transform(comparable=pca, reference=empirical_pca)
         fig = standardized_reference.plot(
-            pc1=pc1,
-            pc2=pc2,
+            pcx=pcx,
+            pcy=pcy,
             name="SmartPCA (standardized)",
             marker_color="darkblue",
             marker_symbol="circle",
         )
 
         transformed_alternative.plot(
-            pc1=pc1,
-            pc2=pc2,
+            pcx=pcx,
+            pcy=pcy,
             name=f"{name} (transformed)",
             fig=fig,
             marker_color="orange",

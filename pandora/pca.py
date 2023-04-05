@@ -6,6 +6,8 @@ import numpy as np
 import pandas as pd
 from plotly import graph_objects as go
 from sklearn.cluster import KMeans
+from sklearn.mixture import GaussianMixture
+from sklearn.model_selection import GridSearchCV
 from sklearn.metrics import silhouette_score
 
 from pandora.custom_types import *
@@ -93,9 +95,10 @@ class PCA:
         """
         return self.pca_data[[f"PC{i}" for i in range(self.n_pcs)]].to_numpy()
 
+
     def get_optimal_n_clusters(self, min_n: int = 3, max_n: int = 50) -> int:
         """
-        Determines the optimal number of clusters k for K-Means clustering.
+        Determines the optimal number of clusters k for K-Means clustering according to the Bayesian Information Criterion (BIC).
 
         Args:
             min_n (int): Minimum number of clusters. Defaults to 3.
@@ -104,26 +107,21 @@ class PCA:
         Returns:
             int: the optimal number of clusters between min_n and max_n
         """
-        best_k = -1
-        best_score = -1
+        grid_search = GridSearchCV(
+            estimator=GaussianMixture(),
+            param_grid={"n_components": range(min_n, max_n)},
+            scoring=lambda estimator: -estimator.bic(self.pc_vectors)
+        )
 
-        for k in range(min_n, max_n):
-            # TODO: what range is reasonable?
-            kmeans = KMeans(random_state=42, n_clusters=k, n_init=10)
-            kmeans.fit(self.pc_vectors)
-            score = silhouette_score(self.pc_vectors, kmeans.labels_)
-            best_k = k if score > best_score else best_k
-            best_score = max(score, best_score)
+        grid_search.fit(self.pc_vectors)
+        return grid_search.best_params_["n_components"]
 
-        return best_k
-
-    def cluster(self, n_clusters: int = None, weighted: bool = True) -> KMeans:
+    def cluster(self, n_clusters: int = None) -> KMeans:
         """
         Fits a K-Means cluster to the pca data and returns a scikit-learn fitted KMeans object.
 
         Args:
             n_clusters (int): Number of clusters. If not set, the optimal number of clusters is determined automatically.
-            weighted (bool): If set, scales the PCA data of self and other according to the respective explained variances prior to clustering.
 
         Returns:
             KMeans: Scikit-learn KMeans object that with n_clusters that is fitted to self.pca_data.
@@ -131,16 +129,14 @@ class PCA:
         pca_data_np = self.pc_vectors
         if n_clusters is None:
             n_clusters = self.get_optimal_n_clusters()
-        if weighted:
-            pca_data_np = pca_data_np * self.explained_variances
         kmeans = KMeans(random_state=42, n_clusters=n_clusters, n_init=10)
         kmeans.fit(pca_data_np)
         return kmeans
 
     def _plot_clusters(
         self,
-        pc1: int = 0,
-        pc2: int = 1,
+        pcx: int = 0,
+        pcy: int = 1,
         n_clusters: int = None,
         fig: go.Figure = None,
         **kwargs,
@@ -159,8 +155,8 @@ class PCA:
             _data = _pca_data.loc[_pca_data.cluster == i]
             fig.add_trace(
                 go.Scatter(
-                    x=_data[f"PC{pc1}"],
-                    y=_data[f"PC{pc2}"],
+                    x=_data[f"PC{pcx}"],
+                    y=_data[f"PC{pcy}"],
                     mode="markers",
                     marker_color=colors[i],
                     name=f"Cluster {i + 1}",
@@ -171,7 +167,7 @@ class PCA:
         return fig
 
     def _plot_populations(
-        self, pc1: int = 0, pc2: int = 1, fig: go.Figure = None, **kwargs
+        self, pcx: int = 0, pcy: int = 1, fig: go.Figure = None, **kwargs
     ) -> go.Figure:
         if self.pca_data.population.isna().all():
             raise ValueError(
@@ -184,8 +180,8 @@ class PCA:
             _data = self.pca_data.loc[self.pca_data.population == population]
             fig.add_trace(
                 go.Scatter(
-                    x=_data[f"PC{pc1}"],
-                    y=_data[f"PC{pc2}"],
+                    x=_data[f"PC{pcx}"],
+                    y=_data[f"PC{pcy}"],
                     mode="markers",
                     marker_color=colors[i],
                     name=population,
@@ -197,8 +193,8 @@ class PCA:
 
     def plot(
         self,
-        pc1: int = 0,
-        pc2: int = 1,
+        pcx: int = 0,
+        pcy: int = 1,
         annotation: str = None,
         n_clusters: int = None,
         fig: go.Figure = None,
@@ -209,14 +205,14 @@ class PCA:
         **kwargs,
     ) -> go.Figure:
         """
-        Plots the PCA data for pc1 and pc2.
+        Plots the PCA data for pcx and pcy.
         TODO: update args description
 
         Args:
-            pc1 (int): Number of the PC to plot on the x-axis.
-                The PCs are 0-indexed, so to plot the first principal component, set pc1 = 0. Defaults to 0.
-            pc2 (int): Number of the PC to plot on the y-axis.
-                The PCs are 0-indexed, so to plot the second principal component, set pc2 = 1. Defaults to 1.
+            pcx (int): Number of the PC to plot on the x-axis.
+                The PCs are 0-indexed, so to plot the first principal component, set pcx = 0. Defaults to 0.
+            pcy (int): Number of the PC to plot on the y-axis.
+                The PCs are 0-indexed, so to plot the second principal component, set pcy = 1. Defaults to 1.
             annotation (bool): If None, plots alls samples with the same color.
                 If "population", plots each population with a different color.
                 If "cluster", applies K-Means clustering and plots each cluster with a different color.
@@ -242,17 +238,17 @@ class PCA:
             )
 
         if annotation == "population":
-            self._plot_populations(pc1=pc1, pc2=pc2, fig=fig, **kwargs)
+            self._plot_populations(pcx=pcx, pcy=pcy, fig=fig, **kwargs)
         elif annotation == "cluster":
             fig = self._plot_clusters(
-                pc1=pc1, pc2=pc2, n_clusters=n_clusters, fig=fig, **kwargs
+                pcx=pcx, pcy=pcy, n_clusters=n_clusters, fig=fig, **kwargs
             )
 
         elif annotation is None:
             fig.add_trace(
                 go.Scatter(
-                    x=self.pca_data[f"PC{pc1}"],
-                    y=self.pca_data[f"PC{pc2}"],
+                    x=self.pca_data[f"PC{pcx}"],
+                    y=self.pca_data[f"PC{pcy}"],
                     mode="markers",
                     marker_color=marker_color,
                     name=name,
@@ -265,12 +261,12 @@ class PCA:
                 f"Allowed options are None, 'population', and 'cluster'."
             )
 
-        xtitle = f"PC {pc1 + 1}"
-        ytitle = f"PC {pc2 + 1}"
+        xtitle = f"PC {pcx + 1}"
+        ytitle = f"PC {pcy + 1}"
 
         if show_variance_in_axes:
-            xtitle += f" ({round(self.explained_variances[pc1] * 100, 1)}%)"
-            ytitle += f" ({round(self.explained_variances[pc2] * 100, 1)}%)"
+            xtitle += f" ({round(self.explained_variances[pcx] * 100, 1)}%)"
+            ytitle += f" ({round(self.explained_variances[pcy] * 100, 1)}%)"
 
         fig.update_xaxes(title=xtitle)
         fig.update_yaxes(title=ytitle)

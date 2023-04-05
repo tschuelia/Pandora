@@ -1,4 +1,9 @@
+from __future__ import (
+    annotations,
+)  # allows type hint PCAComparison inside PCAComparison class
+
 import math
+import warnings
 
 from plotly import graph_objects as go
 from scipy.spatial import procrustes
@@ -19,7 +24,24 @@ def _correct_missing(pca: PCA, samples_in_both):
     )
 
 
-def _clip_missing_samples_for_comparison(comparable: PCA, reference: PCA) -> Tuple[PCA, PCA]:
+def _check_sample_clipping(before_clipping: PCA, after_clipping: PCA) -> None:
+    n_samples_before = before_clipping.pca_data.shape[0]
+    n_samples_after = after_clipping.pca_data.shape[0]
+
+    if n_samples_after == 0:
+        raise RuntimeWarning("All samples were removed for the comparison.")
+
+    if n_samples_after <= 0.8 * n_samples_before:
+        warnings.warn(
+            "More than 20% of samples were removed for the comparison. "
+            "Your data appears to have lots of outliers."
+            f"#Samples before/after clipping: {n_samples_before}/{n_samples_after} "
+        )
+
+
+def _clip_missing_samples_for_comparison(
+    comparable: PCA, reference: PCA
+) -> Tuple[PCA, PCA]:
     comp_data = comparable.pca_data
     ref_data = reference.pca_data
 
@@ -31,11 +53,11 @@ def _clip_missing_samples_for_comparison(comparable: PCA, reference: PCA) -> Tup
     comparable_clipped = _correct_missing(comparable, shared_samples)
     reference_clipped = _correct_missing(reference, shared_samples)
 
-    assert (
-        comparable_clipped.pc_vectors.shape
-        == reference_clipped.pc_vectors.shape
-    )
-    # TODO: check whether there are samples left after clipping to make sure there is something to compare...
+    assert comparable_clipped.pc_vectors.shape == reference_clipped.pc_vectors.shape
+    # Issue a warning if we clip more than 20% of all samples of either PCA
+    # and fail if there are no samples lef
+    _check_sample_clipping(comparable, comparable_clipped)
+    _check_sample_clipping(reference, reference_clipped)
 
     return comparable_clipped, reference_clipped
 
@@ -43,7 +65,9 @@ def _clip_missing_samples_for_comparison(comparable: PCA, reference: PCA) -> Tup
 class PCAComparison:
     def __init__(self, comparable: PCA, reference: PCA):
         # first we transform comparable towards reference such that we can compare the PCAs
-        self.comparable, self.reference = match_and_transform(comparable=comparable, reference=reference)
+        self.comparable, self.reference = match_and_transform(
+            comparable=comparable, reference=reference
+        )
 
     def compare(self) -> float:
         """
@@ -58,7 +82,6 @@ class PCAComparison:
         Returns:
             float: Similarity as average cosine similarity per sample PC-vector in self and other.
         """
-        # TODO: check whether the sample IDs match -> we can only compare PCAs for the same samples
 
         # check if the number of samples match for now
         comp_data = self.comparable.pc_vectors
@@ -71,16 +94,13 @@ class PCAComparison:
 
         return similarity
 
-    def compare_clustering(
-        self, n_clusters: int = None, weighted: bool = True
-    ) -> float:
+    def compare_clustering(self, n_clusters: int = None) -> float:
         """
         Compare self clustering to other clustering using other as ground truth.
 
         Args:
             other (PCA): PCA object to compare self to.
             n_clusters (int): Number of clusters. If not set, the optimal number of clusters is determined automatically.
-            weighted (bool): If set, scales the PCA data of self and other according to the respective explained variances prior to clustering.
 
         Returns:
             float: The Fowlkes-Mallow score of Cluster similarity between the clusters of self and other
@@ -91,19 +111,15 @@ class PCAComparison:
             n_clusters = self.reference.get_optimal_n_clusters()
 
         # since we are only comparing the assigned cluster labels, we don't need to transform self prior to comparing
-        comp_kmeans = self.comparable.cluster(
-            n_clusters=n_clusters, weighted=weighted
-        )
-        ref_kmeans = self.reference.cluster(
-            n_clusters=n_clusters, weighted=weighted
-        )
+        comp_kmeans = self.comparable.cluster(n_clusters=n_clusters)
+        ref_kmeans = self.reference.cluster(n_clusters=n_clusters)
 
         comp_cluster_labels = comp_kmeans.predict(self.comparable.pc_vectors)
         ref_cluster_labels = ref_kmeans.predict(self.reference.pc_vectors)
 
         return fowlkes_mallows_score(ref_cluster_labels, comp_cluster_labels)
 
-    def detect_rogue_samples(self, rogue_cutoff: float) -> List[str]:
+    def detect_rogue_samples(self, rogue_cutoff: float = 0.95) -> List[str]:
         """
         Returns a list of sample IDs that are considered rogue samples when comparing self to other.
         A sample is considered rogue if the euclidean distance between its PC vectors in self and other
@@ -112,8 +128,7 @@ class PCAComparison:
         """
         # make sure we are comparing the correct PC-vectors in the following
         assert np.all(
-            self.comparable.pca_data.sample_id
-            == self.reference.pca_data.sample_id
+            self.comparable.pca_data.sample_id == self.reference.pca_data.sample_id
         )
 
         sample_distances = euclidean_distances(
@@ -124,13 +139,14 @@ class PCAComparison:
 
         rogue_samples = [
             sample_id
-            for dist, sample_id in zip(sample_distances, self.comparable.pca_data.sample_id)
-
+            for dist, sample_id in zip(
+                sample_distances, self.comparable.pca_data.sample_id
+            )
             if (
-                    dist > rogue_threshold
-                    # make sure we are not flagging samples as rogue due to float comparisons
-                    # this is necessary when comparing (almost) identical PCA objects
-                    and not math.isclose(dist, rogue_threshold, abs_tol=1e-6)
+                dist > rogue_threshold
+                # make sure we are not flagging samples as rogue due to float comparisons
+                # this is necessary when comparing (almost) identical PCA objects
+                and not math.isclose(dist, rogue_threshold, abs_tol=1e-6)
             )
         ]
 
@@ -142,22 +158,49 @@ class PCAComparison:
         """
         return rogue_samples
 
+    def remove_rogue_samples(self, rogue_cutoff: float = 0.95) -> PCAComparison:
+        rogue_samples = self.detect_rogue_samples(rogue_cutoff)
+
+        comparable_pruned = PCA(
+            pca_data=self.comparable.pca_data.loc[
+                lambda x: ~x.sample_id.isin(rogue_samples)
+            ],
+            explained_variances=self.comparable.explained_variances,
+            n_pcs=self.comparable.n_pcs,
+        )
+
+        reference_pruned = PCA(
+            pca_data=self.reference.pca_data.loc[
+                lambda x: ~x.sample_id.isin(rogue_samples)
+            ],
+            explained_variances=self.reference.explained_variances,
+            n_pcs=self.reference.n_pcs,
+        )
+
+        return PCAComparison(comparable=comparable_pruned, reference=reference_pruned)
+
     def plot(
-            self,
-            pc1: int = 0,
-            pc2: int = 1,
-            outfile: FilePath = None,
-            show_rogue: bool = False,
-            rogue_cutoff: float = 0.95,
-            **kwargs,
-             ):
+        self,
+        pcx: int = 0,
+        pcy: int = 1,
+        outfile: FilePath = None,
+        show_rogue: bool = False,
+        rogue_cutoff: float = 0.95,
+        **kwargs,
+    ):
         if show_rogue:
             rogue_samples = self.detect_rogue_samples(rogue_cutoff=rogue_cutoff)
             rogue_colors = dict(zip(rogue_samples, get_colors(len(rogue_samples))))
             rogue_text = dict(zip(rogue_samples, rogue_samples))
 
-            color_reference = [rogue_colors.get(sample, "lightgrey") for sample in self.comparable.pca_data.sample_id]
-            text = [rogue_text.get(sample, "") for sample in self.comparable.pca_data.sample_id]
+            color_reference = [
+                rogue_colors.get(sample, "lightgrey")
+                for sample in self.comparable.pca_data.sample_id
+            ]
+            text = [
+                rogue_text.get(sample, "")
+                for sample in self.comparable.pca_data.sample_id
+            ]
 
             # since the sample IDs are identical for both PCAs, we can share the same list of marker colors
             color_comparable = color_reference
@@ -169,8 +212,8 @@ class PCAComparison:
         fig = go.Figure(
             [
                 go.Scatter(
-                    x=self.reference.pca_data[f"PC{pc1}"],
-                    y=self.reference.pca_data[f"PC{pc2}"],
+                    x=self.reference.pca_data[f"PC{pcx}"],
+                    y=self.reference.pca_data[f"PC{pcy}"],
                     marker_color=color_reference,
                     name="Standardized reference PCA",
                     mode="markers+text",
@@ -179,8 +222,8 @@ class PCAComparison:
                     **kwargs,
                 ),
                 go.Scatter(
-                    x=self.comparable.pca_data[f"PC{pc1}"],
-                    y=self.comparable.pca_data[f"PC{pc2}"],
+                    x=self.comparable.pca_data[f"PC{pcx}"],
+                    y=self.comparable.pca_data[f"PC{pcy}"],
                     marker_color=color_comparable,
                     marker_symbol="star",
                     name="Transformed comparable PCA",
@@ -188,7 +231,7 @@ class PCAComparison:
                     text=text,
                     textposition="bottom center",
                     **kwargs,
-                )
+                ),
             ]
         )
 
@@ -224,7 +267,7 @@ def match_and_transform(comparable: PCA, reference: PCA) -> Tuple[PCA, PCA]:
         explained_variances=reference.explained_variances,
         n_pcs=reference.n_pcs,
         sample_ids=reference.pca_data.sample_id,
-        populations=reference.pca_data.population
+        populations=reference.pca_data.population,
     )
 
     transformed_comparable = PCA(
@@ -239,15 +282,17 @@ def match_and_transform(comparable: PCA, reference: PCA) -> Tuple[PCA, PCA]:
 
 
 def plot_rogue_samples(
-        pca: PCA,
-        rogue_ids: List[str],
-        rogueness: List[float],
-        pc1: int = 0,
-        pc2: int = 1,
-        **kwargs
+    pca: PCA,
+    rogue_ids: List[str],
+    rogueness: List[float],
+    pcx: int = 0,
+    pcy: int = 1,
+    **kwargs,
 ) -> go.Figure:
     if len(rogue_ids) != len(rogueness):
-        raise ValueError("Number of rogue IDs and number of rogueness values need to be identical.")
+        raise ValueError(
+            "Number of rogue IDs and number of rogueness values need to be identical."
+        )
 
     rogueness = dict(zip(rogue_ids, rogueness))
     rogue_colors = dict(zip(rogue_ids, get_colors(len(rogue_ids))))
@@ -255,12 +300,16 @@ def plot_rogue_samples(
 
     fig = go.Figure(
         go.Scatter(
-            x=pca.pca_data[f"PC{pc1}"],
-            y=pca.pca_data[f"PC{pc2}"],
-            marker_color=[rogue_colors.get(sample, "lightgrey") for sample in pca.pca_data.sample_id],
+            x=pca.pca_data[f"PC{pcx}"],
+            y=pca.pca_data[f"PC{pcy}"],
+            marker_color=[
+                rogue_colors.get(sample, "lightgrey")
+                for sample in pca.pca_data.sample_id
+            ],
             mode="markers+text",
             text=[rogue_text.get(s, "") for s in pca.pca_data.sample_id],
             textposition="bottom center",
+            **kwargs,
         )
     )
     fig.update_layout(template="plotly_white", height=1000, width=1000)

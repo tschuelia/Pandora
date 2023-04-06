@@ -241,7 +241,7 @@ def get_n_clusters(pandora_config: PandoraConfig, empirical_pca: PCA):
     if n_clusters_ckp.exists() and not pandora_config.redo:
         n_clusters = int(open(n_clusters_ckp).readline())
     else:
-        n_clusters = empirical_pca.get_optimal_n_clusters()
+        n_clusters = empirical_pca.get_optimal_kmeans_k()
         n_clusters_ckp.open("w").write(str(n_clusters))
     logger.info(fmt_message(f"Optimal number of clusters determined to be: {n_clusters}"))
 

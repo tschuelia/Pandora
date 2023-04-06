@@ -108,7 +108,7 @@ class PCAComparison:
         if n_clusters is None:
             # we are comparing self to other -> use other as ground truth
             # thus, we determine the number of clusters using other
-            n_clusters = self.reference.get_optimal_n_clusters()
+            n_clusters = self.reference.get_optimal_kmeans_k()
 
         # since we are only comparing the assigned cluster labels, we don't need to transform self prior to comparing
         comp_kmeans = self.comparable.cluster(n_clusters=n_clusters)

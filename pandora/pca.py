@@ -1,5 +1,6 @@
 from __future__ import annotations  # allows type hint PCA inside PCA class
 
+import math
 import warnings
 
 import numpy as np
@@ -8,7 +9,6 @@ from plotly import graph_objects as go
 from sklearn.cluster import KMeans
 from sklearn.mixture import GaussianMixture
 from sklearn.model_selection import GridSearchCV
-from sklearn.metrics import silhouette_score
 
 from pandora.custom_types import *
 from pandora.utils import get_colors
@@ -95,21 +95,34 @@ class PCA:
         """
         return self.pca_data[[f"PC{i}" for i in range(self.n_pcs)]].to_numpy()
 
-
-    def get_optimal_n_clusters(self, min_n: int = 3, max_n: int = 50) -> int:
+    def get_optimal_kmeans_k(self, k_boundaries: Tuple[int, int] = None) -> int:
         """
         Determines the optimal number of clusters k for K-Means clustering according to the Bayesian Information Criterion (BIC).
 
         Args:
-            min_n (int): Minimum number of clusters. Defaults to 3.
-            max_n (int): Maximum number of clusters. Defaults to 50.
+            k_boundaries (Tuple[int, int]): Minimum and maximum number of clusters. If None is given, determine the boundaries automatically.
+                        If self.pca_data.populations is not identical for all samples, use the number of distinct populations,
+                        otherwise use the square root of the number of samples as maximum max_k.
+                        The minimum min_k is min(max_k, 3).
 
         Returns:
             int: the optimal number of clusters between min_n and max_n
         """
+        if k_boundaries is None:
+            # check whether there are distinct populations given
+            n_populations = self.pca_data.population.unique().shape[0]
+            if n_populations > 1:
+                max_k = n_populations
+            else:
+                # if only one population: use the square root of the number of samples
+                max_k = math.sqrt(self.pca_data.shape[0])
+            min_k = min(3, max_k)
+        else:
+            min_k, max_k = k_boundaries
+
         grid_search = GridSearchCV(
             estimator=GaussianMixture(),
-            param_grid={"n_components": range(min_n, max_n)},
+            param_grid={"n_components": range(min_k, max_k)},
             scoring=lambda estimator: -estimator.bic(self.pc_vectors)
         )
 
@@ -128,7 +141,7 @@ class PCA:
         """
         pca_data_np = self.pc_vectors
         if n_clusters is None:
-            n_clusters = self.get_optimal_n_clusters()
+            n_clusters = self.get_optimal_kmeans_k()
         kmeans = KMeans(random_state=42, n_clusters=n_clusters, n_init=10)
         kmeans.fit(pca_data_np)
         return kmeans
@@ -142,7 +155,7 @@ class PCA:
         **kwargs,
     ) -> go.Figure:
         n_clusters = (
-            n_clusters if n_clusters is not None else self.get_optimal_n_clusters()
+            n_clusters if n_clusters is not None else self.get_optimal_kmeans_k()
         )
         cluster_labels = self.cluster(n_clusters=n_clusters).labels_
 

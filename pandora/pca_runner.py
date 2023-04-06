@@ -39,7 +39,7 @@ def run_smartpca(
         logger.info(
             fmt_message(f"Skipping smartpca. Files {outfile_prefix}.* already exist.")
         )
-        return from_smartpca(evec_out)
+        return from_smartpca(evec_out, eval_out)
 
     with tempfile.NamedTemporaryFile(mode="w") as tmpfile:
         _df = pd.read_table(
@@ -72,7 +72,7 @@ def run_smartpca(
         with smartpca_log.open("w") as logfile:
             subprocess.run(cmd, stdout=logfile, stderr=logfile)
 
-    return from_smartpca(evec_out)
+    return from_smartpca(evec_out, eval_out)
 
 
 def run_plink(

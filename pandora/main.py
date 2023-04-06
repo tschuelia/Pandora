@@ -11,8 +11,6 @@ TODO:
 - bootstopping
 - check bei jedem PCA das geskippt wird ob die Anzahl PCs auch mit der bestimmten Anzahl PCs die verwendet werden sollten 
     übereinstimmt -> falls nein, neu berechnen 
-- % explained variance sinnlos wenn man 2 PCs gegeneinander plottet
-- config file statt tausend command line optionen erlauben (und bei einem run das config file immer in den results ordner packen für reproduzierbarkeit)
 """
 
 

@@ -35,8 +35,8 @@ The number of PCs in both PCs must be identical. The number of samples can vary,
 from pandora.pca import from_smartpca
 from pandora.pca_comparison import PCAComparison
 
-pca1 = from_smartpca("path/to/smart.pca1.evec")  # this is a PCA object, see pandora.pca::PCA for more details
-pca2 = from_smartpca("path/to/smart.pca2.evec")  # this is a PCA object, see pandora.pca::PCA for more details
+pca1 = from_smartpca("path/to/smart.pca1.evec", "path/to/smart.pca1.eval")  # this is a PCA object, see pandora.pca::PCA for more details
+pca2 = from_smartpca("path/to/smart.pca2.evec", "path/to/smart.pca2.eval")  # this is a PCA object, see pandora.pca::PCA for more details
 
 comparison = PCAComparison(pca1, pca2)  # this is a PCAComparison object, see pandora.pca_comparison::PCA for more details
 similarity = comparison.compare()

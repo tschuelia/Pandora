@@ -291,26 +291,22 @@ class PCA:
         return fig
 
 
-def from_smartpca(smartpca_evec_file: FilePath) -> PCA:
+def from_smartpca(smartpca_evec_file: FilePath, smartpca_eval_file: FilePath) -> PCA:
     """
     Creates a PCA object from a smartPCA results file.
 
     Args:
-        smartpca_evec_file (FilePath): FilePath to the results of SmartPCA run.
+        smartpca_evec_file (FilePath): FilePath to the evec results of SmartPCA run.
+        smartpca_evec_file (FilePath): FilePath to the eval results of SmartPCA run.
 
     Returns:
         PCA: PCA object encapsulating the results of the SmartPCA run.
 
     """
+    # First, read the eigenvectors and transform it into the pca_data pandas dataframe
     with open(smartpca_evec_file) as f:
-        # first, read the eigenvalues and compute the explained variances
-        # the first line looks like this:
-        #  #eigvals: 124.570 78.762    ...
-        eigenvalues = f.readline().split()[1:]
-        eigenvalues = [float(ev) for ev in eigenvalues]
-        explained_variances = [ev / sum(eigenvalues) for ev in eigenvalues]
-
-        # next, read the PCs per sample
+        # first line does not contain data we are interested in
+        f.readline()
         pca_data = pd.read_table(f, delimiter=" ", skipinitialspace=True, header=None)
 
     n_pcs = pca_data.shape[1] - 2
@@ -318,6 +314,13 @@ def from_smartpca(smartpca_evec_file: FilePath) -> PCA:
     cols = ["sample_id", *[f"PC{i}" for i in range(n_pcs)], "population"]
     pca_data = pca_data.rename(columns=dict(zip(pca_data.columns, cols)))
     pca_data = pca_data.sort_values(by="sample_id").reset_index(drop=True)
+
+    # next, read the eigenvalues and compute the explained variances for all n_pcs principal components
+    eigenvalues = open(smartpca_eval_file).readlines()
+    eigenvalues = [float(ev) for ev in eigenvalues]
+    explained_variances = [ev / sum(eigenvalues) for ev in eigenvalues]
+    # keep only the first n_pcs explained variances
+    explained_variances = explained_variances[:n_pcs]
 
     return PCA(pca_data=pca_data, explained_variances=explained_variances, n_pcs=n_pcs)
 

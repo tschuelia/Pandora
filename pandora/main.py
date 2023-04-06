@@ -86,15 +86,15 @@ def main():
     # =======================================
     logger.info(fmt_message(f"Comparing PCA results."))
 
-    n_clusters = get_n_clusters(pandora_config, empirical_pca)
+    kmeans_k = get_kmeans_k(pandora_config, empirical_pca)
 
     bootstrap_similarities, bootstrap_cluster_similarities = compare_bootstrap_results(
-        pandora_config, empirical_pca, bootstrap_pcas, n_clusters
+        pandora_config, empirical_pca, bootstrap_pcas, kmeans_k
     )
 
     # Compare Empirical <> alternative tools
     tool_similarities, tool_cluster_similarities, pairwise_similarities = compare_alternative_tool_results(
-        empirical_pca, alternative_tool_pcas, n_clusters)
+        empirical_pca, alternative_tool_pcas, kmeans_k)
 
     # =======================================
     # Plot results
@@ -104,21 +104,21 @@ def main():
             pandora_config,
             empirical_pca,
             bootstrap_pcas,
-            n_clusters
+            kmeans_k
         )
 
         plot_alternative_tools(
             pandora_config,
             empirical_pca,
             alternative_tool_pcas,
-            n_clusters
+            kmeans_k
         )
 
     logger.info("\n\n========= PANDORA RESULTS =========")
     logger.info(f"> Input dataset: {pandora_config.infile_prefix}")
     logger.info(f"> Number of Bootstrap replicates computed: {pandora_config.n_bootstraps}")
     logger.info(f"> Number of PCs required to explain at least {pandora_config.variance_cutoff}% variance: {empirical_pca.n_pcs}")
-    logger.info(f"> Optimal number of clusters: {n_clusters}")
+    logger.info(f"> Optimal number of clusters: {kmeans_k}")
     logger.info("\n------------------")
     logger.info("Bootstrapping Similarity")
     logger.info("------------------")

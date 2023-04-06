@@ -94,25 +94,25 @@ class PCAComparison:
 
         return similarity
 
-    def compare_clustering(self, n_clusters: int = None) -> float:
+    def compare_clustering(self, kmeans_k: int = None) -> float:
         """
         Compare self clustering to other clustering using other as ground truth.
 
         Args:
             other (PCA): PCA object to compare self to.
-            n_clusters (int): Number of clusters. If not set, the optimal number of clusters is determined automatically.
+            kmeans_k (int): Number of clusters. If not set, the optimal number of clusters is determined automatically.
 
         Returns:
             float: The Fowlkes-Mallow score of Cluster similarity between the clusters of self and other
         """
-        if n_clusters is None:
+        if kmeans_k is None:
             # we are comparing self to other -> use other as ground truth
             # thus, we determine the number of clusters using other
-            n_clusters = self.reference.get_optimal_kmeans_k()
+            kmeans_k = self.reference.get_optimal_kmeans_k()
 
         # since we are only comparing the assigned cluster labels, we don't need to transform self prior to comparing
-        comp_kmeans = self.comparable.cluster(n_clusters=n_clusters)
-        ref_kmeans = self.reference.cluster(n_clusters=n_clusters)
+        comp_kmeans = self.comparable.cluster(kmeans_k=kmeans_k)
+        ref_kmeans = self.reference.cluster(kmeans_k=kmeans_k)
 
         comp_cluster_labels = comp_kmeans.predict(self.comparable.pc_vectors)
         ref_cluster_labels = ref_kmeans.predict(self.reference.pc_vectors)

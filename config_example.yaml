@@ -22,7 +22,7 @@ sampleProjection:
   supportValues: False
 
 # Maximum number of bootstrap replicates to compute (default = TODO, currently 100).
-bootstraps: 4
+bootstraps: 10
 
 # Number of threads to use for computation (default is number of cores).
 threads: 2
@@ -44,6 +44,12 @@ plot_pcy: 1
 # Pandora will automatically find the number of PCs required to explain at least
 # <varianceCutoff>%% variance in the data. Default is 95%.
 varianceCutoff: 95
+
+# Number of clusters to use for the K-Means clustering
+# Only set this if you have prior knowledge about the correct number of clusters
+# if not set, the optimal number k is determined automatically based on the BIC score and the number of
+# populations and samples in your data
+kClusters: None
 
 # Optional path to the smartPCA executable. Per default, Pandora will use 'smartpca'.
 # Specify a path if smartPCA is not installed system-wide on your machine.

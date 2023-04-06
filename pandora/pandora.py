@@ -21,6 +21,7 @@ class PandoraConfig:
     seed: int
     redo: bool
     variance_cutoff: int
+    k_clusters: int
 
     smartpca: Executable
     convertf: Executable
@@ -109,6 +110,7 @@ def from_config(configfile: FilePath) -> PandoraConfig:
         seed=config_data.get("seed", 0),
         redo=config_data.get("redo", False),
         variance_cutoff=config_data.get("varianceCutoff", 95),
+        k_clusters=config_data.get("kClusters", None),
         smartpca=config_data.get("smartpca", "smartpca"),
         convertf=config_data.get("convertf", "convertf"),
         plink2=config_data.get("plink2", "plink2"),
@@ -235,20 +237,23 @@ def run_alternative_pcas(pandora_config: PandoraConfig, n_pcs: int):
     return alternatives
 
 
-def get_n_clusters(pandora_config: PandoraConfig, empirical_pca: PCA):
-    n_clusters_ckp = pandora_config.outdir / "kmeans.ckp"
+def get_kmeans_k(pandora_config: PandoraConfig, empirical_pca: PCA):
+    kmeans_k_ckp = pandora_config.outdir / "kmeans.ckp"
 
-    if n_clusters_ckp.exists() and not pandora_config.redo:
-        n_clusters = int(open(n_clusters_ckp).readline())
+    if kmeans_k_ckp.exists() and not pandora_config.redo:
+        kmeans_k = int(open(kmeans_k_ckp).readline())
+    elif pandora_config.k_clusters is not None:
+        kmeans_k = pandora_config.k_clusters
+        kmeans_k_ckp.open("w").write(str(kmeans_k))
     else:
-        n_clusters = empirical_pca.get_optimal_kmeans_k()
-        n_clusters_ckp.open("w").write(str(n_clusters))
-    logger.info(fmt_message(f"Optimal number of clusters determined to be: {n_clusters}"))
+        kmeans_k = empirical_pca.get_optimal_kmeans_k()
+        kmeans_k_ckp.open("w").write(str(kmeans_k))
+    logger.info(fmt_message(f"Optimal number of clusters determined to be: {kmeans_k}"))
 
-    return n_clusters
+    return kmeans_k
 
 
-def compare_bootstrap_results(pandora_config: PandoraConfig, empirical_pca: PCA, bootstrap_pcas: List[PCA], n_clusters: int):
+def compare_bootstrap_results(pandora_config: PandoraConfig, empirical_pca: PCA, bootstrap_pcas: List[PCA], kmeans_k: int):
     # Compare Empirical <> Bootstraps
     bootstrap_similarities = []
     bootstrap_cluster_similarities = []
@@ -258,7 +263,7 @@ def compare_bootstrap_results(pandora_config: PandoraConfig, empirical_pca: PCA,
         similarity = pca_comparison.compare()
         bootstrap_similarities.append(similarity)
 
-        clustering_score = pca_comparison.compare_clustering(n_clusters=n_clusters)
+        clustering_score = pca_comparison.compare_clustering(kmeans_k=kmeans_k)
         bootstrap_cluster_similarities.append(clustering_score)
 
     # write similarities of all bootstraps to file
@@ -269,7 +274,7 @@ def compare_bootstrap_results(pandora_config: PandoraConfig, empirical_pca: PCA,
     return bootstrap_similarities, bootstrap_cluster_similarities
 
 
-def compare_alternative_tool_results(empirical_pca: PCA, alternative_pcas: Dict[str, PCA], n_clusters: int):
+def compare_alternative_tool_results(empirical_pca: PCA, alternative_pcas: Dict[str, PCA], kmeans_k: int):
     alternative_pcas["smartPCA"] = empirical_pca
 
     tool_similarities = []
@@ -286,7 +291,7 @@ def compare_alternative_tool_results(empirical_pca: PCA, alternative_pcas: Dict[
         similarity = pca_comparison.compare()
         tool_similarities.append(similarity)
 
-        cluster_similarity = pca_comparison.compare_clustering(n_clusters=n_clusters)
+        cluster_similarity = pca_comparison.compare_clustering(kmeans_k=kmeans_k)
         tool_cluster_similarities.append(cluster_similarity)
 
         pairwise[f"{name1} <> {name2}"] = (similarity, cluster_similarity)
@@ -294,7 +299,7 @@ def compare_alternative_tool_results(empirical_pca: PCA, alternative_pcas: Dict[
     return tool_similarities, tool_cluster_similarities, pairwise
 
 
-def plot_empirical(pandora_config: PandoraConfig, empirical_pca: PCA, n_clusters: int):
+def plot_empirical(pandora_config: PandoraConfig, empirical_pca: PCA, kmeans_k: int):
     # TODO: make plotted PCs command line settable
     pcx = 0
     pcy = 1
@@ -313,7 +318,7 @@ def plot_empirical(pandora_config: PandoraConfig, empirical_pca: PCA, n_clusters
         pcx=pcx,
         pcy=pcy,
         annotation="cluster",
-        n_clusters=n_clusters,
+        kmeans_k=kmeans_k,
         outfile=pandora_config.plot_dir / "empirical_with_clusters.pdf",
         redo=pandora_config.redo
     )
@@ -321,7 +326,7 @@ def plot_empirical(pandora_config: PandoraConfig, empirical_pca: PCA, n_clusters
     logger.info(fmt_message(f"Plotted empirical PCA."))
 
 
-def plot_bootstraps(pandora_config: PandoraConfig, empirical_pca: PCA, bootstrap_pcas: List[PCA], n_clusters: int):
+def plot_bootstraps(pandora_config: PandoraConfig, empirical_pca: PCA, bootstrap_pcas: List[PCA], kmeans_k: int):
     # TODO: make plotted PCs command line settable
     # TODO: paralleles plotten
     pcx = 0
@@ -346,7 +351,7 @@ def plot_bootstraps(pandora_config: PandoraConfig, empirical_pca: PCA, bootstrap
             pcx=pcx,
             pcy=pcy,
             annotation="cluster",
-            n_clusters=n_clusters,
+            kmeans_k=kmeans_k,
             outfile=pandora_config.plot_dir / f"bootstrap_{i + 1}_with_clusters.pca.pdf",
             redo=pandora_config.redo
         )
@@ -376,7 +381,7 @@ def plot_bootstraps(pandora_config: PandoraConfig, empirical_pca: PCA, bootstrap
         logger.info(fmt_message(f"Plotted bootstrap PCA #{i + 1}"))
 
 
-def plot_alternative_tools(pandora_config: PandoraConfig, empirical_pca: PCA, alternative_pcas: Dict[str, PCA], n_clusters: int):
+def plot_alternative_tools(pandora_config: PandoraConfig, empirical_pca: PCA, alternative_pcas: Dict[str, PCA], kmeans_k: int):
     # TODO: make plotted PCs command line settable
     # TODO: paralleles plotten
     pcx = 0
@@ -412,6 +417,6 @@ def plot_alternative_tools(pandora_config: PandoraConfig, empirical_pca: PCA, al
         )
 
 
-def plot_results(pandora_config: PandoraConfig, empirical_pca: PCA, bootstrap_pcas: List[PCA], n_clusters: int):
-    plot_empirical(pandora_config, empirical_pca, n_clusters)
-    plot_bootstraps(pandora_config, empirical_pca, bootstrap_pcas, n_clusters)
+def plot_results(pandora_config: PandoraConfig, empirical_pca: PCA, bootstrap_pcas: List[PCA], kmeans_k: int):
+    plot_empirical(pandora_config, empirical_pca, kmeans_k)
+    plot_bootstraps(pandora_config, empirical_pca, bootstrap_pcas, kmeans_k)

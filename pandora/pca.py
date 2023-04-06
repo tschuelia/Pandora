@@ -129,20 +129,20 @@ class PCA:
         grid_search.fit(self.pc_vectors)
         return grid_search.best_params_["n_components"]
 
-    def cluster(self, n_clusters: int = None) -> KMeans:
+    def cluster(self, kmeans_k: int = None) -> KMeans:
         """
         Fits a K-Means cluster to the pca data and returns a scikit-learn fitted KMeans object.
 
         Args:
-            n_clusters (int): Number of clusters. If not set, the optimal number of clusters is determined automatically.
+            kmeans_k (int): Number of clusters. If not set, the optimal number of clusters is determined automatically.
 
         Returns:
-            KMeans: Scikit-learn KMeans object that with n_clusters that is fitted to self.pca_data.
+            KMeans: Scikit-learn KMeans object that with kmeans_k that is fitted to self.pca_data.
         """
         pca_data_np = self.pc_vectors
-        if n_clusters is None:
-            n_clusters = self.get_optimal_kmeans_k()
-        kmeans = KMeans(random_state=42, n_clusters=n_clusters, n_init=10)
+        if kmeans_k is None:
+            kmeans_k = self.get_optimal_kmeans_k()
+        kmeans = KMeans(random_state=42, kmeans_k=kmeans_k, n_init=10)
         kmeans.fit(pca_data_np)
         return kmeans
 
@@ -150,21 +150,21 @@ class PCA:
         self,
         pcx: int = 0,
         pcy: int = 1,
-        n_clusters: int = None,
+        kmeans_k: int = None,
         fig: go.Figure = None,
         **kwargs,
     ) -> go.Figure:
-        n_clusters = (
-            n_clusters if n_clusters is not None else self.get_optimal_kmeans_k()
+        kmeans_k = (
+            kmeans_k if kmeans_k is not None else self.get_optimal_kmeans_k()
         )
-        cluster_labels = self.cluster(n_clusters=n_clusters).labels_
+        cluster_labels = self.cluster(kmeans_k=kmeans_k).labels_
 
         _pca_data = self.pca_data.copy()
         _pca_data["cluster"] = cluster_labels
 
-        colors = get_colors(n_clusters)
+        colors = get_colors(kmeans_k)
 
-        for i in range(n_clusters):
+        for i in range(kmeans_k):
             _data = _pca_data.loc[_pca_data.cluster == i]
             fig.add_trace(
                 go.Scatter(
@@ -209,7 +209,7 @@ class PCA:
         pcx: int = 0,
         pcy: int = 1,
         annotation: str = None,
-        n_clusters: int = None,
+        kmeans_k: int = None,
         fig: go.Figure = None,
         marker_color="darkseagreen",
         name: str = "",
@@ -229,7 +229,7 @@ class PCA:
             annotation (bool): If None, plots alls samples with the same color.
                 If "population", plots each population with a different color.
                 If "cluster", applies K-Means clustering and plots each cluster with a different color.
-            n_clusters (int): TODO
+            kmeans_k (int): TODO
             fig (go.Figure): If set, appends the PCA data to this fig. Default is to plot on a new, empty figure.
             marker_color (str): TODO
             name (str): Name of the trace in the resulting plot. Setting a name will only have an effect if
@@ -245,16 +245,16 @@ class PCA:
             fig = go.Figure()
             show_variance_in_axes = False
 
-        if n_clusters is not None and annotation != "cluster":
+        if kmeans_k is not None and annotation != "cluster":
             warnings.warn(
-                f"Parameter n_clusters ignored for annotation setting {annotation}."
+                f"Parameter kmeans_k ignored for annotation setting {annotation}."
             )
 
         if annotation == "population":
             self._plot_populations(pcx=pcx, pcy=pcy, fig=fig, **kwargs)
         elif annotation == "cluster":
             fig = self._plot_clusters(
-                pcx=pcx, pcy=pcy, n_clusters=n_clusters, fig=fig, **kwargs
+                pcx=pcx, pcy=pcy, kmeans_k=kmeans_k, fig=fig, **kwargs
             )
 
         elif annotation is None:

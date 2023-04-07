@@ -109,6 +109,7 @@ def plink_to_bplink(plink_prefix: FilePath, bplink_prefix: FilePath, convertf: E
 
 
 def eigen_to_bplink(eigen_prefix: FilePath, bplink_prefix: FilePath, convertf: Executable, redo: bool = False):
+    ind_out = pathlib.Path(f"{bplink_prefix}.fam")
     run_convertf(
         convertf=convertf,
         genotype_in=pathlib.Path(f"{eigen_prefix}.geno"),
@@ -116,10 +117,12 @@ def eigen_to_bplink(eigen_prefix: FilePath, bplink_prefix: FilePath, convertf: E
         ind_in=pathlib.Path(f"{eigen_prefix}.ind"),
         genotype_out=pathlib.Path(f"{bplink_prefix}.bed"),
         snp_out=pathlib.Path(f"{bplink_prefix}.bim"),
-        ind_out=pathlib.Path(f"{bplink_prefix}.fam"),
+        ind_out=ind_out,
         outputformat="PACKEDPED",
         redo=redo,
     )
+
+    clean_converted_names(ind_out)
 
 
 def bplink_to_eigen(bplink_prefix: FilePath, eigen_prefix: FilePath, convertf: Executable, redo: bool = False):

@@ -115,7 +115,7 @@ class PCA:
                 max_k = n_populations
             else:
                 # if only one population: use the square root of the number of samples
-                max_k = math.sqrt(self.pca_data.shape[0])
+                max_k = int(math.sqrt(self.pca_data.shape[0]))
             min_k = min(3, max_k)
         else:
             min_k, max_k = k_boundaries
@@ -123,7 +123,7 @@ class PCA:
         grid_search = GridSearchCV(
             estimator=GaussianMixture(),
             param_grid={"n_components": range(min_k, max_k)},
-            scoring=lambda estimator: -estimator.bic(self.pc_vectors)
+            scoring=lambda estimator, X: -estimator.bic(X)
         )
 
         grid_search.fit(self.pc_vectors)
@@ -142,7 +142,7 @@ class PCA:
         pca_data_np = self.pc_vectors
         if kmeans_k is None:
             kmeans_k = self.get_optimal_kmeans_k()
-        kmeans = KMeans(random_state=42, kmeans_k=kmeans_k, n_init=10)
+        kmeans = KMeans(random_state=42, n_clusters=kmeans_k, n_init=10)
         kmeans.fit(pca_data_np)
         return kmeans
 

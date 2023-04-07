@@ -235,6 +235,9 @@ class PCAComparison:
             ]
         )
 
+        fig.update_xaxes(title=f"PC {pcx + 1}")
+        fig.update_yaxes(title=f"PC {pcy + 1}")
+
         fig.update_layout(template="plotly_white", height=1000, width=1000)
 
         if outfile:
@@ -312,5 +315,8 @@ def plot_rogue_samples(
             **kwargs,
         )
     )
+    fig.update_xaxes(title=f"PC {pcx + 1} ({round(pca.explained_variances[pcx] * 100, 1)}%)")
+    fig.update_yaxes(title=f"PC {pcy + 1} ({round(pca.explained_variances[pcy] * 100, 1)}%)")
+
     fig.update_layout(template="plotly_white", height=1000, width=1000)
     return fig

@@ -15,15 +15,15 @@ def bootstrap_snp_level(
     infile_prefix: FilePath, outfile_prefix: FilePath, seed: int, redo: bool = False
 ):
     random.seed(seed)
-    map_in = pathlib.Path(f"{infile_prefix}.map")
-    ped_in = pathlib.Path(f"{infile_prefix}.ped")
-    fam_in = pathlib.Path(f"{infile_prefix}.fam")
+    snp_in = pathlib.Path(f"{infile_prefix}.snp")
+    geno_in = pathlib.Path(f"{infile_prefix}.geno")
+    ind_in = pathlib.Path(f"{infile_prefix}.ind")
 
-    map_out = pathlib.Path(f"{outfile_prefix}.map")
-    ped_out = pathlib.Path(f"{outfile_prefix}.ped")
-    fam_out = pathlib.Path(f"{outfile_prefix}.fam")
+    snp_out = pathlib.Path(f"{outfile_prefix}.snp")
+    geno_out = pathlib.Path(f"{outfile_prefix}.geno")
+    ind_out = pathlib.Path(f"{outfile_prefix}.ind")
 
-    if map_out.exists() and ped_out.exists() and fam_out.exists() and not redo:
+    if snp_out.exists() and geno_out.exists() and ind_out.exists() and not redo:
         logger.info(
             fmt_message(
                 f"Skipping bootstrapping. Files {outfile_prefix}.* already exist."
@@ -31,25 +31,25 @@ def bootstrap_snp_level(
         )
         return
 
-    # when bootstrapping on SNP level, the .fam file does not change
-    shutil.copy(fam_in, fam_out)
+    # when bootstrapping on SNP level, the .ind file does not change
+    shutil.copy(ind_in, ind_out)
 
-    # sample the SNPs using the map file
-    # each line in the map file corresponds to one SNP
-    num_samples = sum(1 for _ in open(map_in))
+    # sample the SNPs using the snp file
+    # each line in the snp file corresponds to one SNP
+    num_samples = sum(1 for _ in open(snp_in))
     bootstrap_snp_indices = sorted(random.choices(range(num_samples), k=num_samples))
 
-    # 1. Bootstrap the .map file
-    snps = open(map_in).readlines()
+    # 1. Bootstrap the .snp file
+    snps = snp_in.open().readlines()
     seen_snps = set()
 
-    with open(map_out, "a") as f:
+    with snp_out.open(mode="a") as f:
         for bootstrap_idx in bootstrap_snp_indices:
             snp_line = snps[bootstrap_idx]
 
             # lines look like this:
             # 1   S_Adygei-1.DG 0 0 1 1
-            chrom_id, snp_id, rest = snp_line.split(maxsplit=2)
+            snp_id, chrom_id, rest = snp_line.split(maxsplit=2)
             deduplicate = snp_id
 
             snp_id_counter = 0
@@ -59,32 +59,15 @@ def bootstrap_snp_level(
                 deduplicate = f"{snp_id}_r{snp_id_counter}"
 
             seen_snps.add(deduplicate)
-            f.write(f"{chrom_id} {deduplicate} {rest}")
+            f.write(f"{deduplicate} {chrom_id} {rest}")
 
-    # 2. Bootstrap the .ped file using the bootstrap_snp_indices above
-    # the .ped file contains one line for each individual sample
-    # each line has 2V + 6 fields with V being the number of samples
-    # The first six fields do not change
-    with open(ped_out, "a") as ped_out_handle:
-        for indiv_line in open(ped_in):
-            indiv_line = indiv_line.strip()
-            fields = indiv_line.split()
-
-            # the first 6 fields don't change with bootstrapping
-            new_indiv_line = fields[:6]
-
-            # the following lines correspond to the SNPs
-            # each SNP accounts for two fields
-            # so for each index in the bootstrap_snp_indices we have to access two fields:
-            # 5 + (2 * (index + 1)) and 5 + (2 * (index + 1) + 1)
-            # (5 and (index + 1) since Python is 0-indexed)
-            for bootstrap_idx in bootstrap_snp_indices:
-                idx_var1 = 5 + 2 * (bootstrap_idx + 1)
-                new_indiv_line.append(fields[idx_var1 - 1])
-                new_indiv_line.append(fields[idx_var1])
-
-            ped_out_handle.write(" ".join(new_indiv_line))
-            ped_out_handle.write("\n")
+    # 2. Bootstrap the .geno file using the bootstrap_snp_indices above
+    # the .geno file contains one column for each individual sample
+    genos = geno_in.open().readlines()
+    with geno_out.open(mode="a") as f:
+        for bootstrap_idx in bootstrap_snp_indices:
+            geno_line = genos[bootstrap_idx]
+            f.write(geno_line)
 
 
 def _run(args):
@@ -105,15 +88,6 @@ def _run(args):
         )
 
         logger.debug(fmt_message(f"Finished drawing bootstrap dataset #{_i}"))
-
-        plink_to_eigen(
-            plink_prefix=bootstrap_prefix,
-            eigen_prefix=bootstrap_prefix,
-            convertf=_convertf,
-            redo=_redo,
-        )
-
-        logger.debug(fmt_message(f"Finished converting bootstrap dataset #{_i}"))
     else:
         logger.debug(fmt_message(f"Bootstrapped dataset #{_i} already exists."))
 

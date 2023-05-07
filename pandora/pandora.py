@@ -1,6 +1,9 @@
 import dataclasses
 import itertools
 import multiprocessing
+import pathlib
+import shutil
+
 import yaml
 
 from pandora.bootstrapping import create_bootstrap_pcas
@@ -42,6 +45,10 @@ class PandoraConfig:
     @property
     def outfile_prefix(self):
         return self.outdir / self.dataset
+
+    @property
+    def filtered_infile_prefix(self):
+        return pathlib.Path(f"{self.outfile_prefix}.filtered")
 
     @property
     def logfile(self):
@@ -125,14 +132,16 @@ def from_config(configfile: FilePath) -> PandoraConfig:
 
 def run_empirical_pca(pandora_config: PandoraConfig):
     # First, determine the number of PCs we are going to use
-    n_pcs = determine_number_of_pcs(
-        infile_prefix=pandora_config.infile_prefix,
-        outfile_prefix=pandora_config.outfile_prefix,
-        smartpca=pandora_config.smartpca,
-        # TODO: what is a meaningful variance cutoff?
-        explained_variance_cutoff=pandora_config.variance_cutoff / 100,
-        redo=pandora_config.redo,
-    )
+    # TODO: wie npcs bestimmen?
+    # n_pcs = determine_number_of_pcs(
+    #     infile_prefix=pandora_config.infile_prefix,
+    #     outfile_prefix=pandora_config.outfile_prefix,
+    #     smartpca=pandora_config.smartpca,
+    #     # TODO: what is a meaningful variance cutoff?
+    #     explained_variance_cutoff=pandora_config.variance_cutoff / 100,
+    #     redo=pandora_config.redo,
+    # )
+    n_pcs = 20
     # Next, run SmartPCA with the determined number of PCs on the unmodified input dataset
     run_smartpca(
         infile_prefix=pandora_config.infile_prefix,
@@ -149,21 +158,12 @@ def run_empirical_pca(pandora_config: PandoraConfig):
 
 
 def run_bootstrap_pcas(pandora_config: PandoraConfig, n_pcs: int):
-    logger.info(fmt_message("Converting Input files to PLINK format for bootstrapping."))
-
-    eigen_to_plink(
-        eigen_prefix=pandora_config.infile_prefix,
-        plink_prefix=pandora_config.convertf_prefix,
-        convertf=pandora_config.convertf,
-        redo=pandora_config.redo
-    )
-
     logger.info(fmt_message(f"Drawing {pandora_config.n_bootstraps} bootstrapped datasets."))
 
     # TODO: implement bootstopping
 
     bootstrap_pcas = create_bootstrap_pcas(
-        infile_prefix=pandora_config.convertf_prefix,
+        infile_prefix=pandora_config.infile_prefix,
         bootstrap_outdir=pandora_config.bootstrap_dir,
         convertf=pandora_config.convertf,
         smartpca=pandora_config.smartpca,
@@ -178,6 +178,11 @@ def run_bootstrap_pcas(pandora_config: PandoraConfig, n_pcs: int):
 
 
 def run_plink_pca(pandora_config: PandoraConfig, n_pcs: int):
+    # eigen_to_plink(
+    #     eigen_prefix=pandora_config.filtered_infile_prefix,
+    #     plink_prefix=
+    # )
+
     plink_to_bplink(
         plink_prefix=pandora_config.convertf_prefix,
         bplink_prefix=pandora_config.convertf_prefix_binary,
@@ -255,36 +260,35 @@ def get_kmeans_k(pandora_config: PandoraConfig, empirical_pca: PCA):
     return kmeans_k
 
 
-def compare_bootstrap_results(pandora_config: PandoraConfig, empirical_pca: PCA, bootstrap_pcas: List[PCA], kmeans_k: int):
-    # Compare Empirical <> Bootstraps
+def compare_bootstrap_results(pandora_config: PandoraConfig, bootstrap_pcas: List[PCA], kmeans_k: int):
+    # Compare all bootstraps pairwise
     bootstrap_similarities = []
     bootstrap_cluster_similarities = []
 
-    for i, bootstrap_pca in enumerate(bootstrap_pcas):
-        pca_comparison = PCAComparison(comparable=bootstrap_pca, reference=empirical_pca)
-        similarity = pca_comparison.compare()
-        bootstrap_similarities.append(similarity)
+    pairwise_outfile = pathlib.Path(f"{pandora_config.outfile_prefix}.pandora.bootstrap.txt")
+    pairwise_outfile.unlink(missing_ok=True)
 
-        clustering_score = pca_comparison.compare_clustering(kmeans_k=kmeans_k)
-        bootstrap_cluster_similarities.append(clustering_score)
+    with pairwise_outfile.open("a") as f:
+        for (i1, bootstrap1), (i2, bootstrap2) in itertools.combinations(enumerate(bootstrap_pcas, start=1), r=2):
+            pca_comparison = PCAComparison(comparable=bootstrap1, reference=bootstrap2)
+            similarity = pca_comparison.compare()
+            bootstrap_similarities.append(similarity)
 
-    # write similarities of all bootstraps to file
-    with open(f"{pandora_config.outfile_prefix}.pandora.bootstrap.txt", "w") as f:
-        output = [f"{i + 1}\t{sim}" for i, sim in enumerate(bootstrap_similarities)]
-        f.write("\n".join(output))
+            clustering_score = pca_comparison.compare_clustering(kmeans_k=kmeans_k)
+            bootstrap_cluster_similarities.append(clustering_score)
+
+            f.write(f"{i1}\t{i2}\t{round(similarity, 4)}\t{round(clustering_score, 4)}\n")
 
     return bootstrap_similarities, bootstrap_cluster_similarities
 
 
-def compare_alternative_tool_results(empirical_pca: PCA, alternative_pcas: Dict[str, PCA], kmeans_k: int):
-    alternative_pcas["smartPCA"] = empirical_pca
-
+def compare_alternative_tool_results(alternative_tools: Dict[str, PCA], kmeans_k: int):
     tool_similarities = []
     tool_cluster_similarities = []
 
     pairwise = {}
 
-    for pca1, pca2 in itertools.combinations(alternative_pcas.items(), r=2):
+    for pca1, pca2 in itertools.combinations(alternative_tools.items(), r=2):
         # TODO: hier stimmt bei sklearn noch was mit den sample_ids nicht glaube ich
         name1, pca1 = pca1
         name2, pca2 = pca2
@@ -301,34 +305,34 @@ def compare_alternative_tool_results(empirical_pca: PCA, alternative_pcas: Dict[
     return tool_similarities, tool_cluster_similarities, pairwise
 
 
-def plot_empirical(pandora_config: PandoraConfig, empirical_pca: PCA, kmeans_k: int):
+def plot_pca(pandora_config: PandoraConfig, pca: PCA, kmeans_k: int, plot_prefix: str):
     # TODO: make plotted PCs command line settable
     pcx = 0
     pcy = 1
 
     # plot with annotated populations
-    empirical_pca.plot(
+    pca.plot(
         pcx=pcx,
         pcy=pcy,
         annotation="population",
-        outfile=pandora_config.plot_dir / "empirical_with_populations.pdf",
+        outfile=pandora_config.plot_dir / f"{plot_prefix}_with_populations.pdf",
         redo=pandora_config.redo
     )
 
     # plot with annotated clusters
-    empirical_pca.plot(
+    pca.plot(
         pcx=pcx,
         pcy=pcy,
         annotation="cluster",
         kmeans_k=kmeans_k,
-        outfile=pandora_config.plot_dir / "empirical_with_clusters.pdf",
+        outfile=pandora_config.plot_dir / f"{plot_prefix}_with_clusters.pdf",
         redo=pandora_config.redo
     )
 
-    logger.info(fmt_message(f"Plotted empirical PCA."))
+    logger.info(fmt_message(f"Plotted bootstrap PCA {plot_prefix}"))
 
 
-def plot_bootstraps(pandora_config: PandoraConfig, empirical_pca: PCA, bootstrap_pcas: List[PCA], kmeans_k: int):
+def plot_bootstraps(pandora_config: PandoraConfig, bootstrap_pcas: List[PCA], kmeans_k: int):
     # TODO: make plotted PCs command line settable
     # TODO: paralleles plotten
     pcx = 0
@@ -358,67 +362,65 @@ def plot_bootstraps(pandora_config: PandoraConfig, empirical_pca: PCA, bootstrap
             redo=pandora_config.redo
         )
 
-        # Plot transformed bootstrap and empirical data jointly
-        # for this, we first need to transform the empirical and bootstrap data
-        standardized_empirical, transformed_bootstrap = match_and_transform(comparable=bootstrap_pca, reference=empirical_pca)
-        fig = standardized_empirical.plot(
-            pcx=pcx,
-            pcy=pcy,
-            name="empirical (standardized)",
-            marker_color="darkblue",
-            marker_symbol="circle",
-        )
-
-        transformed_bootstrap.plot(
-            pcx=pcx,
-            pcy=pcy,
-            name="bootstrap (transformed)",
-            fig=fig,
-            marker_color="orange",
-            marker_symbol="star",
-            outfile=pandora_config.plot_dir / f"bootstrap_{i + 1}_with_empirical.pca.pdf",
-            redo=pandora_config.redo
-        )
-
         logger.info(fmt_message(f"Plotted bootstrap PCA #{i + 1}"))
 
 
-def plot_alternative_tools(pandora_config: PandoraConfig, empirical_pca: PCA, alternative_pcas: Dict[str, PCA], kmeans_k: int):
-    # TODO: make plotted PCs command line settable
-    # TODO: paralleles plotten
-    pcx = 0
-    pcy = 1
-
-    # Plot transformed alternative Tools and smartPCA data jointly
-    # for this, we first need to transform the empirical and bootstrap data
-    for name, pca in alternative_pcas.items():
-        pca.plot(
-            pcx=pcx,
-            pcy=pcy,
-            name=f"Transformed {name}",
-            outfile=pandora_config.plot_dir / f"{name}.pca.pdf"
-        )
-
-        standardized_reference, transformed_alternative = match_and_transform(comparable=pca, reference=empirical_pca)
-        fig = standardized_reference.plot(
-            pcx=pcx,
-            pcy=pcy,
-            name="SmartPCA (standardized)",
-            marker_color="darkblue",
-            marker_symbol="circle",
-        )
-
-        transformed_alternative.plot(
-            pcx=pcx,
-            pcy=pcy,
-            name=f"{name} (transformed)",
-            fig=fig,
-            marker_color="orange",
-            marker_symbol="star",
-            outfile=pandora_config.plot_dir / f"{name}_with_smartpca.pca.pdf"
-        )
+def plot_alternative_tools(pandora_config: PandoraConfig, alternative_tools: Dict[str, PCA], kmeans_k: int):
+    for name, pca in alternative_tools.items():
+        plot_pca(pandora_config, pca, kmeans_k, name)
 
 
 def plot_results(pandora_config: PandoraConfig, empirical_pca: PCA, bootstrap_pcas: List[PCA], kmeans_k: int):
-    plot_empirical(pandora_config, empirical_pca, kmeans_k)
-    plot_bootstraps(pandora_config, empirical_pca, bootstrap_pcas, kmeans_k)
+    plot_pca(pandora_config, empirical_pca, kmeans_k, "empirical")
+    for i, bootstrap_pca in enumerate(bootstrap_pcas):
+        plot_pca(pandora_config, bootstrap_pca, kmeans_k, f"bootstrap_{i + 1}")
+
+
+def filter_outliers(pandora_config: PandoraConfig):
+    # TODO: hier erstmal das empirical PCA anschauen und die outlier rausfiltern für einen besseren vergleich
+    smartpca_logfile = pathlib.Path(f"{pandora_config.outfile_prefix}.smartpca.log")
+
+    if not smartpca_logfile.exists():
+        raise RuntimeError("SmartPCA log file does not exist. Run smartPCA first to detect outliers.")
+
+    smartpca_outlier = []
+    for line in smartpca_logfile.open():
+        if "REMOVED" in line:
+            # REMOVED outlier I0114 iter 4 evec 8 sigmage -6.697 pop: Control
+            _, _, outlier_id, *_ = line.split()
+            smartpca_outlier.append(outlier_id.strip())
+
+    # filter .ind file
+    ind_file = pathlib.Path(f"{pandora_config.infile_prefix}.ind")
+    new_ind_file = pathlib.Path(f"{pandora_config.filtered_infile_prefix}.ind")
+
+    new_ind_data = []
+    inlier_indices = []
+
+    for i, ind_line in enumerate(ind_file.open()):
+        sample_id, *_ = ind_line.strip().split()
+        if sample_id.strip() not in smartpca_outlier:
+            new_ind_data.append(ind_line.strip())
+            inlier_indices.append(i)
+
+    new_ind_file.open(mode="w").write("\n".join(new_ind_data))
+
+    # filter .geno file
+    geno_file = pathlib.Path(f"{pandora_config.infile_prefix}.geno")
+    new_geno_file = pathlib.Path(f"{pandora_config.filtered_infile_prefix}.geno")
+
+    new_geno_data = []
+    for i, line in enumerate(geno_file.open()):
+        snps = list(line.strip())
+        # columns = individuals
+        # => use only inlier_indices
+        snps = [snps[idx] for idx in inlier_indices]
+        new_geno_data.append("".join(snps))
+
+    new_geno_file.open(mode="w").write("\n".join(new_geno_data))
+
+    # copy .snp file
+    snp_file = pathlib.Path(f"{pandora_config.infile_prefix}.snp")
+    new_snp_file = pathlib.Path(f"{pandora_config.filtered_infile_prefix}.snp")
+
+    shutil.copy(snp_file, new_snp_file)

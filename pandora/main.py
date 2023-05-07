@@ -72,27 +72,39 @@ def main():
     # Empirical PCA using smartPCA and no bootstrapping
     empirical_pca = run_empirical_pca(pandora_config)
 
-    # Bootstrapped PCA
+    # Bootstrapped PCAs
     bootstrap_pcas = run_bootstrap_pcas(pandora_config, n_pcs=empirical_pca.n_pcs)
 
-    # PCA with alternative tools
-    logger.info(fmt_message("Running PCA using Plink and scikit-learn"))
-    alternative_tool_pcas = run_alternative_pcas(pandora_config, n_pcs=empirical_pca.n_pcs)
+    # PCAs using alternative tools (= alternative PCA implementations, different numerics, ...)
+    # To do so, we first filter all outliers that smartPCA detected
+    if pandora_config.run_alternative:
+        filter_outliers(pandora_config)
+        logger.info(fmt_message("Running PCA using Plink and scikit-learn"))
+        # first, convert the EIGENSOFT files to PLINK format
+        eigen_to_plink(
+            eigen_prefix=pandora_config.filtered_infile_prefix,
+            plink_prefix=pandora_config.convertf_prefix,
+            convertf=pandora_config.convertf
+        )
+        alternative_tool_pcas = run_alternative_pcas(pandora_config, n_pcs=empirical_pca.n_pcs)
+        alternative_tool_pcas["smartPCA"] = empirical_pca
 
     # =======================================
     # Compare results
+    # pairwise comparison between all bootstraps
     # =======================================
     logger.info(fmt_message(f"Comparing PCA results."))
 
     kmeans_k = get_kmeans_k(pandora_config, empirical_pca)
 
     bootstrap_similarities, bootstrap_cluster_similarities = compare_bootstrap_results(
-        pandora_config, empirical_pca, bootstrap_pcas, kmeans_k
+        pandora_config, bootstrap_pcas, kmeans_k
     )
 
     # Compare Empirical <> alternative tools
-    tool_similarities, tool_cluster_similarities, pairwise_similarities = compare_alternative_tool_results(
-        empirical_pca, alternative_tool_pcas, kmeans_k)
+    if pandora_config.run_alternative:
+        tool_similarities, tool_cluster_similarities, pairwise_similarities = compare_alternative_tool_results(
+            alternative_tool_pcas, kmeans_k)
 
     # =======================================
     # Plot results
@@ -105,12 +117,12 @@ def main():
             kmeans_k
         )
 
-        plot_alternative_tools(
-            pandora_config,
-            empirical_pca,
-            alternative_tool_pcas,
-            kmeans_k
-        )
+        if pandora_config.run_alternative:
+            plot_alternative_tools(
+                pandora_config,
+                alternative_tool_pcas,
+                kmeans_k
+            )
 
     logger.info("\n\n========= PANDORA RESULTS =========")
     logger.info(f"> Input dataset: {pandora_config.infile_prefix}")
@@ -123,18 +135,20 @@ def main():
     logger.info(f"PCA: {round(np.mean(bootstrap_similarities), 2)} ± {round(np.std(bootstrap_similarities), 2)}")
     logger.info(f"K-Means clustering: {round(np.mean(bootstrap_cluster_similarities), 2)} ± {round(np.std(bootstrap_cluster_similarities), 2)}")
 
-    logger.info("\n------------------")
-    logger.info("Alternative Tools Similarity")
-    logger.info("------------------")
-    logger.info(f"PCA: {round(np.mean(tool_similarities), 2)} ± {round(np.std(tool_similarities), 2)}")
-    logger.info(f"K-Means clustering: {round(np.mean(tool_cluster_similarities), 2)} ± {round(np.std(tool_cluster_similarities), 2)}")
+    if pandora_config.run_alternative:
+        logger.info("\n------------------")
+        logger.info("Alternative Tools Similarity")
+        logger.info("------------------")
+        logger.info(f"PCA: {round(np.mean(tool_similarities), 2)} ± {round(np.std(tool_similarities), 2)}")
+        logger.info(f"K-Means clustering: {round(np.mean(tool_cluster_similarities), 2)} ± {round(np.std(tool_cluster_similarities), 2)}")
 
     total_runtime = math.ceil(time.perf_counter() - SCRIPT_START)
     logger.info(f"\nTotal runtime: {datetime.timedelta(seconds=total_runtime)} ({total_runtime} seconds)")
 
     # For debugging now:
-    for tool, (pca, cluster) in pairwise_similarities.items():
-        print(tool, round(pca, 2), round(cluster, 2))
+    if pandora_config.run_alternative:
+        for tool, (pca, cluster) in pairwise_similarities.items():
+            print(tool, round(pca, 2), round(cluster, 2))
 
 
 if __name__ == "__main__":

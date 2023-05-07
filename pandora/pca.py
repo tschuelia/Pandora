@@ -137,7 +137,7 @@ class PCA:
             kmeans_k (int): Number of clusters. If not set, the optimal number of clusters is determined automatically.
 
         Returns:
-            KMeans: Scikit-learn KMeans object that with kmeans_k that is fitted to self.pca_data.
+            KMeans: Scikit-learn KMeans object that is fitted to self.pca_data.
         """
         pca_data_np = self.pc_vectors
         if kmeans_k is None:

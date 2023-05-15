@@ -121,10 +121,9 @@ class PCAComparison:
 
     def detect_rogue_samples(self, rogue_cutoff: float = 0.95) -> List[str]:
         """
-        Returns a list of sample IDs that are considered rogue samples when comparing self to other.
+        Returns a list of sample IDs that are considered rogue samples when comparing self.comparable to self.reference.
         A sample is considered rogue if the euclidean distance between its PC vectors in self and other
         is larger than the rogue_cutoff-percentile of pairwise PC vector distances
-        Important: make sure that the two PCAs you compare are the transformed ones, otherwise the vectors are hardly comparable
         """
         # make sure we are comparing the correct PC-vectors in the following
         assert np.all(
@@ -150,12 +149,6 @@ class PCAComparison:
             )
         ]
 
-        """
-        TODO: die Idee hier ist jetzt, dass man von den sample distances vielleicht das
-        95% oder 99% quantile nimmt und alle samples filtert die eine distanz dadrüber haben
-        dann kann man schauen wie oft welches sample bei wie vielen bootstraps als rogue identifiziert wird
-        und der support wert für das sample ist dann 1 - (# rogue / # bootstraps) oder so 
-        """
         return rogue_samples
 
     def remove_rogue_samples(self, rogue_cutoff: float = 0.95) -> PCAComparison:

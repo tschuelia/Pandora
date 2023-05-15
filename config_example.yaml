@@ -12,16 +12,24 @@ output: results/localtest/MathiesonEtAl_genotypes
 # ===========================
 # Optional settings
 # ===========================
-uncertainty:
-  bootstrap: True
-  slidingWindow: False
-
-sampleProjection:
-  projectSamples: False
-  supportValues: False
+# If set to True, do standard bootstrapping similarity analysis
+# default is True
+bootstrap: True
 
 # Maximum number of bootstrap replicates to compute (default = TODO, currently 100).
 bootstraps: 2
+
+# If set to True, do a sliding window PCA along a whole genome and compare the similarity across the genome
+# default is False
+slidingWindow: False
+
+# TODO: sample projection of Ancient DNA samples
+projectSamples: False
+
+# If set to True, determines bootstrap support values for each sample in the input data
+# the support value is based on the similarity of PC vectors across bootstraps
+# default is False
+supportValues: False
 
 # Number of threads to use for computation (default is number of cores).
 threads: 2
@@ -57,3 +65,14 @@ smartpca: /Users/julia/micromamba/envs/pca_micromamba/bin/smartpca
 # Optional path to the convertf executable. Per default, Pandora will use 'convertf'.
 # Specify a path if convertf is not installed system-wide on your machine.
 convertf: /Users/julia/micromamba/envs/pca_micromamba/bin/convertf
+
+
+# Verbosity of the output logging of Pandora
+# 0 = quiet, prints only errors and the results (loglevel = ERROR)
+# 1 = verbose, prints all intermediate infos (loglevel = INFO)
+# 2 = debug, prints intermediate infos and debug messages (loglevel = DEBUG)
+verbosity: 2
+
+# number of decimals to round the results to
+# default is 2
+resultsDecimals: 2

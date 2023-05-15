@@ -1,10 +1,10 @@
 import argparse
 import datetime
-import math
 import sys
 
 from pandora import __version__
 from pandora.pandora import *
+from pandora.logger import *
 
 """
 TODO: 
@@ -50,11 +50,19 @@ def main():
     # =======================================
     # initialize options and directories
     # =======================================
+    pandora_config = pandora_config_from_configfile(args.config)
 
-    pandora_config = from_config(args.config)
+    # store pandora config in a verbose config file for reproducibility
+    pandora_config.to_configfile()
 
+    # next, create the required output directories based on the analysis specified
     pandora_config.create_outdirs()
-    open(pandora_config.logfile, "w").write(get_header())
+
+    # set the log verbosity according to the pandora config
+    logger.setLevel(pandora_config.loglevel)
+
+    # hook up the logfile to the logger to also store the output
+    pandora_config.logfile.open(mode="w").write(get_header())
     logger.addHandler(logging.FileHandler(pandora_config.logfile))
 
     _arguments_str = [f"{k}: {v}" for k, v in pandora_config.get_configuration().items()]
@@ -69,45 +77,41 @@ def main():
     # =======================================
     logger.info("\n--------- STARTING COMPUTATION ---------")
 
-    # Empirical PCA using smartPCA and no bootstrapping
-    empirical_pca = run_empirical_pca(pandora_config)
-
-    # Bootstrapped PCAs
-    bootstrap_pcas = run_bootstrap_pcas(pandora_config, n_pcs=empirical_pca.n_pcs)
-
-    # =======================================
-    # Compare results
-    # pairwise comparison between all bootstraps
-    # =======================================
-    logger.info(fmt_message(f"Comparing PCA results."))
-
-    kmeans_k = get_kmeans_k(pandora_config, empirical_pca)
-
-    bootstrap_similarities, bootstrap_cluster_similarities = compare_bootstrap_results(
-        pandora_config, bootstrap_pcas, kmeans_k
+    # initialize empty PandoraResults object that keeps track of all results
+    pandora_results = Pandora(
+        pandora_config=pandora_config
     )
 
-    # =======================================
-    # Plot results
-    # =======================================
-    if pandora_config.run_plotting:
-        plot_results(
-            pandora_config,
-            empirical_pca,
-            bootstrap_pcas,
-            kmeans_k
-        )
+    if pandora_config.run_bootstrapping:
+        # Empirical PCA using smartPCA and no bootstrapping
+        pandora_results.run_empirical_pca()
+
+        # Bootstrapped PCAs
+        logger.info(fmt_message(f"Drawing {pandora_config.n_bootstraps} bootstrapped datasets."))
+
+        pandora_results.run_bootstrap_pcas()
+
+        # =======================================
+        # Compare results
+        # pairwise comparison between all bootstraps
+        # =======================================
+        logger.info(fmt_message(f"Comparing bootstrap PCA results."))
+
+        pandora_results.compare_bootstrap_results()
+
+        # =======================================
+        # Plot results
+        # =======================================
+        if pandora_config.run_plotting:
+            pandora_results.plot_results()
 
     logger.info("\n\n========= PANDORA RESULTS =========")
     logger.info(f"> Input dataset: {pandora_config.infile_prefix}")
-    logger.info(f"> Number of Bootstrap replicates computed: {pandora_config.n_bootstraps}")
-    logger.info(f"> Number of PCs required to explain at least {pandora_config.variance_cutoff}% variance: {empirical_pca.n_pcs}")
-    logger.info(f"> Optimal number of clusters: {kmeans_k}")
-    logger.info("\n------------------")
-    logger.info("Bootstrapping Similarity")
-    logger.info("------------------")
-    logger.info(f"PCA: {round(np.mean(bootstrap_similarities), 2)} ± {round(np.std(bootstrap_similarities), 2)}")
-    logger.info(f"K-Means clustering: {round(np.mean(bootstrap_cluster_similarities), 2)} ± {round(np.std(bootstrap_cluster_similarities), 2)}")
+
+    pandora_config.pandora_results_file.unlink(missing_ok=True)
+
+    if pandora_config.run_bootstrapping:
+        pandora_results.log_and_save_bootstrap_results()
 
     total_runtime = math.ceil(time.perf_counter() - SCRIPT_START)
     logger.info(f"\nTotal runtime: {datetime.timedelta(seconds=total_runtime)} ({total_runtime} seconds)")

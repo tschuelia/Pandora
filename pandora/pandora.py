@@ -252,10 +252,11 @@ def get_kmeans_k(pandora_config: PandoraConfig, empirical_pca: PCA):
     elif pandora_config.k_clusters is not None:
         kmeans_k = pandora_config.k_clusters
         kmeans_k_ckp.open("w").write(str(kmeans_k))
+        logger.info(fmt_message(f"Using configured number of clusters: {kmeans_k}"))
     else:
         kmeans_k = empirical_pca.get_optimal_kmeans_k()
         kmeans_k_ckp.open("w").write(str(kmeans_k))
-    logger.info(fmt_message(f"Optimal number of clusters determined to be: {kmeans_k}"))
+        logger.info(fmt_message(f"Optimal number of clusters determined to be: {kmeans_k}"))
 
     return kmeans_k
 
@@ -378,17 +379,16 @@ def plot_results(pandora_config: PandoraConfig, empirical_pca: PCA, bootstrap_pc
 
 def filter_outliers(pandora_config: PandoraConfig):
     # TODO: hier erstmal das empirical PCA anschauen und die outlier rausfiltern für einen besseren vergleich
-    smartpca_logfile = pathlib.Path(f"{pandora_config.outfile_prefix}.smartpca.log")
+    smartpca_outlier_file = pathlib.Path(f"{pandora_config.outfile_prefix}.outlier")
 
-    if not smartpca_logfile.exists():
-        raise RuntimeError("SmartPCA log file does not exist. Run smartPCA first to detect outliers.")
+    if not smartpca_outlier_file.exists():
+        raise RuntimeError("SmartPCA outlier file does not exist. Run smartPCA first to detect outliers.")
 
     smartpca_outlier = []
-    for line in smartpca_logfile.open():
-        if "REMOVED" in line:
-            # REMOVED outlier I0114 iter 4 evec 8 sigmage -6.697 pop: Control
-            _, _, outlier_id, *_ = line.split()
-            smartpca_outlier.append(outlier_id.strip())
+    for line in smartpca_outlier_file.open():
+        # REMOVED outlier I0114 iter 4 evec 8 sigmage -6.697 pop: Control
+        _, _, outlier_id, *_ = line.split()
+        smartpca_outlier.append(outlier_id.strip())
 
     # filter .ind file
     ind_file = pathlib.Path(f"{pandora_config.infile_prefix}.ind")

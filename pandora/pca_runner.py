@@ -29,9 +29,10 @@ def run_smartpca(
 
     evec_out = pathlib.Path(f"{outfile_prefix}.evec")
     eval_out = pathlib.Path(f"{outfile_prefix}.eval")
+    outlier_out = pathlib.Path(f"{outfile_prefix}.outlier")
     smartpca_log = pathlib.Path(f"{outfile_prefix}.smartpca.log")
 
-    files_exist = all([evec_out.exists(), eval_out.exists(), smartpca_log.exists()])
+    files_exist = all([evec_out.exists(), eval_out.exists(), outlier_out.exists(), smartpca_log.exists()])
 
     if files_exist and not redo:
         # TODO: das reicht nicht als check, bei unfertigen runs sind die files einfach nicht vollständig aber
@@ -55,8 +56,9 @@ def run_smartpca(
             evaloutname: {eval_out}
             numoutevec: {n_pcs}
             maxpops: {num_populations}
-            shrinkmode: YES 
+            outlieroutname: {outlier_out}
             """
+            # shrinkmode: YES
         # projection_file = pathlib.Path(f"{infile_prefix}.population")
         # if projection_file.exists():
         #     conversion_content += f"\npoplistname: {projection_file}"

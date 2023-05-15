@@ -162,7 +162,7 @@ def bplink_to_datamatrix(bplink_prefix: FilePath, outfile_prefix: FilePath, plin
         bplink_prefix,
         "--out",
         outfile_prefix,
-        "--no-fid"
+        "--no-fid",
     ]
     with plink_logfile.open("w") as logfile:
         subprocess.run(cmd, stdout=logfile, stderr=logfile)

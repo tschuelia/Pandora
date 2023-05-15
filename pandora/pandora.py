@@ -66,14 +66,6 @@ class PandoraConfig:
         return self.outdir / "bootstrap"
 
     @property
-    def pandora_results_file(self):
-        return self.outdir / "pandora.results.txt"
-
-    @property
-    def pairwise_bootstrap_results_file(self):
-        return self.outdir / "pandora.bootstrap.txt"
-
-    @property
     def plot_dir(self):
         return self.outdir / "pcaPlots"
 
@@ -123,6 +115,14 @@ class Pandora:
 
     bootstrap_similarities: List[float] = None
     bootstrap_cluster_similarities: List[float] = None
+
+    @property
+    def results_file(self):
+        return self.pandora_config.outdir / "pandora.results.txt"
+
+    @property
+    def pairwise_bootstrap_results_file(self):
+        return self.pandora_config.outdir / "pandora.bootstrap.txt"
 
     def run_empirical_pca(self):
         # First, determine the number of PCs we are going to use
@@ -188,7 +188,7 @@ class Pandora:
         bootstrap_similarities = []
         bootstrap_cluster_similarities = []
 
-        pairwise_outfile = self.pandora_config.pairwise_bootstrap_results_file
+        pairwise_outfile = self.pairwise_bootstrap_results_file
         pairwise_outfile.unlink(missing_ok=True)
 
         # determine and set the number of clusters to use for K-Means comparison
@@ -216,21 +216,21 @@ class Pandora:
         _mean_kmeans = round(np.mean(self.bootstrap_cluster_similarities), self.pandora_config.results_decimals)
         _std_kmeans = round(np.std(self.bootstrap_cluster_similarities), self.pandora_config.results_decimals)
 
-        bootstrap_results_string = textwrap.dedent(f"""
-        > Number of Bootstrap replicates computed: {self.pandora_config.n_bootstraps}
-        > Number of PCs required to explain at least {self.pandora_config.variance_cutoff}% variance: {self.n_pcs}
-        > Optimal number of clusters: {self.kmeans_k}
-        ------------------
-        Bootstrapping Similarity
-        ------------------
-        PCA: {_mean_pca} ± {_std_pca}
-        K-Means clustering: {_mean_kmeans} ± {_std_kmeans}
-        
-        > Pairwise bootstrap results written to {self.pandora_config.pairwise_bootstrap_results_file}
-        """)
+        bootstrap_results_string = textwrap.dedent(
+            f"""
+            > Number of Bootstrap replicates computed: {self.pandora_config.n_bootstraps}
+            > Number of PCs required to explain at least {self.pandora_config.variance_cutoff}% variance: {self.n_pcs}
+            > Optimal number of clusters: {self.kmeans_k}
+            
+            ------------------
+            Bootstrapping Similarity
+            ------------------
+            PCA: {_mean_pca} ± {_std_pca}
+            K-Means clustering: {_mean_kmeans} ± {_std_kmeans}"""
+        )
 
         logger.info(bootstrap_results_string)
-        self.pandora_config.pandora_results_file.open(mode="a").write(bootstrap_results_string)
+        self.results_file.open(mode="a").write(bootstrap_results_string)
 
     def plot_pca(self, pca:PCA, plot_prefix: str):
         pcx = self.pandora_config.plot_pcx
@@ -277,9 +277,9 @@ def pandora_config_from_configfile(configfile: FilePath) -> PandoraConfig:
         k_clusters      = config_data.get("kClusters", None),
         smartpca        = config_data.get("smartpca", "smartpca"),
         convertf        = config_data.get("convertf", "convertf"),
-        run_bootstrapping       = config_data.get("bootstrap", True),
-        sample_support_values   = config_data.get("supportValues", False),
-        run_slidingWindow       = config_data.get("slidingWindow", False),
+        run_bootstrapping     = config_data.get("bootstrap", True),
+        sample_support_values = config_data.get("supportValues", False),
+        run_slidingWindow     = config_data.get("slidingWindow", False),
         run_plotting    = config_data.get("plotResults", False),
         plot_pcx        = config_data.get("plot_pcx", 0),
         plot_pcy        = config_data.get("plot_pcy", 0),

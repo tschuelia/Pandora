@@ -88,7 +88,6 @@ def main():
 
         # Bootstrapped PCAs
         logger.info(fmt_message(f"Drawing {pandora_config.n_bootstraps} bootstrapped datasets."))
-
         pandora_results.run_bootstrap_pcas()
 
         # =======================================
@@ -96,7 +95,6 @@ def main():
         # pairwise comparison between all bootstraps
         # =======================================
         logger.info(fmt_message(f"Comparing bootstrap PCA results."))
-
         pandora_results.compare_bootstrap_results()
 
         # =======================================
@@ -106,12 +104,25 @@ def main():
             pandora_results.plot_results()
 
     logger.info("\n\n========= PANDORA RESULTS =========")
-    logger.info(f"> Input dataset: {pandora_config.infile_prefix}")
+    logger.info(f"> Input dataset: {pandora_config.infile_prefix.absolute()}")
 
-    pandora_config.pandora_results_file.unlink(missing_ok=True)
+    pandora_results.results_file.unlink(missing_ok=True)
 
     if pandora_config.run_bootstrapping:
         pandora_results.log_and_save_bootstrap_results()
+
+    logger.info(
+        textwrap.dedent(
+            """
+            ------------------
+            Result Files
+            ------------------"""
+        )
+    )
+    logger.info(f"> Pandora results: {pandora_results.results_file.absolute()}")
+
+    if pandora_config.run_bootstrapping:
+        logger.info(f"> Pairwise bootstrap: {pandora_results.pairwise_bootstrap_results_file.absolute()}")
 
     total_runtime = math.ceil(time.perf_counter() - SCRIPT_START)
     logger.info(f"\nTotal runtime: {datetime.timedelta(seconds=total_runtime)} ({total_runtime} seconds)")

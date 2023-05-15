@@ -50,28 +50,8 @@ class PandoraConfig:
         return self.outdir / "pandora.log"
 
     @property
-    def convertf_dir(self):
-        return self.outdir / "convertf"
-
-    @property
-    def convertf_prefix(self):
-        return self.convertf_dir / self.dataset
-
-    @property
-    def convertf_dir_binary(self):
-        return self.convertf_dir / "binary"
-
-    @property
-    def convertf_prefix_binary(self):
-        return self.convertf_dir_binary / self.dataset
-
-    @property
     def bootstrap_dir(self):
         return self.outdir / "bootstrap"
-
-    @property
-    def alternative_tools_dir(self):
-        return self.outdir / "alternativeTools"
 
     @property
     def plot_dir(self):
@@ -88,7 +68,6 @@ class PandoraConfig:
 
     def create_outdirs(self):
         if self.run_bootstrapping:
-            self.convertf_dir.mkdir(exist_ok=True, parents=True)
             self.bootstrap_dir.mkdir(exist_ok=True, parents=True)
         if self.run_plotting:
             self.plot_dir.mkdir(exist_ok=True, parents=True)

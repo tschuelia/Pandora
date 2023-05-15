@@ -2,11 +2,9 @@ import subprocess
 import tempfile
 import textwrap
 
-from sklearn.decomposition import PCA as sklearnPCA
-
 from pandora.custom_types import *
 from pandora.logger import *
-from pandora.pca import PCA, from_plink, from_sklearn, from_smartpca
+from pandora.pca import PCA, from_smartpca
 
 
 def run_smartpca(
@@ -75,76 +73,6 @@ def run_smartpca(
             subprocess.run(cmd, stdout=logfile, stderr=logfile)
 
     return from_smartpca(evec_out, eval_out)
-
-
-def run_plink(
-    infile_prefix: FilePath,
-    outfile_prefix: FilePath,
-    plink: Executable,
-    n_pcs: int = 20,
-    redo: bool = False,
-) -> PCA:
-    evec_out = pathlib.Path(f"{outfile_prefix}.eigenvec")
-    eval_out = pathlib.Path(f"{outfile_prefix}.eigenval")
-    plink_log = pathlib.Path(f"{outfile_prefix}.plinkpca.log")
-
-    files_exist = all([evec_out.exists(), eval_out.exists(), plink_log.exists()])
-
-    if files_exist and not redo:
-        # TODO: das reicht nicht als check, bei unfertigen runs sind die files einfach nicht vollständig aber leider noch vorhanden
-        logger.info(
-            fmt_message(f"Skipping plink PCA. Files {outfile_prefix}.* already exist.")
-        )
-        return from_plink(evec_out, eval_out)
-
-    pca_cmd = [
-        plink,
-        "--pca",
-        str(n_pcs),
-        "--bfile",
-        infile_prefix,
-        "--out",
-        outfile_prefix,
-        "--no-fid"
-    ]
-
-    with plink_log.open("w") as logfile:
-        subprocess.run(pca_cmd, stdout=logfile, stderr=logfile)
-
-    return from_plink(evec_out, eval_out)
-
-
-def run_sklearn(
-    outfile_prefix: FilePath,
-    n_pcs: int = 20,
-    redo: bool = False,
-) -> PCA:
-    plink_snp_data = pathlib.Path(f"{outfile_prefix}.rel")
-    plink_sample_data = pathlib.Path(f"{outfile_prefix}.rel.id")
-
-    pc_vectors_file = pathlib.Path(f"{outfile_prefix}.sklearn.evec.npy")
-    variances_file = pathlib.Path(f"{outfile_prefix}.sklearn.eval.npy")
-
-    if redo or (not pc_vectors_file.exists() and not variances_file.exists()):
-        snp_data = []
-        for line in plink_snp_data.open():
-            values = line.split()
-            values = [float(v) for v in values]
-            snp_data.append(values)
-
-        snp_data = np.asarray(snp_data)
-
-        pca = sklearnPCA(n_components=n_pcs)
-        pca_data = pca.fit_transform(snp_data)
-
-        np.save(pc_vectors_file, pca_data)
-        np.save(variances_file, pca.explained_variance_ratio_)
-
-    return from_sklearn(
-        evec_file=pc_vectors_file,
-        eval_file=variances_file,
-        plink_id_file=plink_sample_data
-    )
 
 
 def check_pcs_sufficient(explained_variances: List, cutoff: float) -> Union[int, None]:

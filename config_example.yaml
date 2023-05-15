@@ -14,7 +14,6 @@ output: results/localtest/MathiesonEtAl_genotypes
 # ===========================
 uncertainty:
   bootstrap: True
-  alternativeTools: True
   slidingWindow: False
 
 sampleProjection:
@@ -58,8 +57,3 @@ smartpca: /Users/julia/micromamba/envs/pca_micromamba/bin/smartpca
 # Optional path to the convertf executable. Per default, Pandora will use 'convertf'.
 # Specify a path if convertf is not installed system-wide on your machine.
 convertf: /Users/julia/micromamba/envs/pca_micromamba/bin/convertf
-
-
-# Optional path to the plink2 executable. Per default, Pandora will use 'plink2'.
-# Specify a path if plink2 is not installed system-wide on your machine.
-plink2: /Users/julia/Software/plink2

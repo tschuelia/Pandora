@@ -256,7 +256,6 @@ class PCA:
             fig = self._plot_clusters(
                 pcx=pcx, pcy=pcy, kmeans_k=kmeans_k, fig=fig, **kwargs
             )
-
         elif annotation is None:
             fig.add_trace(
                 go.Scatter(

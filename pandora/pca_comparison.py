@@ -34,8 +34,8 @@ def _check_sample_clipping(before_clipping: PCA, after_clipping: PCA) -> None:
     if n_samples_after <= 0.8 * n_samples_before:
         warnings.warn(
             "More than 20% of samples were removed for the comparison. "
-            "Your data appears to have lots of outliers."
-            f"#Samples before/after clipping: {n_samples_before}/{n_samples_after} "
+            "Your data appears to have lots of outliers. "
+            f"#Samples before/after clipping: {n_samples_before}/{n_samples_after} ",
         )
 
 

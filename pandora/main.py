@@ -52,10 +52,7 @@ def main():
     # =======================================
     pandora_config = pandora_config_from_configfile(args.config)
 
-    # store pandora config in a verbose config file for reproducibility
-    pandora_config.to_configfile()
-
-    # next, create the required output directories based on the analysis specified
+    # create the required output directories based on the analysis specified
     pandora_config.create_outdirs()
 
     # set the log verbosity according to the pandora config
@@ -71,6 +68,9 @@ def main():
     logger.info("--------- PANDORA CONFIGURATION ---------")
     logger.info("\n".join(_arguments_str))
     logger.info(f"\nCommand line: {_command_line}")
+
+    # store pandora config in a verbose config file for reproducibility
+    pandora_config.to_configfile()
 
     # =======================================
     # start computation
@@ -100,7 +100,7 @@ def main():
         # =======================================
         # Plot results
         # =======================================
-        if pandora_config.run_plotting:
+        if pandora_config.plot_results:
             pandora_results.plot_results()
 
     logger.info("\n\n========= PANDORA RESULTS =========")
@@ -110,6 +110,13 @@ def main():
 
     if pandora_config.run_bootstrapping:
         pandora_results.log_and_save_bootstrap_results()
+
+    if pandora_config.sample_support_values:
+        pandora_results.set_sample_ids_and_populations()
+        pandora_results.compute_sample_support_values()
+
+        if pandora_config.plot_results:
+            pandora_results.plot_sample_support_values()
 
     logger.info(
         textwrap.dedent(

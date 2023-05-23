@@ -70,7 +70,7 @@ def bootstrap_snp_level(
 
 
 def _run(args):
-    _i, _seed, _in, _out, _redo, _convertf, _smartpca, _npcs = args
+    _i, _seed, _in, _out, _redo, _convertf, _smartpca, _npcs, _smartpca_optional_settings = args
     bootstrap_prefix = _out / f"bootstrap_{_i}"
 
     # first check if the final EIGEN files already exist
@@ -108,7 +108,8 @@ def _run(args):
         outfile_prefix=pca_prefix,
         smartpca=_smartpca,
         n_pcs=_npcs,
-        redo=_redo
+        redo=_redo,
+        smartpca_optional_settings = _smartpca_optional_settings
     )
 
     logger.info(fmt_message(f"Finished PCA for bootstrapped dataset #{_i}"))
@@ -125,6 +126,7 @@ def create_bootstrap_pcas(
     n_pcs: int,
     n_threads: int,
     redo: bool = False,
+    smartpca_optional_settings: Dict = None
 ) -> List[PCA]:
     """
     Draws n_bootstraps bootstrapped datasets using the provided PLINK files, creating new PLINK files.
@@ -133,7 +135,7 @@ def create_bootstrap_pcas(
     random.seed(seed)
     bootstrap_seeds = [random.randint(0, 1_000_000) for _ in range(n_bootstraps)]
     args = [
-        (_i + 1, _seed, infile_prefix, bootstrap_outdir, redo, convertf, smartpca, n_pcs)
+        (_i + 1, _seed, infile_prefix, bootstrap_outdir, redo, convertf, smartpca, n_pcs, smartpca_optional_settings)
         for _i, _seed in zip(range(n_bootstraps), bootstrap_seeds)
     ]
 

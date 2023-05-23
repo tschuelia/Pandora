@@ -58,6 +58,9 @@ varianceCutoff: 95
 # populations and samples in your data
 kClusters: 3
 
+# TODO: write description
+roguenessCutoff: 0.95
+
 # Optional path to the smartPCA executable. Per default, Pandora will use 'smartpca'.
 # Specify a path if smartPCA is not installed system-wide on your machine.
 smartpca: /Users/julia/micromamba/envs/pca_micromamba/bin/smartpca
@@ -76,3 +79,12 @@ verbosity: 2
 # number of decimals to round the results to
 # default is 2
 resultsDecimals: 2
+
+# smartPCA options
+# in this section you can set any option that should be used for smartPCA
+# for a list of possible settings see: https://github.com/DReichLab/EIG/blob/master/POPGEN/README
+# not allowed are the following options: genotypename, snpname, indivname, evecoutname, evaloutname, numoutevec, maxpops
+# use the following schema to set the options:
+smartpcaOptionalSettings:
+  shrinkmode: NO
+

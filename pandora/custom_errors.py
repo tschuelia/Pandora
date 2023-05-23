@@ -1,0 +1,2 @@
+class PandoraConfigException(Exception):
+    pass

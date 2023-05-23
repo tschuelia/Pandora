@@ -7,17 +7,52 @@ from pandora.logger import *
 from pandora.pca import PCA, from_smartpca
 
 
+def _check_smartpca_results_correct(outfile_prefix: FilePath, n_pcs: int):
+    """
+    Checks whether existing smartPCA results are correct.
+    We consider them to be correct if
+    1. the smartPCA run finished properly as indicated by the respective log file
+    2. the number of principal components of the existing PCA matches the requested number n_pcs
+    """
+    # 1. check if the run finished properly, that is indicated by a line "##end of smartpca:" in the smartpca_log file
+    smartpca_log = pathlib.Path(f"{outfile_prefix}.smartpca.log")
+    run_finished = any(["##end of smartpca:" in line for line in smartpca_log.open()])
+
+    if not run_finished:
+        # something must have gone wrong with the previous smartPCA run, it did not finish properly
+        logger.debug(
+            fmt_message(f"Previous smartPCA results {outfile_prefix}.* appear to be incomplete. Repeating PCA.")
+        )
+        return False
+
+    # 2. check that the number of PCs of the existing results matches the number of PCs set in the function call here
+    evec_out = pathlib.Path(f"{outfile_prefix}.evec")
+    eval_out = pathlib.Path(f"{outfile_prefix}.eval")
+
+    pca = from_smartpca(evec_out, eval_out)
+    if pca.n_pcs != n_pcs:
+        logger.debug(
+            fmt_message(f"Previous smartPCA results have {pca.n_pcs} principal components. "
+                        f"Requested n_pcs is {n_pcs}. Repeating PCA with {n_pcs} principal components.")
+        )
+        return False
+
+    return True
+
+
 def run_smartpca(
     infile_prefix: FilePath,
     outfile_prefix: FilePath,
     smartpca: Executable,
     n_pcs: int = 20,
     redo: bool = False,
+    smartpca_optional_settings: Dict = None
 ) -> PCA:
     geno = pathlib.Path(f"{infile_prefix}.geno")
     snp = pathlib.Path(f"{infile_prefix}.snp")
     ind = pathlib.Path(f"{infile_prefix}.ind")
 
+    # first check that all required input files are present
     files_exist = all([geno.exists(), snp.exists(), ind.exists()])
     if not files_exist:
         raise ValueError(
@@ -27,14 +62,13 @@ def run_smartpca(
 
     evec_out = pathlib.Path(f"{outfile_prefix}.evec")
     eval_out = pathlib.Path(f"{outfile_prefix}.eval")
-    outlier_out = pathlib.Path(f"{outfile_prefix}.outlier")
     smartpca_log = pathlib.Path(f"{outfile_prefix}.smartpca.log")
 
-    files_exist = all([evec_out.exists(), eval_out.exists(), outlier_out.exists(), smartpca_log.exists()])
+    # next, check whether the all required output files are already present
+    # and whether the smartPCA run finished properly and the number of PCs matches the requested number of PCs
+    files_exist = all([evec_out.exists(), eval_out.exists(), smartpca_log.exists()])
 
-    if files_exist and not redo:
-        # TODO: das reicht nicht als check, bei unfertigen runs sind die files einfach nicht vollständig aber
-        #  leider noch vorhanden
+    if files_exist and _check_smartpca_results_correct(outfile_prefix, n_pcs) and not redo:
         logger.info(
             fmt_message(f"Skipping smartpca. Files {outfile_prefix}.* already exist.")
         )
@@ -54,14 +88,17 @@ def run_smartpca(
             evaloutname: {eval_out}
             numoutevec: {n_pcs}
             maxpops: {num_populations}
-            outlieroutname: {outlier_out}
             """
-            # shrinkmode: YES
-        # projection_file = pathlib.Path(f"{infile_prefix}.population")
-        # if projection_file.exists():
-        #     conversion_content += f"\npoplistname: {projection_file}"
 
-        tmpfile.write(textwrap.dedent(conversion_content))
+        conversion_content = textwrap.dedent(conversion_content)
+
+        if smartpca_optional_settings is not None:
+            for k, v in smartpca_optional_settings.items():
+                if isinstance(v, bool):
+                    v = "YES" if v else "NO"
+                conversion_content += f"{k}: {v}\n"
+
+        tmpfile.write(conversion_content)
         tmpfile.flush()
 
         cmd = [
@@ -70,7 +107,11 @@ def run_smartpca(
             tmpfile.name,
         ]
         with smartpca_log.open("w") as logfile:
-            subprocess.run(cmd, stdout=logfile, stderr=logfile)
+            try:
+                subprocess.run(cmd, stdout=logfile, stderr=logfile)
+            except subprocess.CalledProcessError:
+                raise RuntimeError(f"Error running smartPCA. "
+                                   f"Check the smartPCA logfile {smartpca_log.absolute()} for details.")
 
     return from_smartpca(evec_out, eval_out)
 
@@ -99,6 +140,7 @@ def determine_number_of_pcs(
     smartpca: Executable,
     explained_variance_cutoff: float = 0.95,
     redo: bool = False,
+    **smartPCA_kwargs,
 ) -> int:
     n_pcs = 20
     pca_checkpoint = pathlib.Path(f"{outfile_prefix}.ckp")
@@ -147,6 +189,7 @@ def determine_number_of_pcs(
                 smartpca=smartpca,
                 n_pcs=n_pcs,
                 redo=True,
+                **smartPCA_kwargs
             )
             best_pcs = check_pcs_sufficient(
                 pca.explained_variances, explained_variance_cutoff

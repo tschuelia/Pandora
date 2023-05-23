@@ -1,88 +1,90 @@
 import dataclasses
 import itertools
-import logging
+import math
 import multiprocessing
-import pathlib
+import random
+import statistics
 import textwrap
+from collections import defaultdict
+from multiprocessing import Pool
+from plotly import graph_objects as go
+
 import yaml
 
-from collections import defaultdict
-
 from pandora import __version__
-from pandora.bootstrapping import create_bootstrap_pcas
 from pandora.custom_types import *
 from pandora.custom_errors import *
-from pandora.logger import logger, fmt_message
-from pandora.pca import *
+from pandora.dataset import Dataset
+from pandora.logger import *
 from pandora.pca_comparison import PCAComparison
-from pandora.pca_runner import run_smartpca
 
 
-@dataclasses.dataclass(repr=True)
+@dataclasses.dataclass
 class PandoraConfig:
-    infile_prefix: FilePath
-    outdir: FilePath
+    dataset_prefix: FilePath
+    result_dir: FilePath
 
+    # Bootstrap related settings
+    n_pcs: int
+    variance_cutoff: float
     n_bootstraps: int
-    threads: int
-    seed: int
-    redo: bool
-    variance_cutoff: int
-    k_clusters: int
-    rogueness_cutoff: float
-
     smartpca: Executable
-    convertf: Executable
+    rogueness_cutoff: float
+    smartpca_optional_settings: dict[str, str]
 
-    run_bootstrapping: bool
+    # Cluster settings
+    kmeans_k: Union[int, None]
+
+    # Pandora execution mode settings
+    do_bootstrapping: bool
     sample_support_values: bool
-    run_slidingWindow: bool
     plot_results: bool
+    redo: bool
+    seed: int
+    threads: int
+    result_decimals: int
+    verbosity: int
 
+    # Plot settings
     plot_pcx: int
     plot_pcy: int
-
-    verbosity: int
-    results_decimals: int
-
-    smartpca_optional_settings: dict[str, str]
 
     def __post_init__(self):
         # TODO: validate inputs
         """
         - Check that all input files are present
         """
-        if self.sample_support_values and not self.run_bootstrapping:
+        if self.sample_support_values and not self.do_bootstrapping:
             raise PandoraConfigException("Cannot compute the sample support values without bootstrap replicates. "
                                          "Set `bootstrap: True` in the config file and restart the analysis.")
 
     @property
-    def dataset(self):
-        return self.infile_prefix.name
+    def pandora_logfile(self) -> FilePath:
+        return self.result_dir / "pandora.log"
 
     @property
-    def outfile_prefix(self):
-        return self.outdir / self.dataset
+    def configfile(self) -> FilePath:
+        return self.result_dir / "pandora.yaml"
 
     @property
-    def filtered_infile_prefix(self):
-        return pathlib.Path(f"{self.outfile_prefix}.filtered")
+    def result_file(self) -> FilePath:
+        return self.result_dir / "pandora.txt"
 
     @property
-    def logfile(self):
-        return self.outdir / "pandora.log"
+    def bootstrap_result_dir(self) -> FilePath:
+        return self.result_dir / "bootstrap"
 
     @property
-    def configfile(self):
-        return self.outdir / "pandora.yaml"
+    def pairwise_bootstrap_result_file(self) -> FilePath:
+        return self.result_dir / "pandora.bootstrap.txt"
 
     @property
-    def bootstrap_dir(self):
-        return self.outdir / "bootstrap"
+    def sample_support_values_file(self) -> FilePath:
+        return self.result_dir / "pandora.supportValues.txt"
 
     @property
-    def plot_dir(self):
-        return self.outdir / "pcaPlots"
+    def plot_dir(self) -> FilePath:
+        return self.result_dir / "plots"
 
     @property
     def loglevel(self):
@@ -93,7 +95,8 @@ class PandoraConfig:
         elif self.verbosity == 2:
             return logging.DEBUG
         else:
-            raise ValueError(f"verbosity needs to be 0 (ERROR), 1 (INFO), or 2 (DEBUG). Instead got value {self.verbosity}.")
+            raise ValueError(
+                f"verbosity needs to be 0 (ERROR), 1 (INFO), or 2 (DEBUG). Instead got value {self.verbosity}.")
 
     def get_configuration(self):
         config = dataclasses.asdict(self)
@@ -106,175 +109,45 @@ class PandoraConfig:
 
         return config
 
-    def to_configfile(self):
+    def save_config(self):
         config_yaml = yaml.safe_dump(self.get_configuration())
+        # additionally save the Pandora version
         self.configfile.open(mode="w").write(f"# PANDORA VERSION {__version__}\n\n")
         self.configfile.open(mode="a").write(config_yaml)
 
-    def create_outdirs(self):
-        if self.run_bootstrapping:
-            self.bootstrap_dir.mkdir(exist_ok=True, parents=True)
+    def create_result_dirs(self):
+        if self.do_bootstrapping:
+            self.bootstrap_result_dir.mkdir(exist_ok=True, parents=True)
         if self.plot_results:
             self.plot_dir.mkdir(exist_ok=True, parents=True)
 
 
-@dataclasses.dataclass
 class Pandora:
-    pandora_config: PandoraConfig
+    def __init__(self, pandora_config: PandoraConfig):
+        self.pandora_config = pandora_config
+        self.dataset = Dataset(pandora_config.dataset_prefix)
+        self.bootstrap_datasets = []  # type: List[Dataset]
+        self.bootstrap_similarities = {}  # type: Dict[Tuple[int, int], float]
+        self.bootstrap_cluster_similarities = {}  # type: Dict[Tuple[int, int], float]
 
-    empirical_pca: PCA = None
-    bootstrap_pcas: List[PCA] = None
+        self.kmeans_k = self.pandora_config.kmeans_k
 
-    sample_ids: List[str] = None
-    populations: List[str] = None
+        self.sample_support_values = {}  # type: Dict[str, float]
 
-    n_pcs: int = None
-    kmeans_k: int = None
-
-    bootstrap_similarities: List[float] = None
-    bootstrap_cluster_similarities: List[float] = None
-    sample_support_values: Dict[str, float] = None
-
-    @property
-    def results_file(self):
-        return self.pandora_config.outdir / "pandora.results.txt"
-
-    @property
-    def pairwise_bootstrap_results_file(self):
-        return self.pandora_config.outdir / "pandora.bootstrap.txt"
-
-    @property
-    def sample_support_values_file(self):
-        return self.pandora_config.outdir / "pandora.supportValues.txt"
-
-    def set_sample_ids_and_populations(self):
-        ind_file = pathlib.Path(f"{self.pandora_config.infile_prefix}.ind")
-
-        sample_ids = []
-        populations = []
-
-        for sample in ind_file.open():
-            sample_id, _, population = sample.split()
-            sample_ids.append(sample_id.strip())
-            populations.append(population.strip())
-
-        self.sample_ids = sample_ids
-        self.populations = populations
-
-    def run_empirical_pca(self):
-        # First, determine the number of PCs we are going to use
-        # TODO: wie npcs bestimmen?
-        # n_pcs = determine_number_of_pcs(
-        #     infile_prefix=pandora_config.infile_prefix,
-        #     outfile_prefix=pandora_config.outfile_prefix,
-        #     smartpca=pandora_config.smartpca,
-        #     # TODO: what is a meaningful variance cutoff?
-        #     explained_variance_cutoff=pandora_config.variance_cutoff / 100,
-        #     redo=pandora_config.redo,
-        # )
-        n_pcs = 20
-        # Next, run SmartPCA with the determined number of PCs on the unmodified input dataset
-        # fmt: off
-        run_smartpca(
-            infile_prefix   = self.pandora_config.infile_prefix,
-            outfile_prefix  = self.pandora_config.outfile_prefix,
-            smartpca        = self.pandora_config.smartpca,
-            n_pcs           = n_pcs,
-            redo            = self.pandora_config.redo,
-            smartpca_optional_settings=self.pandora_config.smartpca_optional_settings
-        )
-        # fmt: on
-        # now run the empirical PCA again using the determined number of n_pcs
-        evec_file = pathlib.Path(f"{self.pandora_config.outfile_prefix}.evec")
-        eval_file = pathlib.Path(f"{self.pandora_config.outfile_prefix}.eval")
-        self.empirical_pca = from_smartpca(evec_file, eval_file)
-        self.n_pcs = n_pcs
-
-    def run_bootstrap_pcas(self):
-        # TODO: implement bootstopping
-        self.bootstrap_pcas = create_bootstrap_pcas(
-            infile_prefix=self.pandora_config.infile_prefix,
-            bootstrap_outdir=self.pandora_config.bootstrap_dir,
-            convertf=self.pandora_config.convertf,
+    def do_pca(self):
+        self.dataset.smartpca(
+            result_dir=self.pandora_config.result_dir,
             smartpca=self.pandora_config.smartpca,
-            n_bootstraps=self.pandora_config.n_bootstraps,
-            seed=self.pandora_config.seed,
-            n_pcs=self.n_pcs,
-            n_threads=self.pandora_config.threads,
+            n_pcs=self.pandora_config.n_pcs,
             redo=self.pandora_config.redo,
             smartpca_optional_settings=self.pandora_config.smartpca_optional_settings
         )
 
-    def _set_kmeans_k(self):
-        kmeans_k_ckp = self.pandora_config.outdir / "kmeans.ckp"
-
-        if kmeans_k_ckp.exists() and not self.pandora_config.redo:
-            self.kmeans_k = int(open(kmeans_k_ckp).readline())
-            return
-        elif self.pandora_config.k_clusters is not None:
-            kmeans_k = self.pandora_config.k_clusters
-            logger.info(fmt_message(f"Using configured number of clusters: {kmeans_k}"))
-        else:
-            kmeans_k = self.empirical_pca.get_optimal_kmeans_k()
-            logger.info(fmt_message(f"Optimal number of clusters determined to be: {kmeans_k}"))
-
-        kmeans_k_ckp.open("w").write(str(kmeans_k))
-        self.kmeans_k = kmeans_k
-
-    def compare_bootstrap_results(self):
-        # Compare all bootstraps pairwise
-        bootstrap_similarities = []
-        bootstrap_cluster_similarities = []
-
-        pairwise_outfile = self.pairwise_bootstrap_results_file
-        pairwise_outfile.unlink(missing_ok=True)
-
-        # determine and set the number of clusters to use for K-Means comparison
-        self._set_kmeans_k()
-
-        with pairwise_outfile.open("a") as f:
-            for (i1, bootstrap1), (i2, bootstrap2) in itertools.combinations(
-                    enumerate(self.bootstrap_pcas, start=1), r=2):
-                pca_comparison = PCAComparison(comparable=bootstrap1, reference=bootstrap2)
-                similarity = pca_comparison.compare()
-                bootstrap_similarities.append(similarity)
-
-                clustering_score = pca_comparison.compare_clustering(kmeans_k=self.kmeans_k)
-                bootstrap_cluster_similarities.append(clustering_score)
-
-                f.write(f"{i1}\t{i2}\t{round(similarity, 4)}\t{round(clustering_score, 4)}\n")
-
-        self.bootstrap_similarities = bootstrap_similarities
-        self.bootstrap_cluster_similarities = bootstrap_cluster_similarities
-
-    def log_and_save_bootstrap_results(self):
-        _mean_pca = round(np.mean(self.bootstrap_similarities), self.pandora_config.results_decimals)
-        _std_pca = round(np.std(self.bootstrap_similarities), self.pandora_config.results_decimals)
-
-        _mean_kmeans = round(np.mean(self.bootstrap_cluster_similarities), self.pandora_config.results_decimals)
-        _std_kmeans = round(np.std(self.bootstrap_cluster_similarities), self.pandora_config.results_decimals)
-
-        bootstrap_results_string = textwrap.dedent(
-            f"""
-            > Number of Bootstrap replicates computed: {self.pandora_config.n_bootstraps}
-            > Number of PCs required to explain at least {self.pandora_config.variance_cutoff}% variance: {self.n_pcs}
-            > Optimal number of clusters: {self.kmeans_k}
-            
-            ------------------
-            Bootstrapping Similarity
-            ------------------
-            PCA: {_mean_pca} ± {_std_pca}
-            K-Means clustering: {_mean_kmeans} ± {_std_kmeans}"""
-        )
-
-        logger.info(bootstrap_results_string)
-        self.results_file.open(mode="a").write(bootstrap_results_string)
-
-    def plot_pca(self, pca:PCA, plot_prefix: str):
+    def _plot_pca(self, dataset: Dataset, plot_prefix: str):
         pcx = self.pandora_config.plot_pcx
         pcy = self.pandora_config.plot_pcy
         # plot with annotated populations
-        pca.plot(
+        dataset.pca.plot(
             pcx=pcx,
             pcy=pcy,
             annotation="population",
@@ -283,7 +156,7 @@ class Pandora:
         )
 
         # plot with annotated clusters
-        pca.plot(
+        dataset.pca.plot(
             pcx=pcx,
             pcy=pcy,
             annotation="cluster",
@@ -292,41 +165,112 @@ class Pandora:
             redo=self.pandora_config.redo
         )
 
-        logger.info(fmt_message(f"Plotted bootstrap PCA {plot_prefix}"))
+    def plot_dataset(self):
+        self._plot_pca(self.dataset, self.dataset.name)
 
-    def plot_results(self):
-        self.plot_pca(self.empirical_pca, "empirical")
-        for i, bootstrap_pca in enumerate(self.bootstrap_pcas):
-            self.plot_pca(bootstrap_pca, f"bootstrap_{i + 1}")
+    # ===========================
+    # BOOTSTRAP RELATED FUNCTIONS
+    # ===========================
+    def bootstrap_dataset(self):
+        random.seed(self.pandora_config.seed)
+
+        args = [
+            (self.pandora_config.bootstrap_result_dir / f"bootstrap_{i}", random.randint(0, 1_000_000), self.pandora_config.redo)
+            for i in range(self.pandora_config.n_bootstraps)
+        ]
+
+        with Pool(self.pandora_config.threads) as p:
+            self.bootstrap_datasets = list(p.starmap(self.dataset.create_bootstrap, args))
+
+    def _run_pca(self, bootstrap: Dataset):
+        bootstrap.smartpca(
+            smartpca=self.pandora_config.smartpca,
+            n_pcs=self.pandora_config.n_pcs,
+            redo=self.pandora_config.redo,
+            smartpca_optional_settings=self.pandora_config.smartpca_optional_settings
+        )
+        return bootstrap
+
+    def bootstrap_pcas(self):
+        with Pool(self.pandora_config.threads) as p:
+            # the subprocesses in Pool do not modify the object but work on a copy
+            # we thus replace the objects with their modified versions
+            self.bootstrap_datasets = list(p.map(self._run_pca, self.bootstrap_datasets))
+
+    def plot_bootstraps(self):
+        for i, bootstrap in enumerate(self.bootstrap_datasets):
+            self._plot_pca(bootstrap, f"bootstrap_{i}")
+
+    def compare_bootstrap_similarity(self):
+        # Compare all bootstraps pairwise
+        if self.kmeans_k is not None:
+            kmeans_k = self.kmeans_k
+        else:
+            kmeans_k = self.dataset.pca.get_optimal_kmeans_k()
+
+        for (i1, bootstrap1), (i2, bootstrap2) in itertools.combinations(enumerate(self.bootstrap_datasets), r=2):
+            pca_comparison = PCAComparison(comparable=bootstrap1.pca, reference=bootstrap2.pca)
+            self.bootstrap_similarities[(i1, i2)] = pca_comparison.compare()
+            self.bootstrap_cluster_similarities[(i1, i2)] = pca_comparison.compare_clustering(kmeans_k)
+
+    def log_and_save_bootstrap_results(self):
+        # store the pairwise results in a file
+        _rd = self.pandora_config.result_decimals
+
+        with self.pandora_config.pairwise_bootstrap_result_file.open(mode="a") as f:
+            for (i1, i2), similarity in self.bootstrap_similarities.items():
+                cluster_similarity = self.bootstrap_cluster_similarities[(i1, i2)]
+
+                f.write(f"{i1}\t{i2}\t{round(similarity, _rd)}\t{round(cluster_similarity, _rd)}\n")
+
+        # log the summary and save it in a file
+        _mean_pca = round(statistics.mean(self.bootstrap_similarities.values()), _rd)
+        _std_pca = round(statistics.stdev(self.bootstrap_similarities.values()), _rd)
+
+        _mean_kmeans = round(statistics.mean(self.bootstrap_cluster_similarities.values()), _rd)
+        _std_kmeans = round(statistics.stdev(self.bootstrap_cluster_similarities.values()), _rd)
+
+        bootstrap_results_string = textwrap.dedent(
+            f"""
+            > Number of Bootstrap replicates computed: {self.pandora_config.n_bootstraps}
+            > Number of Kmeans clusters: {self.kmeans_k}
+
+            ------------------
+            Bootstrapping Similarity
+            ------------------
+            PCA: {_mean_pca} ± {_std_pca}
+            K-Means clustering: {_mean_kmeans} ± {_std_kmeans}"""
+        )
+
+        self.pandora_config.result_file.open(mode="a").write(bootstrap_results_string)
+        logger.info(bootstrap_results_string)
 
     def compute_sample_support_values(self):
         # compare all bootstrap results pairwise and determine the rogue samples for each comparison
+        self.dataset.set_sample_ids_and_populations()
         rogue_counter = defaultdict(int)
 
-        for bootstrap1, bootstrap2 in itertools.combinations(self.bootstrap_pcas, r=2):
-            pca_comparison = PCAComparison(comparable=bootstrap1, reference=bootstrap2)
+        for bootstrap1, bootstrap2 in itertools.combinations(self.bootstrap_datasets, r=2):
+            pca_comparison = PCAComparison(comparable=bootstrap1.pca, reference=bootstrap2.pca)
             rogue_samples = pca_comparison.detect_rogue_samples(rogue_cutoff=self.pandora_config.rogueness_cutoff)
             for sample in rogue_samples:
                 rogue_counter[sample] += 1
 
-        n_bootstraps = len(self.bootstrap_pcas)
-        n_bootstrap_combinations = math.comb(n_bootstraps, 2)
+        n_bootstrap_combinations = math.comb(self.pandora_config.n_bootstraps, 2)
 
         # compute the support value for each sample
         # to do so, we compute 1 - (#rogue / #combinations)
-        support_values = {}
+        for sample in self.dataset.samples:
+            self.sample_support_values[sample] = 1 - (rogue_counter.get(sample, 0) / n_bootstrap_combinations)
 
-        with self.sample_support_values_file.open(mode="w") as f:
-            for sample in self.sample_ids:
-                rogueness = 1 - (rogue_counter.get(sample, 0) / n_bootstrap_combinations)
-                support_values[sample] = rogueness
-                f.write(f"{sample}\t{round(rogueness, 4)}")
-
-        self.sample_support_values = support_values
+    def save_sample_support_values(self):
+        with self.pandora_config.sample_support_values_file.open(mode="w") as f:
+            for sample, support_value in self.sample_support_values.items():
+                f.write(f"{sample}\t{round(support_value, self.pandora_config.result_decimals)}\n")
 
     def plot_sample_support_values(self):
         # Annotate the sample support values for each sample in the empirical PCA
-        pca_data = self.empirical_pca.pca_data
+        pca_data = self.dataset.pca.pca_data
 
         # to make sure we are correctly matching the sample IDs with their support apply explicit sorting
         pca_data = pca_data.sort_values(by="sample_id").reset_index(drop=True)
@@ -349,38 +293,41 @@ class Pandora:
         fig.update_xaxes(title=f"PC {pcx + 1}")
         fig.update_yaxes(title=f"PC {pcy + 1}")
         fig.update_layout(template="plotly_white", height=1000, width=1000)
-        fig.write_image(self.pandora_config.plot_dir / f"sample_support_values.pdf",)
+        fig.write_image(self.pandora_config.plot_dir / f"sample_support_values.pdf", )
         return fig
 
 
 def pandora_config_from_configfile(configfile: FilePath) -> PandoraConfig:
-    config_data = yaml.load(open(configfile), yaml.Loader)
+    config_data = yaml.safe_load(configfile.open())
 
     # fmt: off
     return PandoraConfig(
-        infile_prefix   = pathlib.Path(config_data["input"]),
-        outdir          = pathlib.Path(config_data["output"]),
+        dataset_prefix  = pathlib.Path(config_data["input"]),
+        result_dir      = pathlib.Path(config_data["output"]),
+
+        # Bootstrap related settings
+        n_pcs           = 20,  # TODO: implement automatic detection
+        variance_cutoff = config_data.get("varianceCutoff", 0.95),
         n_bootstraps    = config_data.get("bootstraps", 100),
-        threads         = config_data.get("threads", multiprocessing.cpu_count()),
-        seed            = config_data.get("seed", 0),
-        redo            = config_data.get("redo", False),
-        variance_cutoff = config_data.get("varianceCutoff", 95),
-        k_clusters      = config_data.get("kClusters", None),
-        rogueness_cutoff = config_data.get("roguenessCutoff", 0.95),
         smartpca        = config_data.get("smartpca", "smartpca"),
-        convertf        = config_data.get("convertf", "convertf"),
-        run_bootstrapping     = config_data.get("bootstrap", True),
-        sample_support_values = config_data.get("supportValues", False),
-        run_slidingWindow     = config_data.get("slidingWindow", False),
-        plot_results    = config_data.get("plotResults", False),
-        plot_pcx        = config_data.get("plot_pcx", 0),
-        plot_pcy        = config_data.get("plot_pcy", 0),
-        verbosity       = config_data.get("verbosity", 2),
-        results_decimals = config_data.get("resultsDecimals", 2),
-        smartpca_optional_settings  = config_data.get("smartpcaOptionalSettings", {})
+        smartpca_optional_settings  = config_data.get("smartpcaOptionalSettings", {}),
+        rogueness_cutoff = config_data.get("roguenessCutoff", 0.95),
+
+        # Cluster settings
+        kmeans_k = config_data.get("kClusters", None),
+
+        # Pandora execution mode settings
+        do_bootstrapping        = config_data.get("bootstrap", True),
+        sample_support_values   = config_data.get("supportValues", False),
+        plot_results            = config_data.get("plotResults", False),
+        redo            = config_data.get("redo", False),
+        seed            = config_data.get("seed", 0),
+        threads         = config_data.get("threads", multiprocessing.cpu_count()),
+        result_decimals = config_data.get("resultsDecimals", 2),
+        verbosity   = config_data.get("verbosity", 2),
+
+        # Plot settings
+        plot_pcx    = config_data.get("plot_pcx", 0),
+        plot_pcy    = config_data.get("plot_pcy", 0),
     )
     # fmt: on
-
-
-
-

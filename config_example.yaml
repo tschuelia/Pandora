@@ -50,7 +50,7 @@ plot_pcy: 1
 # Cutoff to use when determining the number of PCs required.
 # Pandora will automatically find the number of PCs required to explain at least
 # <varianceCutoff>%% variance in the data. Default is 95%.
-varianceCutoff: 95
+varianceCutoff: 0.95
 
 # Number of clusters to use for the K-Means clustering
 # Only set this if you have prior knowledge about the correct number of clusters

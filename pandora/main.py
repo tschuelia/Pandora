@@ -6,13 +6,6 @@ from pandora import __version__
 from pandora.pandora import *
 from pandora.logger import *
 
-"""
-TODO: 
-- bootstopping
-- check bei jedem PCA das geskippt wird ob die Anzahl PCs auch mit der bestimmten Anzahl PCs die verwendet werden sollten 
-    übereinstimmt -> falls nein, neu berechnen 
-"""
-
 
 def get_header():
     return textwrap.dedent(
@@ -28,7 +21,7 @@ def argument_parser():
     parser.add_argument(
         "-c",
         "--config",
-        type=str,
+        type=FilePath,
         required=True,
         help="Path to the yaml config file to use for the Pandora analyses. "
              "Needs to be in valid yaml format. See the example file for guidance on how to configure your run."
@@ -39,9 +32,6 @@ def argument_parser():
 
 def main():
     print(get_header())
-    """
-    Command line parser 
-    """
     args = argument_parser()
 
     """
@@ -53,15 +43,18 @@ def main():
     pandora_config = pandora_config_from_configfile(args.config)
 
     # create the required output directories based on the analysis specified
-    pandora_config.create_outdirs()
+    pandora_config.create_result_dirs()
+    pandora_config.result_file.unlink(missing_ok=True)
+
 
     # set the log verbosity according to the pandora config
     logger.setLevel(pandora_config.loglevel)
 
     # hook up the logfile to the logger to also store the output
-    pandora_config.logfile.open(mode="w").write(get_header())
-    logger.addHandler(logging.FileHandler(pandora_config.logfile))
+    pandora_config.pandora_logfile.open(mode="w").write(get_header())
+    logger.addHandler(logging.FileHandler(pandora_config.pandora_logfile))
 
+    # log the run configuration
     _arguments_str = [f"{k}: {v}" for k, v in pandora_config.get_configuration().items()]
     _command_line = " ".join(sys.argv)
 
@@ -70,53 +63,52 @@ def main():
     logger.info(f"\nCommand line: {_command_line}")
 
     # store pandora config in a verbose config file for reproducibility
-    pandora_config.to_configfile()
+    pandora_config.save_config()
 
     # =======================================
     # start computation
     # =======================================
     logger.info("\n--------- STARTING COMPUTATION ---------")
 
-    # initialize empty PandoraResults object that keeps track of all results
-    pandora_results = Pandora(
-        pandora_config=pandora_config
-    )
+    # initialize empty Pandora object that keeps track of all results
+    pandora_results = Pandora(pandora_config)
 
-    if pandora_config.run_bootstrapping:
-        # Empirical PCA using smartPCA and no bootstrapping
-        pandora_results.run_empirical_pca()
+    # TODO: implement alternative MDS analysis
+    # Run PCA on the input dataset without any bootstrapping
+    logger.info(fmt_message("Running SmartPCA on the input dataset."))
+    pandora_results.do_pca()
 
+    if pandora_config.plot_results:
+        pandora_results.plot_dataset()
+
+    if pandora_config.do_bootstrapping:
         # Bootstrapped PCAs
-        logger.info(fmt_message(f"Drawing {pandora_config.n_bootstraps} bootstrapped datasets."))
-        pandora_results.run_bootstrap_pcas()
+        logger.info(fmt_message(f"Drawing {pandora_config.n_bootstraps} bootstrapped datasets and running SmartPCA."))
+        pandora_results.bootstrap_dataset()
+        pandora_results.bootstrap_pcas()
 
         # =======================================
         # Compare results
         # pairwise comparison between all bootstraps
         # =======================================
         logger.info(fmt_message(f"Comparing bootstrap PCA results."))
-        pandora_results.compare_bootstrap_results()
+        pandora_results.compare_bootstrap_similarity()
 
-        # =======================================
-        # Plot results
-        # =======================================
         if pandora_config.plot_results:
-            pandora_results.plot_results()
-
-    logger.info("\n\n========= PANDORA RESULTS =========")
-    logger.info(f"> Input dataset: {pandora_config.infile_prefix.absolute()}")
-
-    pandora_results.results_file.unlink(missing_ok=True)
-
-    if pandora_config.run_bootstrapping:
-        pandora_results.log_and_save_bootstrap_results()
+            pandora_results.plot_bootstraps()
 
     if pandora_config.sample_support_values:
-        pandora_results.set_sample_ids_and_populations()
         pandora_results.compute_sample_support_values()
+        pandora_results.save_sample_support_values()
 
         if pandora_config.plot_results:
             pandora_results.plot_sample_support_values()
+
+    logger.info("\n\n========= PANDORA RESULTS =========")
+    logger.info(f"> Input dataset: {pandora_config.dataset_prefix.absolute()}")
+
+    if pandora_config.do_bootstrapping:
+        pandora_results.log_and_save_bootstrap_results()
 
     logger.info(
         textwrap.dedent(
@@ -126,14 +118,19 @@ def main():
             ------------------"""
         )
     )
-    logger.info(f"> Pandora results: {pandora_results.results_file.absolute()}")
+    logger.info(f"> Pandora results: {pandora_config.result_file.absolute()}")
 
-    if pandora_config.run_bootstrapping:
-        logger.info(f"> Pairwise bootstrap: {pandora_results.pairwise_bootstrap_results_file.absolute()}")
+    if pandora_config.do_bootstrapping:
+        logger.info(f"> Pairwise bootstrap similarities: {pandora_config.pairwise_bootstrap_result_file.absolute()}")
+
+    if pandora_config.sample_support_values:
+        logger.info(f"> Sample Support values: {pandora_config.sample_support_values_file.absolute()}")
+
+    if pandora_config.plot_results:
+        logger.info(f"> All plots saved in directory: {pandora_config.plot_dir.absolute()}")
 
     total_runtime = math.ceil(time.perf_counter() - SCRIPT_START)
     logger.info(f"\nTotal runtime: {datetime.timedelta(seconds=total_runtime)} ({total_runtime} seconds)")
-
 
 if __name__ == "__main__":
     main()

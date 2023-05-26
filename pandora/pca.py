@@ -11,7 +11,7 @@ from sklearn.mixture import GaussianMixture
 from sklearn.model_selection import GridSearchCV
 
 from pandora.custom_types import *
-from pandora.utils import get_colors
+from pandora.utils import get_distinct_colors
 
 
 class PCA:
@@ -162,7 +162,7 @@ class PCA:
         _pca_data = self.pca_data.copy()
         _pca_data["cluster"] = cluster_labels
 
-        colors = get_colors(kmeans_k)
+        colors = get_distinct_colors(kmeans_k)
 
         for i in range(kmeans_k):
             _data = _pca_data.loc[_pca_data.cluster == i]
@@ -187,7 +187,7 @@ class PCA:
                 "Cannot plot populations: no populations associated with PCA data."
             )
         populations = self.pca_data.population.unique()
-        colors = get_colors(len(populations))
+        colors = get_distinct_colors(len(populations))
         assert len(populations) == len(colors), f"{len(populations)}, {len(colors)}"
         for i, population in enumerate(populations):
             _data = self.pca_data.loc[self.pca_data.population == population]

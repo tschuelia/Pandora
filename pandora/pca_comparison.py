@@ -12,7 +12,7 @@ from sklearn.metrics.pairwise import euclidean_distances
 
 from pandora.custom_types import *
 from pandora.pca import PCA
-from pandora.utils import get_colors
+from pandora.utils import get_distinct_colors
 
 
 def _correct_missing(pca: PCA, samples_in_both):
@@ -183,7 +183,7 @@ class PCAComparison:
     ):
         if show_rogue:
             rogue_samples = self.detect_rogue_samples(rogue_cutoff=rogue_cutoff)
-            rogue_colors = dict(zip(rogue_samples, get_colors(len(rogue_samples))))
+            rogue_colors = dict(zip(rogue_samples, get_distinct_colors(len(rogue_samples))))
             rogue_text = dict(zip(rogue_samples, rogue_samples))
 
             color_reference = [
@@ -291,7 +291,7 @@ def plot_rogue_samples(
         )
 
     rogueness = dict(zip(rogue_ids, rogueness))
-    rogue_colors = dict(zip(rogue_ids, get_colors(len(rogue_ids))))
+    rogue_colors = dict(zip(rogue_ids, get_distinct_colors(len(rogue_ids))))
     rogue_text = dict([(s, f"{round(rogueness[s], 2)}<br>({s})") for s in rogue_ids])
 
     fig = go.Figure(

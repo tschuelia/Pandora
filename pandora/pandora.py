@@ -17,6 +17,7 @@ from pandora.custom_errors import *
 from pandora.dataset import Dataset
 from pandora.logger import *
 from pandora.pca_comparison import PCAComparison
+from pandora.utils import improve_plotly_text_position
 
 
 @dataclasses.dataclass
@@ -286,14 +287,15 @@ class Pandora:
                 y=pca_data[f"PC{pcy}"],
                 mode="markers+text",
                 # annotate only samples with a support value < 1
-                text=[f"{round(support, 2)}" if support < 1 else "" for (_, support) in support_values],
+                text=[f"{round(support, 2)}<br>({sample})" if support < 1 else "" for (sample, support) in support_values],
                 textposition="bottom center"
             )
         )
         fig.update_xaxes(title=f"PC {pcx + 1}")
         fig.update_yaxes(title=f"PC {pcy + 1}")
         fig.update_layout(template="plotly_white", height=1000, width=1000)
-        fig.write_image(self.pandora_config.plot_dir / f"sample_support_values.pdf", )
+        fig.update_traces(textposition=improve_plotly_text_position(pca_data[f"PC{pcx}"]))
+        fig.write_image(self.pandora_config.plot_dir / f"sample_support_values.pdf")
         return fig
 
 

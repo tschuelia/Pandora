@@ -204,12 +204,32 @@ class PCA:
 
         return fig
 
+    def _plot_projections(self, pcx, pcy, projected_populations: List[str], **kwargs):
+        populations = self.pca_data.population.unique()
+        projection_colors = get_distinct_colors(populations.shape[0])
+        fig = go.Figure()
+        for i, population in enumerate(populations):
+            _data = self.pca_data.loc[self.pca_data.population == population]
+            marker_color = projection_colors[i] if population not in projected_populations else "gray"
+            fig.add_trace(
+                go.Scatter(
+                    x=_data[f"PC{pcx}"],
+                    y=_data[f"PC{pcy}"],
+                    mode="markers",
+                    marker_color=marker_color,
+                    name=population,
+                    **kwargs,
+                )
+            )
+        return fig
+
     def plot(
         self,
         pcx: int = 0,
         pcy: int = 1,
         annotation: str = None,
         kmeans_k: int = None,
+        projected_populations: List[str] = None,
         fig: go.Figure = None,
         marker_color="darkseagreen",
         name: str = "",
@@ -250,11 +270,20 @@ class PCA:
                 f"Parameter kmeans_k ignored for annotation setting {annotation}."
             )
 
+        if projected_populations is not None and annotation != "projection":
+            warnings.warn(
+                f"Parameter projected_populations ignored for annotation setting {annotation}."
+            )
+
         if annotation == "population":
             self._plot_populations(pcx=pcx, pcy=pcy, fig=fig, **kwargs)
         elif annotation == "cluster":
             fig = self._plot_clusters(
                 pcx=pcx, pcy=pcy, kmeans_k=kmeans_k, fig=fig, **kwargs
+            )
+        elif annotation == "projection":
+            self._plot_projections(
+                pcx=pcx, pcy=pcy, projected_populations=projected_populations, **kwargs
             )
         elif annotation is None:
             fig.add_trace(
@@ -290,20 +319,20 @@ class PCA:
         return fig
 
 
-def from_smartpca(smartpca_evec_file: FilePath, smartpca_eval_file: FilePath) -> PCA:
+def from_smartpca(evec: FilePath, eval: FilePath) -> PCA:
     """
     Creates a PCA object from a smartPCA results file.
 
     Args:
-        smartpca_evec_file (FilePath): FilePath to the evec results of SmartPCA run.
-        smartpca_evec_file (FilePath): FilePath to the eval results of SmartPCA run.
+        evec (FilePath): FilePath to the evec results of SmartPCA run.
+        eval (FilePath): FilePath to the eval results of SmartPCA run.
 
     Returns:
         PCA: PCA object encapsulating the results of the SmartPCA run.
 
     """
     # First, read the eigenvectors and transform it into the pca_data pandas dataframe
-    with open(smartpca_evec_file) as f:
+    with open(evec) as f:
         # first line does not contain data we are interested in
         f.readline()
         pca_data = pd.read_table(f, delimiter=" ", skipinitialspace=True, header=None)
@@ -315,7 +344,7 @@ def from_smartpca(smartpca_evec_file: FilePath, smartpca_eval_file: FilePath) ->
     pca_data = pca_data.sort_values(by="sample_id").reset_index(drop=True)
 
     # next, read the eigenvalues and compute the explained variances for all n_pcs principal components
-    eigenvalues = open(smartpca_eval_file).readlines()
+    eigenvalues = open(eval).readlines()
     eigenvalues = [float(ev) for ev in eigenvalues]
     explained_variances = [ev / sum(eigenvalues) for ev in eigenvalues]
     # keep only the first n_pcs explained variances

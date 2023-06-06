@@ -1,9 +1,18 @@
 import numpy as np
 import pandas as pd
 import pathlib
+from enum import Enum
 from typing import Union, Tuple, Dict, List
 
 
 FilePath = pathlib.Path
 Executable = Union[str, pathlib.Path]
 _PCA = Union[np.ndarray, pd.DataFrame]
+
+
+class FileFormat(Enum):
+    ANCESTRYMAP = "ANCESTRYMAP"
+    EIGENSTRAT = "EIGENSTRAT"
+    PED = "PED"
+    PACKEDPED = "PACKEDPED"
+    PACKEDANCESTRYMAP = "PACKEDANCESTRYMAP"

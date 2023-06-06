@@ -145,7 +145,7 @@ class PCAComparison:
                 dist > rogue_threshold
                 # make sure we are not flagging samples as rogue due to float comparisons
                 # this is necessary when comparing (almost) identical PCA objects
-                and not math.isclose(dist, rogue_threshold, abs_tol=1e-6)
+                and not math.isclose(dist, rogue_threshold, rel_tol=1e-6)
             )
         ]
 

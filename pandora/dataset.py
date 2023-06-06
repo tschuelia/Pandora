@@ -10,34 +10,36 @@ import random
 
 from pandora.custom_types import *
 from pandora.custom_errors import *
+from pandora.converter import run_convertf
 from pandora.pca import PCA, from_smartpca
 
 
 class Dataset:
-    def __init__(self, file_prefix: FilePath):
-        self.file_prefix = file_prefix
-        self.name = self.file_prefix.name
-        self.file_dir = self.file_prefix.parent
+    def __init__(self, file_prefix: FilePath, projected_populations: FilePath = None):
+        self.file_prefix: FilePath = file_prefix
+        self.file_dir: FilePath = self.file_prefix.parent
+        self.name: str = self.file_prefix.name
 
-        self.ind_file = pathlib.Path(f"{self.file_prefix}.ind")
-        self.geno_file = pathlib.Path(f"{self.file_prefix}.geno")
-        self.snp_file = pathlib.Path(f"{self.file_prefix}.snp")
+        self.ind_file: FilePath = pathlib.Path(f"{self.file_prefix}.ind")
+        self.geno_file: FilePath = pathlib.Path(f"{self.file_prefix}.geno")
+        self.snp_file: FilePath = pathlib.Path(f"{self.file_prefix}.snp")
 
-        self.evec_out = None  # type: Union[None, FilePath]
-        self.eval_out = None  # type: Union[None, FilePath]
-        self.smartpca_log = None  # type: Union[None, FilePath]
+        self.projected_populations: Union[None, FilePath] = projected_populations
 
-        self.pca = None  # type: Union[None, PCA]
+        self.evec_out: Union[None, FilePath] = None
+        self.eval_out: Union[None, FilePath] = None
+        self.smartpca_log: Union[None, FilePath] = None
 
-        self.samples = {}  # type: Dict[str, str]
+        self.pca: Union[None, PCA] = None
+
+        self.samples: Dict[str, str] = {}
 
     def set_sample_ids_and_populations(self):
+        if not self.ind_file.exists():
+            raise PandoraConfigException(f"The .ind file {self.ind_file} does not exist.")
+
         for sample in self.ind_file.open():
-            if not self.ind_file.exists():
-                raise PandoraConfigException(f"The .ind file {self.ind_file} does not exist.")
-
             sample_id, _, population = sample.split()
-
             self.samples[sample_id] = population
 
     def get_n_unique_populations(self) -> int:
@@ -106,25 +108,29 @@ class Dataset:
             )
 
         with tempfile.NamedTemporaryFile(mode="w") as tmpfile:
-            conversion_content = f"""
-                        genotypename: {self.geno_file}
-                        snpname: {self.snp_file}
-                        indivname: {self.ind_file}
-                        evecoutname: {self.evec_out}
-                        evaloutname: {self.eval_out}
-                        numoutevec: {n_pcs}
-                        maxpops: {self.get_n_unique_populations()}
-                        """
+            smartpca_params = f"""
+                genotypename: {self.geno_file}
+                snpname: {self.snp_file}
+                indivname: {self.ind_file}
+                evecoutname: {self.evec_out}
+                evaloutname: {self.eval_out}
+                numoutevec: {n_pcs}
+                maxpops: {self.get_n_unique_populations()}
+                """
 
-            conversion_content = textwrap.dedent(conversion_content)
+            smartpca_params = textwrap.dedent(smartpca_params)
 
             if smartpca_optional_settings is not None:
                 for k, v in smartpca_optional_settings.items():
                     if isinstance(v, bool):
                         v = "YES" if v else "NO"
-                    conversion_content += f"{k}: {v}\n"
+                    smartpca_params += f"{k}: {v}\n"
 
-            tmpfile.write(conversion_content)
+            if self.projected_populations is not None:
+                smartpca_params += "lsqproject: YES\n"
+                smartpca_params += f"poplistname: {self.projected_populations}\n"
+
+            tmpfile.write(smartpca_params)
             tmpfile.flush()
 
             cmd = [
@@ -143,6 +149,7 @@ class Dataset:
 
     def create_bootstrap(self, bootstrap_prefix: FilePath, seed: int, redo: bool) -> Dataset:
         random.seed(seed)
+        redo = True  # TODO: remove
 
         bootstrap = Dataset(bootstrap_prefix)
 
@@ -154,8 +161,8 @@ class Dataset:
 
         # sample the SNPs using the snp file
         # each line in the snp file corresponds to one SNP
-        num_samples = sum(1 for _ in self.snp_file.open())
-        bootstrap_snp_indices = sorted(random.choices(range(num_samples), k=num_samples))
+        num_snps = sum(1 for _ in self.snp_file.open())
+        bootstrap_snp_indices = sorted(random.choices(range(num_snps), k=num_snps))
 
         # 1. Bootstrap the .snp file
         snps = self.snp_file.open().readlines()
@@ -181,8 +188,9 @@ class Dataset:
 
         # 2. Bootstrap the .geno file using the bootstrap_snp_indices above
         # the .geno file contains one column for each individual sample
-        genos = self.geno_file.open().readlines()
-        with bootstrap.geno_file.open(mode="a") as f:
+        # to sample SNPs we therefore need to sample the rows
+        genos = self.geno_file.open(mode="rb").readlines()
+        with bootstrap.geno_file.open(mode="ab") as f:
             for bootstrap_idx in bootstrap_snp_indices:
                 geno_line = genos[bootstrap_idx]
                 f.write(geno_line)

@@ -46,7 +46,6 @@ def main():
     pandora_config.create_result_dirs()
     pandora_config.result_file.unlink(missing_ok=True)
 
-
     # set the log verbosity according to the pandora config
     logger.setLevel(pandora_config.loglevel)
 
@@ -70,6 +69,13 @@ def main():
     # =======================================
     logger.info("\n--------- STARTING COMPUTATION ---------")
 
+    # before starting any computation, make sure that we have the input data in EIGENSTRAT format
+    # we need this format for bootstrapping and smartPCA
+    if pandora_config.file_format != FileFormat.EIGENSTRAT:
+        logger.info(
+            fmt_message(f"Converting dataset from {pandora_config.file_format.value} to {FileFormat.EIGENSTRAT.value}"))
+        convert_to_eigenstrat_format(pandora_config)
+
     # initialize empty Pandora object that keeps track of all results
     pandora_results = Pandora(pandora_config)
 
@@ -79,6 +85,7 @@ def main():
     pandora_results.do_pca()
 
     if pandora_config.plot_results:
+        logger.info(fmt_message("Plotting SmartPCA results for the input dataset."))
         pandora_results.plot_dataset()
 
     if pandora_config.do_bootstrapping:
@@ -99,16 +106,21 @@ def main():
 
     if pandora_config.sample_support_values:
         pandora_results.compute_sample_support_values()
-        pandora_results.save_sample_support_values()
 
         if pandora_config.plot_results:
             pandora_results.plot_sample_support_values()
+
+        if pandora_config.projected_populations is not None:
+            pandora_results.save_sample_support_values_projected_samples()
 
     logger.info("\n\n========= PANDORA RESULTS =========")
     logger.info(f"> Input dataset: {pandora_config.dataset_prefix.absolute()}")
 
     if pandora_config.do_bootstrapping:
         pandora_results.log_and_save_bootstrap_results()
+
+    if pandora_config.sample_support_values:
+        pandora_results.log_and_save_sample_support_values()
 
     logger.info(
         textwrap.dedent(
@@ -126,11 +138,15 @@ def main():
     if pandora_config.sample_support_values:
         logger.info(f"> Sample Support values: {pandora_config.sample_support_values_file.absolute()}")
 
+    if pandora_config.projected_populations is not None:
+        logger.info(f"> Projected Sample Support values: {pandora_config.sample_support_values_projected_samples_file.absolute()}")
+
     if pandora_config.plot_results:
         logger.info(f"> All plots saved in directory: {pandora_config.plot_dir.absolute()}")
 
     total_runtime = math.ceil(time.perf_counter() - SCRIPT_START)
     logger.info(f"\nTotal runtime: {datetime.timedelta(seconds=total_runtime)} ({total_runtime} seconds)")
+
 
 if __name__ == "__main__":
     main()

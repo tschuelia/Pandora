@@ -4,10 +4,25 @@
 
 # Prefix of the input files.
 # Pandora will look for files called <input>.* so make sure all files have the same prefix.
-input: /Users/julia/Desktop/Promotion/ADNA_Popgen/input/MathiesonEtAl_genotypes/full230.pruned
+#dataset_prefix: /Users/julia/Desktop/Promotion/ADNA_Popgen/input/MathiesonEtAl_genotypes/full230.pruned
+#dataset_prefix: /Users/julia/Desktop/Promotion/ADNA_Popgen/input/EuropeFullyPublic/west_eurasian_set/west_eurasian_set
+dataset_prefix: /Users/julia/Desktop/Promotion/ADNA_Popgen/input/NearEastPublic/AncientLazaridis2016_ModernWestEurasia_final
+#dataset_prefix: /Users/julia/Desktop/Promotion/ADNA_Popgen/input/NikosDaten/MySamples_PCA_project
+
+# Name of the file format your dataset is in
+# supported formats are:
+# - ANCESTRYMAP
+# - EIGENSTRAT
+# - PED
+# - PACKEDPED
+# - PACKEDANCESTRYMAP
+# default is EIGENSTRAT
+file_format: PACKEDANCESTRYMAP
 
 # Directory where to write the output to.
-output: results/localtest/MathiesonEtAl_genotypes
+#result_dir: results/localtest/MathiesonEtAl_genotypes
+result_dir: results/localtest/AncientLazaridis2016_ModernWestEurasia
+#result_dir: results/localtest/NikosDaten
 
 # ===========================
 # Optional settings
@@ -17,19 +32,21 @@ output: results/localtest/MathiesonEtAl_genotypes
 bootstrap: True
 
 # Maximum number of bootstrap replicates to compute (default = TODO, currently 100).
-bootstraps: 2
+n_bootstraps: 3
 
 # If set to True, do a sliding window PCA along a whole genome and compare the similarity across the genome
 # default is False
-slidingWindow: False
+sliding_window: False
 
 # TODO: sample projection of Ancient DNA samples
-projectSamples: False
+projected_populations: /Users/julia/Desktop/Promotion/ADNA_Popgen/input/NearEastPublic/modern.poplist.txt
 
 # If set to True, determines bootstrap support values for each sample in the input data
 # the support value is based on the similarity of PC vectors across bootstraps
+# if a list of populations to project onto the PCA is given (projected_populations)
+# also stores the support values for the projected samples separately
 # default is False
-supportValues: False
+sample_support_values: True
 
 # Number of threads to use for computation (default is number of cores).
 threads: 2
@@ -41,25 +58,25 @@ seed: 0
 redo: False
 
 # If set to True, plots the individual PCAs with the resulting K-Means clusters annotated.
-plotResults: False
+plot_results: True
 
 # PCs to plot, zero-indexed
 plot_pcx: 0
 plot_pcy: 1
 
-# Cutoff to use when determining the number of PCs required.
-# Pandora will automatically find the number of PCs required to explain at least
-# <varianceCutoff>%% variance in the data. Default is 95%.
-varianceCutoff: 0.95
+# Number of Principal Components to output with smartPCA
+# Comparing PCAs will be along all n_pcs Principal Components
+# Default is 20 (same als smartPCA default)
+n_pcs: 20
 
 # Number of clusters to use for the K-Means clustering
 # Only set this if you have prior knowledge about the correct number of clusters
 # if not set, the optimal number k is determined automatically based on the BIC score and the number of
 # populations and samples in your data
-kClusters: 3
+kmeans_k: 3
 
 # TODO: write description
-roguenessCutoff: 0.95
+rogueness_cutoff: 0.95
 
 # Optional path to the smartPCA executable. Per default, Pandora will use 'smartpca'.
 # Specify a path if smartPCA is not installed system-wide on your machine.
@@ -78,13 +95,14 @@ verbosity: 2
 
 # number of decimals to round the results to
 # default is 2
-resultsDecimals: 2
+result_decimals: 2
 
 # smartPCA options
 # in this section you can set any option that should be used for smartPCA
 # for a list of possible settings see: https://github.com/DReichLab/EIG/blob/master/POPGEN/README
 # not allowed are the following options: genotypename, snpname, indivname, evecoutname, evaloutname, numoutevec, maxpops
 # use the following schema to set the options:
-smartpcaOptionalSettings:
+smartpca_optional_settings:
   shrinkmode: NO
+  numoutlieriter: 0
 

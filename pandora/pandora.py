@@ -2,6 +2,7 @@ import dataclasses
 import itertools
 import math
 import multiprocessing
+import pathlib
 import random
 import statistics
 import textwrap
@@ -14,6 +15,7 @@ import yaml
 from pandora import __version__
 from pandora.custom_types import *
 from pandora.custom_errors import *
+from pandora.converter import run_convertf
 from pandora.dataset import Dataset
 from pandora.logger import *
 from pandora.pca_comparison import PCAComparison
@@ -23,15 +25,21 @@ from pandora.utils import improve_plotly_text_position
 @dataclasses.dataclass
 class PandoraConfig:
     dataset_prefix: FilePath
+    file_format: FileFormat
     result_dir: FilePath
 
     # Bootstrap related settings
     n_pcs: int
-    variance_cutoff: float
     n_bootstraps: int
+
+    # PCA related
     smartpca: Executable
-    rogueness_cutoff: float
+    convertf: Executable
     smartpca_optional_settings: dict[str, str]
+
+    # sample support values
+    rogueness_cutoff: float
+    projected_populations: Union[FilePath, None]  # list of populations to exclude from PCA and later project on the PCA
 
     # Cluster settings
     kmeans_k: Union[int, None]
@@ -84,6 +92,10 @@ class PandoraConfig:
         return self.result_dir / "pandora.supportValues.txt"
 
     @property
+    def sample_support_values_projected_samples_file(self) -> FilePath:
+        return self.result_dir / "pandora.supportValues.projected.txt"
+
+    @property
     def plot_dir(self) -> FilePath:
         return self.result_dir / "plots"
 
@@ -106,7 +118,9 @@ class PandoraConfig:
         # so we have to manually replace them with their string representation
         for k, v in config.items():
             if isinstance(v, pathlib.Path):
-                config[k] = str(v)
+                config[k] = str(v.absolute())
+            elif isinstance(v, FileFormat):
+                config[k] = v.value
 
         return config
 
@@ -125,15 +139,24 @@ class PandoraConfig:
 
 class Pandora:
     def __init__(self, pandora_config: PandoraConfig):
-        self.pandora_config = pandora_config
-        self.dataset = Dataset(pandora_config.dataset_prefix)
-        self.bootstrap_datasets = []  # type: List[Dataset]
-        self.bootstrap_similarities = {}  # type: Dict[Tuple[int, int], float]
-        self.bootstrap_cluster_similarities = {}  # type: Dict[Tuple[int, int], float]
+        self.pandora_config: PandoraConfig = pandora_config
+        self.dataset: Dataset = Dataset(
+            file_prefix=pandora_config.dataset_prefix,
+            projected_populations=pandora_config.projected_populations
+        )
 
-        self.kmeans_k = self.pandora_config.kmeans_k
+        self.bootstrap_datasets: List[Dataset] = []
+        self.bootstrap_similarities: Dict[Tuple[int, int], float] = {}
+        self.bootstrap_cluster_similarities: Dict[Tuple[int, int], float] = {}
+        self.sample_support_values: Dict[str, float] = {}
 
-        self.sample_support_values = {}  # type: Dict[str, float]
+        self.kmeans_k: int = self.pandora_config.kmeans_k
+
+        # to compute the support values of the projected samples separately
+        # we need the list of population names only used for projection
+        self.projected_populations = {}
+        if pandora_config.projected_populations is not None:
+            self.projected_populations = {p.strip() for p in pandora_config.projected_populations.open().readlines()}
 
     def do_pca(self):
         self.dataset.smartpca(
@@ -165,6 +188,17 @@ class Pandora:
             outfile=self.pandora_config.plot_dir / f"{plot_prefix}_with_clusters.pdf",
             redo=self.pandora_config.redo
         )
+
+        if self.projected_populations is not None:
+            dataset.pca.plot(
+                pcx=pcx,
+                pcy=pcy,
+                annotation="projection",
+                outfile=self.pandora_config.plot_dir / f"{plot_prefix}_projections.pdf",
+                projected_populations=list(self.projected_populations),
+                redo=self.pandora_config.redo
+            )
+
 
     def plot_dataset(self):
         self._plot_pca(self.dataset, self.dataset.name)
@@ -264,10 +298,39 @@ class Pandora:
         for sample in self.dataset.samples:
             self.sample_support_values[sample] = 1 - (rogue_counter.get(sample, 0) / n_bootstrap_combinations)
 
-    def save_sample_support_values(self):
+    def log_and_save_sample_support_values(self):
+        _rd = self.pandora_config.result_decimals
+
         with self.pandora_config.sample_support_values_file.open(mode="w") as f:
             for sample, support_value in self.sample_support_values.items():
-                f.write(f"{sample}\t{round(support_value, self.pandora_config.result_decimals)}\n")
+                f.write(f"{sample}\t{round(support_value, _rd)}\n")
+
+        _min = round(min(self.sample_support_values.values()), _rd)
+        _max = round(max(self.sample_support_values.values()), _rd)
+        _mean = round(statistics.mean(self.sample_support_values.values()), _rd)
+        _median = round(statistics.median(self.sample_support_values.values()), _rd)
+        _stdev = round(statistics.stdev(self.sample_support_values.values()), _rd)
+
+        support_values_result_string = textwrap.dedent(
+            f"""
+            ------------------
+            Sample Support values
+            ------------------
+            > average ± standard deviation: {_mean} ± {_stdev}
+            > median: {_median}
+            > lowest support value: {_min}
+            > highest support value: {_max}
+            """
+        )
+        logger.info(support_values_result_string)
+
+    def save_sample_support_values_projected_samples(self):
+        with self.pandora_config.sample_support_values_projected_samples_file.open(mode="w") as f:
+            for sample, support_value in self.sample_support_values.items():
+                # check if the sample belongs to a projected population
+                population = self.dataset.samples.get(sample)
+                if population in self.projected_populations:
+                    f.write(f"{sample}\t{round(support_value, self.pandora_config.result_decimals)}\n")
 
     def plot_sample_support_values(self):
         # Annotate the sample support values for each sample in the empirical PCA
@@ -302,30 +365,48 @@ class Pandora:
 def pandora_config_from_configfile(configfile: FilePath) -> PandoraConfig:
     config_data = yaml.safe_load(configfile.open())
 
+    dataset_prefix = config_data.get("dataset_prefix")
+    result_dir = config_data.get("result_dir")
+
+    if dataset_prefix is None:
+        raise PandoraConfigException("No dataset_prefix set.")
+    if result_dir is None:
+        raise PandoraConfigException("No result_dir set.")
+
+    projected_populations = config_data.get("projected_populations")
+    if projected_populations is not None:
+        projected_populations = pathlib.Path(projected_populations)
+
     # fmt: off
     return PandoraConfig(
-        dataset_prefix  = pathlib.Path(config_data["input"]),
-        result_dir      = pathlib.Path(config_data["output"]),
+        dataset_prefix  = pathlib.Path(dataset_prefix),
+        file_format     = FileFormat(config_data.get("file_format", "EIGENSTRAT")),
+        result_dir      = pathlib.Path(result_dir),
 
         # Bootstrap related settings
-        n_pcs           = 20,  # TODO: implement automatic detection
-        variance_cutoff = config_data.get("varianceCutoff", 0.95),
-        n_bootstraps    = config_data.get("bootstraps", 100),
+        n_pcs           = config_data.get("n_pcs", 0.95),
+        n_bootstraps    = config_data.get("n_bootstraps", 100),
+
+        # PCA related
         smartpca        = config_data.get("smartpca", "smartpca"),
-        smartpca_optional_settings  = config_data.get("smartpcaOptionalSettings", {}),
-        rogueness_cutoff = config_data.get("roguenessCutoff", 0.95),
+        convertf        = config_data.get("convertf", "convertf"),
+        smartpca_optional_settings  = config_data.get("smartpca_optional_settings", {}),
+
+        # sample support values
+        rogueness_cutoff        = config_data.get("rogueness_cutoff", 0.95),
+        projected_populations   = projected_populations,
 
         # Cluster settings
-        kmeans_k = config_data.get("kClusters", None),
+        kmeans_k = config_data.get("kmeans_k", None),
 
         # Pandora execution mode settings
         do_bootstrapping        = config_data.get("bootstrap", True),
-        sample_support_values   = config_data.get("supportValues", False),
-        plot_results            = config_data.get("plotResults", False),
+        sample_support_values   = config_data.get("sample_support_values", False),
+        plot_results            = config_data.get("plot_results", False),
         redo            = config_data.get("redo", False),
         seed            = config_data.get("seed", 0),
         threads         = config_data.get("threads", multiprocessing.cpu_count()),
-        result_decimals = config_data.get("resultsDecimals", 2),
+        result_decimals = config_data.get("result_decimals", 2),
         verbosity   = config_data.get("verbosity", 2),
 
         # Plot settings
@@ -333,3 +414,21 @@ def pandora_config_from_configfile(configfile: FilePath) -> PandoraConfig:
         plot_pcy    = config_data.get("plot_pcy", 0),
     )
     # fmt: on
+
+
+def convert_to_eigenstrat_format(pandora_config: PandoraConfig):
+    convertf_dir = pandora_config.result_dir / "convertf"
+    convertf_dir.mkdir(exist_ok=True)
+    convert_prefix = convertf_dir / pandora_config.dataset_prefix.name
+
+    run_convertf(
+        convertf=pandora_config.convertf,
+        in_prefix=pandora_config.dataset_prefix,
+        in_format=pandora_config.file_format,
+        out_prefix=convert_prefix,
+        out_format=FileFormat.EIGENSTRAT,
+        redo=pandora_config.redo
+    )
+
+    pandora_config.dataset_prefix = convert_prefix
+

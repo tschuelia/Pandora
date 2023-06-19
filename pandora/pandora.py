@@ -239,7 +239,7 @@ class Pandora:
         for (i1, bootstrap1), (i2, bootstrap2) in itertools.combinations(enumerate(self.bootstrap_datasets), r=2):
             pca_comparison = PCAComparison(comparable=bootstrap1.pca, reference=bootstrap2.pca)
             self.bootstrap_similarities[(i1, i2)] = pca_comparison.compare()
-            self.bootstrap_cluster_similarities[(i1, i2)] = pca_comparison.compare_clustering(kmeans_k)
+            # self.bootstrap_cluster_similarities[(i1, i2)] = pca_comparison.compare_clustering(kmeans_k)
 
             support_values = pca_comparison.get_sample_support_values()
             for sample_id, support in zip(pca_comparison.sample_ids, support_values):

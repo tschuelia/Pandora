@@ -102,9 +102,8 @@ def main():
         pandora_results.compare_bootstrap_similarity()
 
         if pandora_config.plot_results:
+            logger.info(fmt_message(f"Plotting bootstrap PCA results."))
             pandora_results.plot_bootstraps()
-
-        if pandora_config.plot_results:
             pandora_results.plot_sample_support_values()
 
         if pandora_config.projected_populations is not None:

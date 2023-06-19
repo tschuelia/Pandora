@@ -148,7 +148,7 @@ class Pandora:
         self.bootstrap_datasets: List[Dataset] = []
         self.bootstrap_similarities: Dict[Tuple[int, int], float] = {}
         self.bootstrap_cluster_similarities: Dict[Tuple[int, int], float] = {}
-        self.sample_support_values: Dict[str, float] = {}
+        self.sample_support_values: Dict[str, (float, float)] = {}
 
         self.kmeans_k: int = self.pandora_config.kmeans_k
 
@@ -275,22 +275,19 @@ class Pandora:
         logger.info(bootstrap_results_string)
 
     def compute_sample_support_values(self):
-        # compare all bootstrap results pairwise and determine the rogue samples for each comparison
+        # compare all bootstrap results pairwise and determine the sample support values for each comparison
         self.dataset.set_sample_ids_and_populations()
-        rogue_counter = defaultdict(int)
+        sample_support = dict([(sample, []) for sample in self.dataset.samples])
 
         for bootstrap1, bootstrap2 in itertools.combinations(self.bootstrap_datasets, r=2):
             pca_comparison = PCAComparison(comparable=bootstrap1.pca, reference=bootstrap2.pca)
-            rogue_samples = pca_comparison.detect_rogue_samples(rogue_cutoff=self.pandora_config.rogueness_cutoff)
-            for sample in rogue_samples:
-                rogue_counter[sample] += 1
-
-        n_bootstrap_combinations = math.comb(self.pandora_config.n_bootstraps, 2)
+            support_values = pca_comparison.get_sample_support_values()
+            for sample_id, support in zip(pca_comparison.sample_ids, support_values):
+                sample_support[sample_id].append(support)
 
         # compute the support value for each sample
-        # to do so, we compute 1 - (#rogue / #combinations)
         for sample in self.dataset.samples:
-            self.sample_support_values[sample] = 1 - (rogue_counter.get(sample, 0) / n_bootstrap_combinations)
+            self.sample_support_values[sample] = (np.mean(sample_support[sample]), np.std(sample_support[sample]))
 
     def log_and_save_sample_support_values(self):
         _rd = self.pandora_config.result_decimals

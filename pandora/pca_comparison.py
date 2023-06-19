@@ -5,6 +5,7 @@ from __future__ import (
 import math
 import warnings
 
+import pandas as pd
 from plotly import graph_objects as go
 from scipy.spatial import procrustes
 from sklearn.metrics import fowlkes_mallows_score
@@ -68,6 +69,7 @@ class PCAComparison:
         self.comparable, self.reference = match_and_transform(
             comparable=comparable, reference=reference
         )
+        self.sample_ids = self.comparable.pca_data.sample_id
 
     def compare(self) -> float:
         """
@@ -119,12 +121,7 @@ class PCAComparison:
 
         return fowlkes_mallows_score(ref_cluster_labels, comp_cluster_labels)
 
-    def detect_rogue_samples(self, rogue_cutoff: float = 0.95) -> List[str]:
-        """
-        Returns a list of sample IDs that are considered rogue samples when comparing self.comparable to self.reference.
-        A sample is considered rogue if the euclidean distance between its PC vectors in self and other
-        is larger than the rogue_cutoff-percentile of pairwise PC vector distances
-        """
+    def _get_sample_distances(self) -> pd.Series:
         # make sure we are comparing the correct PC-vectors in the following
         assert np.all(
             self.comparable.pca_data.sample_id == self.reference.pca_data.sample_id
@@ -133,7 +130,21 @@ class PCAComparison:
         sample_distances = euclidean_distances(
             self.reference.pc_vectors, self.comparable.pc_vectors
         ).diagonal()
-        sample_distances = pd.Series(sample_distances)
+        return pd.Series(sample_distances)
+
+    def get_sample_support_values(self) -> pd.Series:
+        sample_distances = self._get_sample_distances()
+        normalized_distances = (sample_distances - sample_distances.min()) / (sample_distances.max() - sample_distances.min()+ 1e-10)
+        support_values = 1 - normalized_distances
+        return support_values
+
+    def detect_rogue_samples(self, rogue_cutoff: float = 0.95) -> List[str]:
+        """
+        Returns a list of sample IDs that are considered rogue samples when comparing self.comparable to self.reference.
+        A sample is considered rogue if the euclidean distance between its PC vectors in self and other
+        is larger than the rogue_cutoff-percentile of pairwise PC vector distances
+        """
+        sample_distances = self._get_sample_distances()
         rogue_threshold = sample_distances.quantile(rogue_cutoff)
 
         rogue_samples = [

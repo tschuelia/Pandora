@@ -104,9 +104,6 @@ def main():
         if pandora_config.plot_results:
             pandora_results.plot_bootstraps()
 
-    if pandora_config.sample_support_values:
-        pandora_results.compute_sample_support_values()
-
         if pandora_config.plot_results:
             pandora_results.plot_sample_support_values()
 
@@ -118,8 +115,6 @@ def main():
 
     if pandora_config.do_bootstrapping:
         pandora_results.log_and_save_bootstrap_results()
-
-    if pandora_config.sample_support_values:
         pandora_results.log_and_save_sample_support_values()
 
     logger.info(
@@ -134,8 +129,6 @@ def main():
 
     if pandora_config.do_bootstrapping:
         logger.info(f"> Pairwise bootstrap similarities: {pandora_config.pairwise_bootstrap_result_file.absolute()}")
-
-    if pandora_config.sample_support_values:
         logger.info(f"> Sample Support values: {pandora_config.sample_support_values_file.absolute()}")
 
     if pandora_config.projected_populations is not None:

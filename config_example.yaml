@@ -41,13 +41,6 @@ sliding_window: False
 # TODO: sample projection of Ancient DNA samples
 projected_populations: /Users/julia/Desktop/Promotion/ADNA_Popgen/input/NearEastPublic/modern.poplist.txt
 
-# If set to True, determines bootstrap support values for each sample in the input data
-# the support value is based on the similarity of PC vectors across bootstraps
-# if a list of populations to project onto the PCA is given (projected_populations)
-# also stores the support values for the projected samples separately
-# default is False
-sample_support_values: True
-
 # Number of threads to use for computation (default is number of cores).
 threads: 2
 

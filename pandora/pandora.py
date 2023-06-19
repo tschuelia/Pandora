@@ -46,7 +46,6 @@ class PandoraConfig:
 
     # Pandora execution mode settings
     do_bootstrapping: bool
-    sample_support_values: bool
     plot_results: bool
     redo: bool
     seed: int
@@ -63,9 +62,6 @@ class PandoraConfig:
         """
         - Check that all input files are present
         """
-        if self.sample_support_values and not self.do_bootstrapping:
-            raise PandoraConfigException("Cannot compute the sample support values without bootstrap replicates. "
-                                         "Set `bootstrap: True` in the config file and restart the analysis.")
 
     @property
     def pandora_logfile(self) -> FilePath:
@@ -237,10 +233,21 @@ class Pandora:
         else:
             kmeans_k = self.dataset.pca.get_optimal_kmeans_k()
 
+        sample_support = dict([(sample, []) for sample in self.dataset.samples])
+
         for (i1, bootstrap1), (i2, bootstrap2) in itertools.combinations(enumerate(self.bootstrap_datasets), r=2):
             pca_comparison = PCAComparison(comparable=bootstrap1.pca, reference=bootstrap2.pca)
             self.bootstrap_similarities[(i1, i2)] = pca_comparison.compare()
             self.bootstrap_cluster_similarities[(i1, i2)] = pca_comparison.compare_clustering(kmeans_k)
+
+            support_values = pca_comparison.get_sample_support_values()
+            for sample_id, support in zip(pca_comparison.sample_ids, support_values):
+                sample_support[sample_id].append(support)
+
+        # compute the support value for each sample
+        for sample in self.dataset.samples:
+            self.sample_support_values[sample] = (
+            np.mean(sample_support[sample]), np.std(sample_support[sample]))
 
     def log_and_save_bootstrap_results(self):
         # store the pairwise results in a file
@@ -273,22 +280,6 @@ class Pandora:
 
         self.pandora_config.result_file.open(mode="a").write(bootstrap_results_string)
         logger.info(bootstrap_results_string)
-
-    def compute_sample_support_values(self):
-        # compare all bootstrap results pairwise and determine the sample support values for each comparison
-        self.dataset.set_sample_ids_and_populations()
-        sample_support = dict([(sample, []) for sample in self.dataset.samples])
-
-        for bootstrap1, bootstrap2 in itertools.combinations(self.bootstrap_datasets, r=2):
-            pca_comparison = PCAComparison(comparable=bootstrap1.pca, reference=bootstrap2.pca)
-            support_values = pca_comparison.get_sample_support_values()
-            for sample_id, support in zip(pca_comparison.sample_ids, support_values):
-                sample_support[sample_id].append(support)
-
-        # compute the support value for each sample
-        for sample in self.dataset.samples:
-            self.sample_support_values[sample] = (np.mean(sample_support[sample]), np.std(sample_support[sample]))
-
     def log_and_save_sample_support_values(self):
         _rd = self.pandora_config.result_decimals
 
@@ -392,7 +383,6 @@ def pandora_config_from_configfile(configfile: FilePath) -> PandoraConfig:
 
         # Pandora execution mode settings
         do_bootstrapping        = config_data.get("bootstrap", True),
-        sample_support_values   = config_data.get("sample_support_values", False),
         plot_results            = config_data.get("plot_results", False),
         redo            = config_data.get("redo", False),
         seed            = config_data.get("seed", 0),

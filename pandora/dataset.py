@@ -149,8 +149,6 @@ class Dataset:
 
     def create_bootstrap(self, bootstrap_prefix: FilePath, seed: int, redo: bool) -> Dataset:
         random.seed(seed)
-        redo = True  # TODO: remove
-
         bootstrap = Dataset(bootstrap_prefix)
 
         if bootstrap.files_exist() and not redo:

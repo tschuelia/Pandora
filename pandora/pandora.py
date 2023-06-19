@@ -235,9 +235,17 @@ class Pandora:
 
         self.dataset.set_sample_ids_and_populations()
         sample_support = dict((sample, []) for sample in self.dataset.samples)
-
+        print("CREATING COMPARISON OBJECTS ")
+        comparison_objects = {}
         for (i1, bootstrap1), (i2, bootstrap2) in itertools.combinations(enumerate(self.bootstrap_datasets), r=2):
             pca_comparison = PCAComparison(comparable=bootstrap1.pca, reference=bootstrap2.pca)
+            comparison_objects[(i1, i2)] = pca_comparison
+
+        print("COMPARING ")
+
+        for (i1, bootstrap1), (i2, bootstrap2) in itertools.combinations(enumerate(self.bootstrap_datasets), r=2):
+            pca_comparison = comparison_objects[(i1, i2)]
+            # pca_comparison = PCAComparison(comparable=bootstrap1.pca, reference=bootstrap2.pca)
             self.bootstrap_similarities[(i1, i2)] = pca_comparison.compare()
             # self.bootstrap_cluster_similarities[(i1, i2)] = pca_comparison.compare_clustering(kmeans_k)
 

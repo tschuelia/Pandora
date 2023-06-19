@@ -5,7 +5,6 @@ from __future__ import (
 import math
 import warnings
 
-import pandas as pd
 from plotly import graph_objects as go
 from scipy.spatial import procrustes
 from sklearn.metrics import fowlkes_mallows_score
@@ -66,7 +65,7 @@ def _clip_missing_samples_for_comparison(
 class PCAComparison:
     def __init__(self, comparable: PCA, reference: PCA):
         # first we transform comparable towards reference such that we can compare the PCAs
-        self.comparable, self.reference = match_and_transform(
+        self.comparable, self.reference, self.disparity = match_and_transform(
             comparable=comparable, reference=reference
         )
         self.sample_ids = self.comparable.pca_data.sample_id
@@ -84,15 +83,7 @@ class PCAComparison:
         Returns:
             float: Similarity as average cosine similarity per sample PC-vector in self and other.
         """
-
-        # check if the number of samples match for now
-        comp_data = self.comparable.pc_vectors
-        ref_data = self.reference.pc_vectors
-
-        assert comp_data.shape == ref_data.shape
-
-        _, _, disparity = procrustes(comp_data, ref_data)
-        similarity = np.sqrt(1 - disparity)
+        similarity = np.sqrt(1 - self.disparity)
 
         return similarity
 
@@ -134,7 +125,7 @@ class PCAComparison:
 
     def get_sample_support_values(self) -> pd.Series:
         sample_distances = self._get_sample_distances()
-        normalized_distances = (sample_distances - sample_distances.min()) / (sample_distances.max() - sample_distances.min()+ 1e-10)
+        normalized_distances = (sample_distances - sample_distances.min()) / (sample_distances.max() - sample_distances.min() + 1e-10)
         support_values = 1 - normalized_distances
         return support_values
 
@@ -250,7 +241,7 @@ class PCAComparison:
         return fig
 
 
-def match_and_transform(comparable: PCA, reference: PCA) -> Tuple[PCA, PCA]:
+def match_and_transform(comparable: PCA, reference: PCA) -> Tuple[PCA, PCA, float]:
     """
     Finds a transformation matrix that most closely matches comparable to reference and transforms comparable.
 
@@ -267,7 +258,10 @@ def match_and_transform(comparable: PCA, reference: PCA) -> Tuple[PCA, PCA]:
     ref_data = reference.pc_vectors
 
     # TODO: reorder PCs (if we find a dataset where this is needed...don't want to blindly implement something)
-    standardized_reference, transformed_comparable, _ = procrustes(ref_data, comp_data)
+    # check if the number of samples match for now
+    assert comp_data.shape == ref_data.shape
+
+    standardized_reference, transformed_comparable, disparity = procrustes(ref_data, comp_data)
 
     standardized_reference = PCA(
         pca_data=standardized_reference,
@@ -285,7 +279,7 @@ def match_and_transform(comparable: PCA, reference: PCA) -> Tuple[PCA, PCA]:
         populations=comparable.pca_data.population,
     )
 
-    return standardized_reference, transformed_comparable
+    return standardized_reference, transformed_comparable, disparity
 
 
 def plot_rogue_samples(

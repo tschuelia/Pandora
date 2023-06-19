@@ -170,35 +170,29 @@ class Pandora:
     def _plot_pca(self, dataset: Dataset, plot_prefix: str):
         pcx = self.pandora_config.plot_pcx
         pcy = self.pandora_config.plot_pcy
+
         # plot with annotated populations
-        dataset.pca.plot(
+        fig = dataset.pca.plot_populations(
             pcx=pcx,
             pcy=pcy,
-            annotation="population",
-            outfile=self.pandora_config.plot_dir / f"{plot_prefix}_with_populations.pdf",
-            redo=self.pandora_config.redo
         )
+        fig.write_image(self.pandora_config.plot_dir / f"{plot_prefix}_with_populations.pdf")
 
         # plot with annotated clusters
-        dataset.pca.plot(
+        fig = dataset.pca.plot_clusters(
             pcx=pcx,
             pcy=pcy,
-            annotation="cluster",
             kmeans_k=self.kmeans_k,
-            outfile=self.pandora_config.plot_dir / f"{plot_prefix}_with_clusters.pdf",
-            redo=self.pandora_config.redo
         )
+        fig.write_image(self.pandora_config.plot_dir / f"{plot_prefix}_with_clusters.pdf")
 
         if self.projected_populations is not None:
-            dataset.pca.plot(
+            fig = dataset.pca.plot_projections(
+                populations_used_for_pca=list(self.projected_populations),
                 pcx=pcx,
                 pcy=pcy,
-                annotation="projection",
-                outfile=self.pandora_config.plot_dir / f"{plot_prefix}_projections.pdf",
-                projected_populations=list(self.projected_populations),
-                redo=self.pandora_config.redo
             )
-
+            fig.write_image(self.pandora_config.plot_dir / f"{plot_prefix}_projections.pdf")
 
     def plot_dataset(self):
         self._plot_pca(self.dataset, self.dataset.name)

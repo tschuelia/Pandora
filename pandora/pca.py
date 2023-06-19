@@ -123,7 +123,7 @@ class PCA:
         grid_search = GridSearchCV(
             estimator=GaussianMixture(),
             param_grid={"n_components": range(min_k, max_k)},
-            scoring=lambda estimator, X: -estimator.bic(X)
+            scoring=lambda estimator, X: -estimator.bic(X),
         )
 
         grid_search.fit(self.pc_vectors)
@@ -146,7 +146,7 @@ class PCA:
         kmeans.fit(pca_data_np)
         return kmeans
 
-    def _plot_clusters(
+    def plot_clusters(
         self,
         pcx: int = 0,
         pcy: int = 1,
@@ -154,9 +154,15 @@ class PCA:
         fig: go.Figure = None,
         **kwargs,
     ) -> go.Figure:
-        kmeans_k = (
-            kmeans_k if kmeans_k is not None else self.get_optimal_kmeans_k()
-        )
+        """
+        TODO: Docstring
+        """
+        show_variance_in_axes = fig is None
+        fig = go.Figure() if fig is None else fig
+
+        if kmeans_k is None:
+            kmeans_k = self.get_optimal_kmeans_k()
+
         cluster_labels = self.cluster(kmeans_k=kmeans_k).labels_
 
         _pca_data = self.pca_data.copy()
@@ -177,18 +183,25 @@ class PCA:
                 )
             )
 
-        return fig
+        return self._update_fig(fig, pcx, pcy, show_variance_in_axes)
 
-    def _plot_populations(
+    def plot_populations(
         self, pcx: int = 0, pcy: int = 1, fig: go.Figure = None, **kwargs
     ) -> go.Figure:
+        """
+        TODO: Docstring
+        """
+        show_variance_in_axes = fig is None
+        fig = go.Figure() if fig is None else fig
+
         if self.pca_data.population.isna().all():
             raise ValueError(
                 "Cannot plot populations: no populations associated with PCA data."
             )
+
         populations = self.pca_data.population.unique()
         colors = get_distinct_colors(len(populations))
-        assert len(populations) == len(colors), f"{len(populations)}, {len(colors)}"
+
         for i, population in enumerate(populations):
             _data = self.pca_data.loc[self.pca_data.population == population]
             fig.add_trace(
@@ -202,15 +215,35 @@ class PCA:
                 )
             )
 
-        return fig
+        return self._update_fig(fig, pcx, pcy, show_variance_in_axes)
 
-    def _plot_projections(self, pcx, pcy, projected_populations: List[str], **kwargs):
+    def plot_projections(
+        self,
+        populations_used_for_pca: List[str],
+        pcx: int = 0,
+        pcy: int = 1,
+        fig: go.Figure = None,
+        **kwargs,
+    ):
+        """
+        TODO: Docstring
+        """
+        show_variance_in_axes = fig is None
+        fig = go.Figure() if fig is None else fig
+
+        if populations_used_for_pca is None or len(populations_used_for_pca) == 0:
+            raise ValueError("Provide a non-empty list of populations with which the PCA was performed!")
+
         populations = self.pca_data.population.unique()
         projection_colors = get_distinct_colors(populations.shape[0])
-        fig = go.Figure()
+
         for i, population in enumerate(populations):
             _data = self.pca_data.loc[self.pca_data.population == population]
-            marker_color = projection_colors[i] if population not in projected_populations else "gray"
+            marker_color = (
+                projection_colors[i]
+                if population not in populations_used_for_pca
+                else "lightgray"
+            )
             fig.add_trace(
                 go.Scatter(
                     x=_data[f"PC{pcx}"],
@@ -221,87 +254,11 @@ class PCA:
                     **kwargs,
                 )
             )
-        return fig
+        return self._update_fig(fig, pcx, pcy, show_variance_in_axes)
 
-    def plot(
-        self,
-        pcx: int = 0,
-        pcy: int = 1,
-        annotation: str = None,
-        kmeans_k: int = None,
-        projected_populations: List[str] = None,
-        fig: go.Figure = None,
-        marker_color="darkseagreen",
-        name: str = "",
-        outfile: FilePath = None,
-        redo: bool = False,
-        **kwargs,
-    ) -> go.Figure:
-        """
-        Plots the PCA data for pcx and pcy.
-        TODO: update args description
-
-        Args:
-            pcx (int): Number of the PC to plot on the x-axis.
-                The PCs are 0-indexed, so to plot the first principal component, set pcx = 0. Defaults to 0.
-            pcy (int): Number of the PC to plot on the y-axis.
-                The PCs are 0-indexed, so to plot the second principal component, set pcy = 1. Defaults to 1.
-            annotation (bool): If None, plots alls samples with the same color.
-                If "population", plots each population with a different color.
-                If "cluster", applies K-Means clustering and plots each cluster with a different color.
-            kmeans_k (int): TODO
-            fig (go.Figure): If set, appends the PCA data to this fig. Default is to plot on a new, empty figure.
-            marker_color (str): TODO
-            name (str): Name of the trace in the resulting plot. Setting a name will only have an effect if
-                plot_populations = False and fig is not None.
-            outfile (FilePath): TODO
-            redo (bool): TODO
-
-        Returns:
-            go.Figure: Plotly figure containing a scatter plot of the PCA data.
-        """
-        show_variance_in_axes = True
-        if not fig:
-            fig = go.Figure()
-            show_variance_in_axes = False
-
-        if kmeans_k is not None and annotation != "cluster":
-            warnings.warn(
-                f"Parameter kmeans_k ignored for annotation setting {annotation}."
-            )
-
-        if projected_populations is not None and annotation != "projection":
-            warnings.warn(
-                f"Parameter projected_populations ignored for annotation setting {annotation}."
-            )
-
-        if annotation == "population":
-            self._plot_populations(pcx=pcx, pcy=pcy, fig=fig, **kwargs)
-        elif annotation == "cluster":
-            fig = self._plot_clusters(
-                pcx=pcx, pcy=pcy, kmeans_k=kmeans_k, fig=fig, **kwargs
-            )
-        elif annotation == "projection":
-            self._plot_projections(
-                pcx=pcx, pcy=pcy, projected_populations=projected_populations, **kwargs
-            )
-        elif annotation is None:
-            fig.add_trace(
-                go.Scatter(
-                    x=self.pca_data[f"PC{pcx}"],
-                    y=self.pca_data[f"PC{pcy}"],
-                    mode="markers",
-                    marker_color=marker_color,
-                    name=name,
-                    **kwargs,
-                )
-            )
-        else:
-            raise ValueError(
-                f"Unrecognized annotation option {annotation}. "
-                f"Allowed options are None, 'population', and 'cluster'."
-            )
-
+    def _update_fig(
+        self, fig: go.Figure, pcx: int, pcy: int, show_variance_in_axes: bool
+    ):
         xtitle = f"PC {pcx + 1}"
         ytitle = f"PC {pcy + 1}"
 
@@ -312,9 +269,6 @@ class PCA:
         fig.update_xaxes(title=xtitle)
         fig.update_yaxes(title=ytitle)
         fig.update_layout(template="plotly_white", height=1000, width=1000)
-
-        if outfile is not None:
-            fig.write_image(outfile)
 
         return fig
 

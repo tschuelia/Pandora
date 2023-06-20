@@ -144,7 +144,7 @@ class Pandora:
         self.bootstrap_datasets: List[Dataset] = []
         self.bootstrap_similarities: Dict[Tuple[int, int], float] = {}
         self.bootstrap_cluster_similarities: Dict[Tuple[int, int], float] = {}
-        self.sample_support_values: Dict[str, (float, float)] = {}
+        self.sample_support_values: Dict[str, float] = {}
 
         self.kmeans_k: int = self.pandora_config.kmeans_k
 
@@ -282,23 +282,18 @@ class Pandora:
         self.pandora_config.result_file.open(mode="a").write(bootstrap_results_string)
         logger.info(bootstrap_results_string)
 
-    def log_and_save_sample_support_values(self):
+    def _log_support_values(self, title: str, support_values: Iterable[float]):
         _rd = self.pandora_config.result_decimals
-
-        with self.pandora_config.sample_support_values_file.open(mode="w") as f:
-            for sample, support_value in self.sample_support_values.items():
-                f.write(f"{sample}\t{round(support_value, _rd)}\n")
-
-        _min = round(min(self.sample_support_values.values()), _rd)
-        _max = round(max(self.sample_support_values.values()), _rd)
-        _mean = round(statistics.mean(self.sample_support_values.values()), _rd)
-        _median = round(statistics.median(self.sample_support_values.values()), _rd)
-        _stdev = round(statistics.stdev(self.sample_support_values.values()), _rd)
+        _min = round(min(support_values), _rd)
+        _max = round(max(support_values), _rd)
+        _mean = round(statistics.mean(support_values), _rd)
+        _median = round(statistics.median(support_values), _rd)
+        _stdev = round(statistics.stdev(support_values), _rd)
 
         support_values_result_string = textwrap.dedent(
             f"""
             ------------------
-            Sample Support values
+            {title}: Support values
             ------------------
             > average ± standard deviation: {_mean} ± {_stdev}
             > median: {_median}
@@ -308,34 +303,59 @@ class Pandora:
         )
         logger.info(support_values_result_string)
 
-    def save_sample_support_values_projected_samples(self):
-        with self.pandora_config.sample_support_values_projected_samples_file.open(mode="w") as f:
+    def log_and_save_sample_support_values(self, log_and_save_projected: bool = False):
+        _rd = self.pandora_config.result_decimals
+
+        projected_samples = {}
+
+        with self.pandora_config.sample_support_values_file.open(mode="w") as all_samples_file:
             for sample, support_value in self.sample_support_values.items():
-                # check if the sample belongs to a projected population
-                population = self.dataset.samples.get(sample)
-                if population in self.projected_populations:
-                    f.write(f"{sample}\t{round(support_value, self.pandora_config.result_decimals)}\n")
+                all_samples_file.write(f"{sample}\t{round(support_value, _rd)}\n")
 
-    def plot_sample_support_values(self):
-        # Annotate the sample support values for each sample in the empirical PCA
-        pca_data = self.dataset.pca.pca_data
+                if log_and_save_projected and self.dataset.samples.get(sample) in self.projected_populations:
+                    projected_samples[sample] = support_value
 
-        # to make sure we are correctly matching the sample IDs with their support apply explicit sorting
-        pca_data = pca_data.sort_values(by="sample_id").reset_index(drop=True)
-        support_values = list(self.sample_support_values.items())
-        support_values = sorted(support_values)
+        if log_and_save_projected:
+            with self.pandora_config.sample_support_values_projected_samples_file.open(mode="w") as projected_samples_file:
+                for sample, support_value in projected_samples.items():
+                    projected_samples_file.write(f"{sample}\t{round(support_value, self.pandora_config.result_decimals)}\n")
+
+        self._log_support_values("All Samples", self.sample_support_values.values())
+
+        if log_and_save_projected:
+            self._log_support_values("Projected Samples", projected_samples.values())
+
+    def plot_sample_support_values(self, projected_samples_only: bool = False):
+        if projected_samples_only:
+            support_values = {}
+            for sample, support_value in self.sample_support_values.items():
+                if self.dataset.samples.get(sample) in self.projected_populations:
+                    support_values[sample] = support_value
+        else:
+            support_values = self.sample_support_values
 
         pcx = self.pandora_config.plot_pcx
         pcy = self.pandora_config.plot_pcy
 
+        # to make sure we are annotating the correct support values for the correct PC vectors, we explicitly sort
+        # the x-, y-, and support value data
+        pca_data = self.dataset.pca.pca_data.sort_values(by="sample_id").reset_index(drop=True)
+        x_data = pca_data[f"PC{pcx}"]
+        y_data = pca_data[f"PC{pcy}"]
+        support_values = sorted(support_values.items())
+        support_values_annotations = [
+            f"{round(support, 2)}<br>({sample})"
+            if support < 1 else ""
+            for (sample, support) in support_values
+        ]
+
         fig = go.Figure(
             go.Scatter(
-                x=pca_data[f"PC{pcx}"],
-                y=pca_data[f"PC{pcy}"],
+                x=x_data,
+                y=y_data,
                 mode="markers+text",
                 # annotate only samples with a support value < 1
-                text=[f"{round(support, 2)}<br>({sample})" if support < 1 else "" for (sample, support) in
-                      support_values],
+                text=support_values_annotations,
                 textposition="bottom center"
             )
         )
@@ -343,7 +363,12 @@ class Pandora:
         fig.update_yaxes(title=f"PC {pcy + 1}")
         fig.update_layout(template="plotly_white", height=1000, width=1000)
         fig.update_traces(textposition=improve_plotly_text_position(pca_data[f"PC{pcx}"]))
-        fig.write_image(self.pandora_config.plot_dir / f"sample_support_values.pdf")
+        if projected_samples_only:
+            fig_name = "projected_sample_support_values.pdf"
+        else:
+            fig_name = "sample_support_values.pdf"
+
+        fig.write_image(self.pandora_config.plot_dir / fig_name)
         return fig
 
 

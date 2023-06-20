@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import pathlib
 from enum import Enum
-from typing import Union, Tuple, Dict, List
+from typing import Union, Tuple, Dict, List, Iterable
 
 
 FilePath = pathlib.Path

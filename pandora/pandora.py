@@ -346,7 +346,7 @@ class Pandora:
         support_values_annotations = [
             f"{round(support, 2)}<br>({sample})"
             # annotate only samples with a support value < 0.9 otherwise things are going to get messy
-            if support < 1 else ""
+            if support < 0.9 else ""
             for (sample, support) in support_values
         ]
 

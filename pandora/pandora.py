@@ -248,8 +248,7 @@ class Pandora:
 
         # compute the support value for each sample
         for sample in self.dataset.samples:
-            self.sample_support_values[sample] = (
-                np.mean(sample_support[sample]), np.std(sample_support[sample]))
+            self.sample_support_values[sample] = np.mean(sample_support[sample])
 
     def log_and_save_bootstrap_results(self):
         # store the pairwise results in a file

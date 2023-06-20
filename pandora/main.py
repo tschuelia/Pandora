@@ -117,15 +117,15 @@ def main():
             pandora_results.plot_bootstraps()
             pandora_results.plot_sample_support_values()
 
-        if pandora_config.projected_populations is not None:
-            pandora_results.save_sample_support_values_projected_samples()
-
     logger.info("\n\n========= PANDORA RESULTS =========")
     logger.info(f"> Input dataset: {pandora_config.dataset_prefix.absolute()}")
 
     if pandora_config.do_bootstrapping:
         pandora_results.log_and_save_bootstrap_results()
         pandora_results.log_and_save_sample_support_values()
+
+        if pandora_config.projected_populations is not None:
+            pandora_results.save_sample_support_values_projected_samples()
 
     logger.info(
         textwrap.dedent(

@@ -131,8 +131,8 @@ def main():
             pandora_results.plot_bootstraps()
             pandora_results.plot_sample_support_values()
 
-            # if pandora_config.projected_populations is not None:
-            #     pandora_results.plot_sample_support_values(projected_samples_only=True)
+            if pandora_config.projected_populations is not None:
+                pandora_results.plot_sample_support_values(projected_samples_only=True)
 
     logger.info("\n\n========= PANDORA RESULTS =========")
     logger.info(f"> Input dataset: {pandora_config.dataset_prefix.absolute()}")

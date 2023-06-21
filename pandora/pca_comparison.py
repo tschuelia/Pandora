@@ -2,9 +2,9 @@ from __future__ import (
     annotations,
 )  # allows type hint PCAComparison inside PCAComparison class
 
-import math
 import warnings
 
+import pandas as pd
 from plotly import graph_objects as go
 from scipy.spatial import procrustes
 from sklearn.metrics import fowlkes_mallows_score
@@ -12,7 +12,7 @@ from sklearn.metrics.pairwise import euclidean_distances
 
 from pandora.custom_types import *
 from pandora.pca import PCA
-from pandora.utils import get_distinct_colors
+from pandora.plotting import get_distinct_colors
 
 
 def _correct_missing(pca: PCA, samples_in_both):
@@ -123,38 +123,35 @@ class PCAComparison:
         ).diagonal()
         return pd.Series(sample_distances)
 
-    def get_sample_support_values(self) -> pd.Series:
+    def get_sample_support_values(self) -> pd.DataFrame:
         sample_distances = self._get_sample_distances()
-        normalized_distances = (sample_distances - sample_distances.min()) / (sample_distances.max() - sample_distances.min() + 1e-10)
+        normalized_distances = (sample_distances - sample_distances.min()) / (
+            sample_distances.max() - sample_distances.min() + 1e-10
+        )
         support_values = 1 - normalized_distances
-        return support_values
+        return pd.DataFrame(
+            data={"sample_id": self.sample_ids, "support": support_values}
+        )
 
-    def detect_rogue_samples(self, rogue_cutoff: float = 0.95) -> List[str]:
+    def detect_rogue_samples(self, rogue_cutoff: float = 0.05) -> pd.DataFrame:
         """
+        TODO: Docstring updaten
         Returns a list of sample IDs that are considered rogue samples when comparing self.comparable to self.reference.
         A sample is considered rogue if the euclidean distance between its PC vectors in self and other
         is larger than the rogue_cutoff-percentile of pairwise PC vector distances
         """
-        sample_distances = self._get_sample_distances()
-        rogue_threshold = sample_distances.quantile(rogue_cutoff)
+        support_values = self.get_sample_support_values()
+        rogue_threshold = support_values.support.quantile(rogue_cutoff)
 
-        rogue_samples = [
-            sample_id
-            for dist, sample_id in zip(
-                sample_distances, self.comparable.pca_data.sample_id
-            )
-            if (
-                dist > rogue_threshold
-                # make sure we are not flagging samples as rogue due to float comparisons
-                # this is necessary when comparing (almost) identical PCA objects
-                and not math.isclose(dist, rogue_threshold, rel_tol=1e-6)
-            )
+        rogue = support_values.loc[
+            lambda x: (x.support < rogue_threshold)
+            & (~np.isclose(x.support, rogue_threshold, rtol=1e-6))
         ]
 
-        return rogue_samples
+        return rogue
 
-    def remove_rogue_samples(self, rogue_cutoff: float = 0.95) -> PCAComparison:
-        rogue_samples = self.detect_rogue_samples(rogue_cutoff)
+    def remove_rogue_samples(self, rogue_cutoff: float = 0.05) -> PCAComparison:
+        rogue_samples = self.detect_rogue_samples(rogue_cutoff).sample_id
 
         comparable_pruned = PCA(
             pca_data=self.comparable.pca_data.loc[
@@ -174,57 +171,83 @@ class PCAComparison:
 
         return PCAComparison(comparable=comparable_pruned, reference=reference_pruned)
 
-    def plot(
-        self,
-        pcx: int = 0,
-        pcy: int = 1,
-        outfile: FilePath = None,
-        show_rogue: bool = False,
-        rogue_cutoff: float = 0.95,
-        **kwargs,
-    ):
-        if show_rogue:
-            rogue_samples = self.detect_rogue_samples(rogue_cutoff=rogue_cutoff)
-            rogue_colors = dict(zip(rogue_samples, get_distinct_colors(len(rogue_samples))))
-            rogue_text = dict(zip(rogue_samples, rogue_samples))
-
-            color_reference = [
-                rogue_colors.get(sample, "lightgrey")
-                for sample in self.comparable.pca_data.sample_id
-            ]
-            text = [
-                rogue_text.get(sample, "")
-                for sample in self.comparable.pca_data.sample_id
-            ]
-
-            # since the sample IDs are identical for both PCAs, we can share the same list of marker colors
-            color_comparable = color_reference
-        else:
-            color_reference = "darkblue"
-            color_comparable = "orange"
-            text = []
+    def plot_rogue(self, pcx: int = 0, pcy: int = 1, rogue_cutoff: float = 0.05, **kwargs):
+        rogue_samples = self.detect_rogue_samples(rogue_cutoff=rogue_cutoff)
+        rogue_samples["color"] = get_distinct_colors(rogue_samples.shape[0])
+        rogue_samples["text"] = [f"{row.sample_id}<br>({round(row.support, 2)})" for idx, row in rogue_samples.iterrows()]
 
         fig = go.Figure(
             [
                 go.Scatter(
                     x=self.reference.pca_data[f"PC{pcx}"],
                     y=self.reference.pca_data[f"PC{pcy}"],
-                    marker_color=color_reference,
+                    marker_color="lightgray",
                     name="Standardized reference PCA",
-                    mode="markers+text",
-                    text=text,
-                    textposition="bottom center",
+                    mode="markers",
                     **kwargs,
                 ),
                 go.Scatter(
                     x=self.comparable.pca_data[f"PC{pcx}"],
                     y=self.comparable.pca_data[f"PC{pcy}"],
-                    marker_color=color_comparable,
+                    marker_color="lightgray",
                     marker_symbol="star",
                     name="Transformed comparable PCA",
-                    mode="markers+text",
-                    text=text,
+                    mode="markers",
+                    **kwargs,
+                ),
+                # Rogue samples
+                go.Scatter(
+                    x=self.reference.pca_data.loc[lambda x: x.sample_id.isin(rogue_samples.sample_id)][f"PC{pcx}"],
+                    y=self.reference.pca_data.loc[lambda x: x.sample_id.isin(rogue_samples.sample_id)][f"PC{pcy}"],
+                    marker_color=rogue_samples.color,
+                    text=rogue_samples.text,
                     textposition="bottom center",
+                    mode="markers+text",
+                    showlegend=False
+                ),
+                go.Scatter(
+                    x=self.comparable.pca_data.loc[lambda x: x.sample_id.isin(rogue_samples.sample_id)][f"PC{pcx}"],
+                    y=self.comparable.pca_data.loc[lambda x: x.sample_id.isin(rogue_samples.sample_id)][f"PC{pcy}"],
+                    marker_color=rogue_samples.color,
+                    marker_symbol="star",
+                    text=rogue_samples.text,
+                    textposition="bottom center",
+                    mode="markers+text",
+                    showlegend=False
+                )
+            ]
+        )
+
+        fig.update_xaxes(title=f"PC {pcx + 1}")
+        fig.update_yaxes(title=f"PC {pcy + 1}")
+
+        fig.update_layout(template="plotly_white", height=1000, width=1000)
+
+        return fig
+
+    def plot(
+        self,
+        pcx: int = 0,
+        pcy: int = 1,
+        **kwargs,
+    ):
+        fig = go.Figure(
+            [
+                go.Scatter(
+                    x=self.reference.pca_data[f"PC{pcx}"],
+                    y=self.reference.pca_data[f"PC{pcy}"],
+                    marker_color="darkblue",
+                    name="Standardized reference PCA",
+                    mode="markers",
+                    **kwargs,
+                ),
+                go.Scatter(
+                    x=self.comparable.pca_data[f"PC{pcx}"],
+                    y=self.comparable.pca_data[f"PC{pcy}"],
+                    marker_color="orange",
+                    marker_symbol="star",
+                    name="Transformed comparable PCA",
+                    mode="markers",
                     **kwargs,
                 ),
             ]
@@ -234,9 +257,6 @@ class PCAComparison:
         fig.update_yaxes(title=f"PC {pcy + 1}")
 
         fig.update_layout(template="plotly_white", height=1000, width=1000)
-
-        if outfile:
-            fig.write_image(outfile)
 
         return fig
 
@@ -261,7 +281,9 @@ def match_and_transform(comparable: PCA, reference: PCA) -> Tuple[PCA, PCA, floa
     # check if the number of samples match for now
     assert comp_data.shape == ref_data.shape
 
-    standardized_reference, transformed_comparable, disparity = procrustes(ref_data, comp_data)
+    standardized_reference, transformed_comparable, disparity = procrustes(
+        ref_data, comp_data
+    )
 
     standardized_reference = PCA(
         pca_data=standardized_reference,
@@ -279,42 +301,9 @@ def match_and_transform(comparable: PCA, reference: PCA) -> Tuple[PCA, PCA, floa
         populations=comparable.pca_data.population,
     )
 
-    return standardized_reference, transformed_comparable, disparity
-
-
-def plot_rogue_samples(
-    pca: PCA,
-    rogue_ids: List[str],
-    rogueness: List[float],
-    pcx: int = 0,
-    pcy: int = 1,
-    **kwargs,
-) -> go.Figure:
-    if len(rogue_ids) != len(rogueness):
-        raise ValueError(
-            "Number of rogue IDs and number of rogueness values need to be identical."
-        )
-
-    rogueness = dict(zip(rogue_ids, rogueness))
-    rogue_colors = dict(zip(rogue_ids, get_distinct_colors(len(rogue_ids))))
-    rogue_text = dict([(s, f"{round(rogueness[s], 2)}<br>({s})") for s in rogue_ids])
-
-    fig = go.Figure(
-        go.Scatter(
-            x=pca.pca_data[f"PC{pcx}"],
-            y=pca.pca_data[f"PC{pcy}"],
-            marker_color=[
-                rogue_colors.get(sample, "lightgrey")
-                for sample in pca.pca_data.sample_id
-            ],
-            mode="markers+text",
-            text=[rogue_text.get(s, "") for s in pca.pca_data.sample_id],
-            textposition="bottom center",
-            **kwargs,
-        )
+    assert (
+        all(standardized_reference.pca_data.sample_id
+        == transformed_comparable.pca_data.sample_id)
     )
-    fig.update_xaxes(title=f"PC {pcx + 1} ({round(pca.explained_variances[pcx] * 100, 1)}%)")
-    fig.update_yaxes(title=f"PC {pcy + 1} ({round(pca.explained_variances[pcy] * 100, 1)}%)")
 
-    fig.update_layout(template="plotly_white", height=1000, width=1000)
-    return fig
+    return standardized_reference, transformed_comparable, disparity

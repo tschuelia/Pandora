@@ -69,7 +69,7 @@ n_pcs: 20
 kmeans_k: 3
 
 # TODO: write description
-rogueness_cutoff: 0.95
+rogueness_cutoff: 0.05
 
 # Optional path to the smartPCA executable. Per default, Pandora will use 'smartpca'.
 # Specify a path if smartPCA is not installed system-wide on your machine.

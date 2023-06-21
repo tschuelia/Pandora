@@ -11,7 +11,7 @@ from sklearn.mixture import GaussianMixture
 from sklearn.model_selection import GridSearchCV
 
 from pandora.custom_types import *
-from pandora.utils import get_distinct_colors
+from pandora.plotting import get_distinct_colors
 
 
 class PCA:
@@ -219,7 +219,7 @@ class PCA:
 
     def plot_projections(
         self,
-        populations_used_for_pca: List[str],
+        pca_populations: List[str],
         pcx: int = 0,
         pcy: int = 1,
         fig: go.Figure = None,
@@ -231,8 +231,11 @@ class PCA:
         show_variance_in_axes = fig is None
         fig = go.Figure() if fig is None else fig
 
-        if populations_used_for_pca is None or len(populations_used_for_pca) == 0:
-            raise ValueError("Provide a non-empty list of populations with which the PCA was performed!")
+        if len(pca_populations) == 0:
+            raise ValueError(
+                "It appears that all populations were used for the PCA. "
+                "To plot projections provide a non-empty list of populations with which the PCA was performed!"
+            )
 
         populations = self.pca_data.population.unique()
         projection_colors = get_distinct_colors(populations.shape[0])
@@ -241,7 +244,7 @@ class PCA:
             _data = self.pca_data.loc[self.pca_data.population == population]
             marker_color = (
                 projection_colors[i]
-                if population not in populations_used_for_pca
+                if population not in pca_populations
                 else "lightgray"
             )
             fig.add_trace(

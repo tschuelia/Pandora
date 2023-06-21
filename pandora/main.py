@@ -13,6 +13,7 @@ os.environ["OPENBLAS_NUM_THREADS"] = "1"
 import argparse
 import datetime
 import sys
+import math
 
 from pandora import __version__
 from pandora.pandora import *
@@ -55,6 +56,8 @@ def main():
     # initialize options and directories
     # =======================================
     pandora_config = pandora_config_from_configfile(args.config)
+
+    # TODO: compare pandora_config with potentially existing config file and warn user if settings changed but redo was not set
 
     # create the required output directories based on the analysis specified
     pandora_config.create_result_dirs()
@@ -114,7 +117,6 @@ def main():
                 f"Drawing {pandora_config.n_bootstraps} bootstrapped datasets and running SmartPCA."
             )
         )
-        pandora_results.bootstrap_dataset()
         pandora_results.bootstrap_pcas()
 
         # =======================================
@@ -129,17 +131,14 @@ def main():
             pandora_results.plot_bootstraps()
             pandora_results.plot_sample_support_values()
 
-            if pandora_config.projected_populations is not None:
-                pandora_results.plot_sample_support_values(projected_samples_only=True)
+            # if pandora_config.projected_populations is not None:
+            #     pandora_results.plot_sample_support_values(projected_samples_only=True)
 
     logger.info("\n\n========= PANDORA RESULTS =========")
     logger.info(f"> Input dataset: {pandora_config.dataset_prefix.absolute()}")
 
     if pandora_config.do_bootstrapping:
         pandora_results.log_and_save_bootstrap_results()
-        pandora_results.log_and_save_sample_support_values(
-            log_and_save_projected=pandora_config.projected_populations is not None
-        )
 
     logger.info(
         textwrap.dedent(

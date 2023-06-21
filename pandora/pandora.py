@@ -1,12 +1,9 @@
 import dataclasses
 import itertools
-import math
 import multiprocessing
-import pathlib
 import random
 import statistics
 import textwrap
-from collections import defaultdict
 from multiprocessing import Pool
 from plotly import graph_objects as go
 
@@ -16,10 +13,10 @@ from pandora import __version__
 from pandora.custom_types import *
 from pandora.custom_errors import *
 from pandora.converter import run_convertf
-from pandora.dataset import Dataset
+from pandora.dataset import Dataset, smartpca_finished
 from pandora.logger import *
 from pandora.pca_comparison import PCAComparison
-from pandora.utils import improve_plotly_text_position
+from pandora.plotting import get_rdylgr_color_scale, improve_plotly_text_position
 
 
 @dataclasses.dataclass
@@ -39,7 +36,7 @@ class PandoraConfig:
 
     # sample support values
     rogueness_cutoff: float
-    projected_populations: Union[FilePath, None]  # list of populations to exclude from PCA and later project on the PCA
+    projected_populations: Union[FilePath, None]  # list of populations to use for PCA and later project the remaining the populations on the PCA
 
     # Cluster settings
     kmeans_k: Union[int, None]
@@ -138,21 +135,12 @@ class Pandora:
         self.pandora_config: PandoraConfig = pandora_config
         self.dataset: Dataset = Dataset(
             file_prefix=pandora_config.dataset_prefix,
-            projected_populations=pandora_config.projected_populations
+            pca_populations=pandora_config.projected_populations
         )
-
         self.bootstrap_datasets: List[Dataset] = []
         self.bootstrap_similarities: Dict[Tuple[int, int], float] = {}
         self.bootstrap_cluster_similarities: Dict[Tuple[int, int], float] = {}
         self.sample_support_values: Dict[str, float] = {}
-
-        self.kmeans_k: int = self.pandora_config.kmeans_k
-
-        # to compute the support values of the projected samples separately
-        # we need the list of population names only used for projection
-        self.projected_populations = {}
-        if pandora_config.projected_populations is not None:
-            self.projected_populations = {p.strip() for p in pandora_config.projected_populations.open().readlines()}
 
     def do_pca(self):
         self.dataset.smartpca(
@@ -178,13 +166,13 @@ class Pandora:
         fig = dataset.pca.plot_clusters(
             pcx=pcx,
             pcy=pcy,
-            kmeans_k=self.kmeans_k,
+            kmeans_k=self.pandora_config.kmeans_k,
         )
         fig.write_image(self.pandora_config.plot_dir / f"{plot_prefix}_with_clusters.pdf")
 
-        if self.projected_populations is not None:
+        if len(self.dataset.pca_populations) > 0:
             fig = dataset.pca.plot_projections(
-                populations_used_for_pca=list(self.projected_populations),
+                pca_populations=list(self.dataset.pca_populations),
                 pcx=pcx,
                 pcy=pcy,
             )
@@ -196,18 +184,6 @@ class Pandora:
     # ===========================
     # BOOTSTRAP RELATED FUNCTIONS
     # ===========================
-    def bootstrap_dataset(self):
-        random.seed(self.pandora_config.seed)
-
-        args = [
-            (self.pandora_config.bootstrap_result_dir / f"bootstrap_{i}", random.randint(0, 1_000_000),
-             self.pandora_config.redo)
-            for i in range(self.pandora_config.n_bootstraps)
-        ]
-
-        with Pool(self.pandora_config.threads) as p:
-            self.bootstrap_datasets = list(p.starmap(self.dataset.create_bootstrap, args))
-
     def _run_pca(self, bootstrap: Dataset):
         bootstrap.smartpca(
             smartpca=self.pandora_config.smartpca,
@@ -218,10 +194,49 @@ class Pandora:
         return bootstrap
 
     def bootstrap_pcas(self):
+        """
+        Create bootstrap datasets and run PCA on each dataset
+        """
+        # In order to save storage, we are deleting the bootstrap datasets (.ind, .geno, .snp) files.
+        # So before we create bootstrap datasets, we have to check whether the subsequent PCA run finished already
+        # we do this check for each of the expected Bootstrap outputs and only compute the missing ones
+        random.seed(self.pandora_config.seed)
+        random_seeds = [random.randint(0, 1_000_000) for _ in range(self.pandora_config.n_bootstraps)]
+
+        bootstraps_to_do = []
+        for i in range(self.pandora_config.n_bootstraps):
+            bs_prefix = self.pandora_config.bootstrap_result_dir / f"bootstrap_{i}"
+
+            if smartpca_finished(self.pandora_config.n_pcs, bs_prefix):
+                continue
+
+            # we need to pass the seed like this to make sure we use the same seed in subsequent runs
+            bootstraps_to_do.append((bs_prefix, random_seeds[i]))
+
+        # 1. Create bootstrap dataset
+        with Pool(self.pandora_config.threads) as p:
+            args = [
+                (prefix,
+                 seed,
+                 self.pandora_config.redo)
+                for prefix, seed in bootstraps_to_do
+            ]
+            list(p.starmap(self.dataset.create_bootstrap, args))
+
+        self.bootstrap_datasets = [Dataset(
+            self.pandora_config.bootstrap_result_dir / f"bootstrap_{i}",
+            self.dataset.pca_populations_file,
+            self.dataset.samples
+        ) for i in range(self.pandora_config.n_bootstraps)]
+
+        # 2. Run bootstrap PCAs
         with Pool(self.pandora_config.threads) as p:
             # the subprocesses in Pool do not modify the object but work on a copy
             # we thus replace the objects with their modified versions
             self.bootstrap_datasets = list(p.map(self._run_pca, self.bootstrap_datasets))
+
+        # 3. EIGEN files can be rather large, so we delete the bootstrapped datasets
+        [bs.remove_input_files() for bs in self.bootstrap_datasets]
 
     def plot_bootstraps(self):
         for i, bootstrap in enumerate(self.bootstrap_datasets):
@@ -229,13 +244,12 @@ class Pandora:
 
     def compare_bootstrap_similarity(self):
         # Compare all bootstraps pairwise
-        if self.kmeans_k is not None:
-            kmeans_k = self.kmeans_k
+        if self.pandora_config.kmeans_k is not None:
+            kmeans_k = self.pandora_config.kmeans_k
         else:
             kmeans_k = self.dataset.pca.get_optimal_kmeans_k()
 
-        self.dataset.set_sample_ids_and_populations()
-        sample_support = dict((sample, []) for sample in self.dataset.samples)
+        sample_support = dict((sample, []) for sample in self.dataset.samples.sample_id)
 
         for (i1, bootstrap1), (i2, bootstrap2) in itertools.combinations(enumerate(self.bootstrap_datasets), r=2):
             pca_comparison = PCAComparison(comparable=bootstrap1.pca, reference=bootstrap2.pca)
@@ -243,11 +257,11 @@ class Pandora:
             self.bootstrap_cluster_similarities[(i1, i2)] = pca_comparison.compare_clustering(kmeans_k)
 
             support_values = pca_comparison.get_sample_support_values()
-            for sample_id, support in zip(pca_comparison.sample_ids, support_values):
-                sample_support[sample_id].append(support)
+            for idx, row in support_values.iterrows():
+                sample_support[row.sample_id].append(row.support)
 
         # compute the support value for each sample
-        for sample in self.dataset.samples:
+        for sample in self.dataset.samples.sample_id:
             self.sample_support_values[sample] = np.mean(sample_support[sample])
 
     def log_and_save_bootstrap_results(self):
@@ -270,7 +284,7 @@ class Pandora:
         bootstrap_results_string = textwrap.dedent(
             f"""
             > Number of Bootstrap replicates computed: {self.pandora_config.n_bootstraps}
-            > Number of Kmeans clusters: {self.kmeans_k}
+            > Number of Kmeans clusters: {self.pandora_config.kmeans_k}
 
             ------------------
             Bootstrapping Similarity
@@ -303,37 +317,34 @@ class Pandora:
         )
         logger.info(support_values_result_string)
 
-    def log_and_save_sample_support_values(self, log_and_save_projected: bool = False):
+    def log_and_save_sample_support_values(self):
         _rd = self.pandora_config.result_decimals
 
-        projected_samples = {}
+        all_samples = self.pandora_config.sample_support_values_file
 
-        with self.pandora_config.sample_support_values_file.open(mode="w") as all_samples_file:
-            for sample, support_value in self.sample_support_values.items():
-                all_samples_file.write(f"{sample}\t{round(support_value, _rd)}\n")
-
-                if log_and_save_projected and self.dataset.samples.get(sample) in self.projected_populations:
-                    projected_samples[sample] = support_value
-
-        if log_and_save_projected:
-            with self.pandora_config.sample_support_values_projected_samples_file.open(mode="w") as projected_samples_file:
-                for sample, support_value in projected_samples.items():
-                    projected_samples_file.write(f"{sample}\t{round(support_value, self.pandora_config.result_decimals)}\n")
+        with all_samples.open("w") as _all:
+            for idx, row in self.dataset.samples.iterrows():
+                sid = row.sample_id
+                sv = round(self.sample_support_values.get(sid), _rd)
+                _all.write(f"{sid}\t{sv}\n")
 
         self._log_support_values("All Samples", self.sample_support_values.values())
 
-        if log_and_save_projected:
-            self._log_support_values("Projected Samples", projected_samples.values())
+        if self.dataset.projected_samples.empty:
+            return
+
+        projected_samples = self.pandora_config.sample_support_values_projected_samples_file
+        projected_support_values = []
+        with projected_samples.open("w") as _projected:
+            for idx, row in self.dataset.projected_samples.iterrows():
+                sid = row.sample_id
+                sv = self.sample_support_values.get(sid)
+                projected_support_values.append(sv)
+                _projected.write(f"{sid}\t{round(sv, _rd)}\n")
+
+        self._log_support_values("Projected Samples", projected_support_values)
 
     def plot_sample_support_values(self, projected_samples_only: bool = False):
-        if projected_samples_only:
-            support_values = {}
-            for sample, support_value in self.sample_support_values.items():
-                if self.dataset.samples.get(sample) in self.projected_populations:
-                    support_values[sample] = support_value
-        else:
-            support_values = self.sample_support_values
-
         pcx = self.pandora_config.plot_pcx
         pcy = self.pandora_config.plot_pcy
 
@@ -342,11 +353,25 @@ class Pandora:
         pca_data = self.dataset.pca.pca_data.sort_values(by="sample_id").reset_index(drop=True)
         x_data = pca_data[f"PC{pcx}"]
         y_data = pca_data[f"PC{pcy}"]
+
+        if projected_samples_only:
+            support_values = {}
+            for sample, support_value in self.sample_support_values.items():
+                if self.dataset.samples.get(sample) in self.dataset.projected_samples:
+                    support_values[sample] = support_value
+        else:
+            support_values = self.sample_support_values
+
+        rogue_threshold = np.quantile(list(support_values.values()), self.pandora_config.rogueness_cutoff)
         support_values = sorted(support_values.items())
+
+        x_title = f"PC {pcx + 1}"
+        y_title = f"PC {pcy + 1}"
+
         support_values_annotations = [
             f"{round(support, 2)}<br>({sample})"
             # annotate only samples with a support value < 0.9 otherwise things are going to get messy
-            if support < 0.9 else ""
+            if support < rogue_threshold else ""
             for (sample, support) in support_values
         ]
 
@@ -356,13 +381,24 @@ class Pandora:
                 y=y_data,
                 mode="markers+text",
                 text=support_values_annotations,
-                textposition="bottom center"
+                textposition="bottom center",
+                marker=dict(
+                    color=[v for _, v in support_values],
+                    colorscale=get_rdylgr_color_scale(),
+                    colorbar=dict(
+                        title="Bootstrap support"
+                    ),
+                    showscale=True,
+                    cmin=0,
+                    cmax=1
+                )
             )
         )
-        fig.update_xaxes(title=f"PC {pcx + 1}")
-        fig.update_yaxes(title=f"PC {pcy + 1}")
+        fig.update_xaxes(title=x_title)
+        fig.update_yaxes(title=y_title)
         fig.update_layout(template="plotly_white", height=1000, width=1000)
-        fig.update_traces(textposition=improve_plotly_text_position(pca_data[f"PC{pcx}"]))
+        fig.update_traces(textposition=improve_plotly_text_position(x_data))
+
         if projected_samples_only:
             fig_name = "projected_sample_support_values.pdf"
         else:

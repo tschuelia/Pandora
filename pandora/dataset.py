@@ -149,7 +149,7 @@ class Dataset:
 
     def create_bootstrap(self, bootstrap_prefix: FilePath, seed: int, redo: bool) -> Dataset:
         random.seed(seed)
-        bootstrap = Dataset(bootstrap_prefix)
+        bootstrap = Dataset(bootstrap_prefix, self.projected_populations)
 
         if bootstrap.files_exist() and not redo:
             return bootstrap

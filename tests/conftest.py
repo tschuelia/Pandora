@@ -1,8 +1,18 @@
 import pytest
 import pathlib
-import os
 
 from pandora.dataset import Dataset
+from .test_config import SMARTPCA, CONVERTF
+
+
+@pytest.fixture
+def smartpca():
+    return SMARTPCA
+
+
+@pytest.fixture
+def convertf():
+    return CONVERTF
 
 
 @pytest.fixture
@@ -11,8 +21,18 @@ def example_eigen_dataset_prefix():
 
 
 @pytest.fixture
+def example_population_list():
+    return pathlib.Path(__file__).parent / "data" / "example_populations.txt"
+
+
+@pytest.fixture
 def example_dataset(example_eigen_dataset_prefix):
     return Dataset(example_eigen_dataset_prefix)
+
+
+@pytest.fixture
+def example_dataset_with_poplist(example_eigen_dataset_prefix, example_population_list):
+    return Dataset(example_eigen_dataset_prefix, example_population_list)
 
 
 @pytest.fixture
@@ -33,7 +53,7 @@ def incorrect_smartpca_npcs_result_prefix():
     """
     Number of PCs in n_pcs_mismatch.evec is 3
     """
-    return pathlib.Path(__file__).parent / "data" / "smartpca" / "n_pcs_mismatch"
+    return pathlib.Path(__file__).parent / "data" / "smartpca" / "example_3pcs"
 
 
 @pytest.fixture

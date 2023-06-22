@@ -3,68 +3,29 @@ import pathlib
 import pytest
 import shutil
 
-from pandora.dataset import smartpca_finished
+from pandora.dataset import *
+from pandora.pca import PCA
 
 
-def _check_geno_file(geno_file: pathlib.Path) -> bool:
-    # should only contain int values and
-    line_lengths = set()
-    for line in geno_file.open():
-        line = line.strip()
-        line_lengths.add(len(line))
-        try:
-            [int(c) for c in line]
-        except ValueError:
-            # one char seems to not be an int
-            return False
+class TestDataset:
+    def test_get_pca_populations(self, example_population_list):
+        populations = get_pca_populations(example_population_list)
+        assert len(populations) == 4
 
-    # each line should have the same number of values
-    assert len(line_lengths) == 1
-    return True
+    def test_sample_dataframe_correct(self, example_dataset_with_poplist):
+        samples = example_dataset_with_poplist.samples
 
+        # example.ind has 5 samples
+        assert samples.shape[0] == 5
+        # samples should have 4 columns: sample_id, sex, population, used_for_pca
+        assert samples.shape[1] == 4
+        assert set(samples.columns) == {"sample_id", "sex", "population", "used_for_pca"}
 
-def _check_ind_file(ind_file: pathlib.Path) -> bool:
-    # each line should contain three values
-    seen_inds = set()
-    total_inds = 0
+        # this dataset has a population list, so some samples should not be used_for_pca
+        assert not samples.used_for_pca.all()
 
-    for line in ind_file.open():
-        try:
-            ind_id, _, _ = line.strip().split()
-        except ValueError:
-            # too few or too many lines
-            return False
-
-        seen_inds.add(ind_id.strip())
-        total_inds += 1
-
-    # make sure all individuals have a unique ID
-    assert len(seen_inds) == total_inds
-    return True
-
-
-def _check_snp_file(snp_file: pathlib.Path) -> bool:
-    seen_snps = set()
-    total_snps = 0
-
-    for line in snp_file.open():
-        line = line.strip()
-        # each line contains 4, 5, or 6 values
-        n_values = len(line.split())
-        if n_values < 4 or n_values > 6:
-            return False
-
-        snp_name, chrom, *_ = line.split()
-        seen_snps.add(snp_name.strip())
-        total_snps += 1
-
-        # the chromosome needs to be between 1 - 22, 23 (X), 24 (Y), 90 (mtDNA), 91 (XY)
-        assert int(chrom) in [*range(1, 23), 23, 24, 90, 91]
-
-    # make sure all SNPs have a unique ID
-    assert len(seen_snps) == total_snps
-
-    return True
+        # each sample in this example dataset has a unique population
+        assert samples.population.unique().shape[0] == samples.shape[0]
 
 
 class TestDatasetBootstrap:
@@ -92,9 +53,7 @@ class TestDatasetBootstrap:
             assert in_snp_count == bs_snp_count
 
             # check that all files are correctly formatted
-            assert _check_geno_file(bootstrap.geno_file)
-            assert _check_ind_file(bootstrap.ind_file)
-            assert _check_snp_file(bootstrap.snp_file)
+            bootstrap.check_files()
 
     def test_bootstrap_using_existing_files(self, example_dataset):
         """
@@ -118,9 +77,7 @@ class TestDatasetBootstrap:
             assert example_dataset.snp_file.open().read() == bootstrap.snp_file.open().read()
 
             # check that all files are correctly formatted
-            assert _check_geno_file(bootstrap.geno_file)
-            assert _check_ind_file(bootstrap.ind_file)
-            assert _check_snp_file(bootstrap.snp_file)
+            bootstrap.check_files()
 
     @pytest.mark.parametrize("seed", [0, 10, 100, 885440])
     def test_bootstrap_using_checkpoint(self, example_dataset, seed):
@@ -159,6 +116,18 @@ class TestDatasetBootstrap:
             assert backup_geno.open().read() == bootstrap.geno_file.open().read()
             assert backup_snp.open().read() == bootstrap.snp_file.open().read()
 
+    def test_deduplicate_snp_id(self):
+        n_ids = 5
+        seen_ids = set()
+        for i, snp_id in enumerate(n_ids * ["snp_id"]):
+            deduplicate = deduplicate_snp_id(snp_id, seen_ids)
+            seen_ids.add(deduplicate)
+
+            if i > 0:
+                assert f"r{i}" in deduplicate
+
+        assert len(seen_ids) == n_ids
+
 
 class TestDatasetSmartPCA:
     def test_smartpca_finished(self, correct_smartpca_result_prefix):
@@ -176,3 +145,10 @@ class TestDatasetSmartPCA:
     def test_smartpca_results_missing(self, missing_smartpca_result_prefix):
         n_pcs = 2
         assert not smartpca_finished(n_pcs, missing_smartpca_result_prefix)
+
+    def test_smartpca(self, smartpca, example_dataset):
+        n_pcs = 2
+        with tempfile.TemporaryDirectory() as result_dir:
+            result_dir = pathlib.Path(result_dir)
+            example_dataset.smartpca(smartpca, n_pcs, result_dir)
+            assert isinstance(example_dataset.pca, PCA)

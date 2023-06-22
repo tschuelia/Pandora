@@ -276,6 +276,43 @@ class PCA:
         return fig
 
 
+def check_smartpca_results(evec: FilePath, eval: FilePath):
+    # check the evec file:
+    # - first line should start with #eigvals: and then determines the number of PCs
+    with evec.open() as f:
+        line = f.readline().strip()
+        if not line.startswith("#eigvals"):
+            raise RuntimeError(f"SmartPCA evec result file appears to be incorrect: {evec}")
+
+        variances = line.split()[1:]
+        try:
+            [float(v) for v in variances]
+        except ValueError:
+            raise RuntimeError(f"SmartPCA evec result file appears to be incorrect: {evec}")
+        n_pcs = len(variances)
+
+        # all following lines should look like this:
+        # SampleID  PC0  PC1  ...  PCN-1  Population
+        for line in f.readlines():
+            values = line.strip().split()
+            if len(values) != n_pcs + 2:
+                raise RuntimeError(f"SmartPCA evec result file appears to be incorrect: {evec}")
+
+            # all PC values should be floats
+            try:
+                [float(v) for v in values[1:-1]]
+            except ValueError:
+                raise RuntimeError(f"SmartPCA evec result file appears to be incorrect: {evec}")
+
+    # check the eval file: each line should cotain a single float only
+    for line in eval.open():
+        line = line.strip()
+        try:
+            float(line)
+        except ValueError:
+            raise RuntimeError(f"SmartPCA eval result file appears to be incorrect: {eval}")
+
+
 def from_smartpca(evec: FilePath, eval: FilePath) -> PCA:
     """
     Creates a PCA object from a smartPCA results file.
@@ -288,6 +325,8 @@ def from_smartpca(evec: FilePath, eval: FilePath) -> PCA:
         PCA: PCA object encapsulating the results of the SmartPCA run.
 
     """
+    # make sure both files are in correct format
+    check_smartpca_results(evec, eval)
     # First, read the eigenvectors and transform it into the pca_data pandas dataframe
     with open(evec) as f:
         # first line does not contain data we are interested in

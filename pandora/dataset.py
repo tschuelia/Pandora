@@ -2,18 +2,88 @@ from __future__ import (
     annotations,
 )  # allows type hint Dataset inside Dataset class
 
-import pathlib
 import shutil
 import tempfile
 import textwrap
 import subprocess
 import random
 
-import pandas as pd
-
 from pandora.custom_types import *
 from pandora.custom_errors import *
 from pandora.pca import PCA, from_smartpca
+
+
+def check_geno_file(geno_file: pathlib.Path):
+    # should only contain int values
+    allowed_genos = {0, 1, 2, 9}
+    seen_genos = set()
+
+    line_lengths = set()
+    for line in geno_file.open():
+        line = line.strip()
+        line_lengths.add(len(line))
+        try:
+            [seen_genos.add(int(c)) for c in line]
+        except ValueError:
+            # one char seems to not be an int
+            raise PandoraConfigException(f"The .geno file {geno_file} seems to be wrong. "
+                                         f"All values must be in {allowed_genos}.")
+    if seen_genos > allowed_genos:
+        raise PandoraConfigException(f"The .geno file {geno_file} seems to be wrong. "
+                                     f"All values must be in {allowed_genos}.")
+
+    # each line should have the same number of values
+    if len(line_lengths) != 1:
+        raise PandoraConfigException(f"The .geno file {geno_file} seems to be wrong. "
+                                     f"All samples must have the same number of SNPs.")
+
+
+def check_ind_file(ind_file: pathlib.Path):
+    # each line should contain three values
+    seen_inds = set()
+    total_inds = 0
+
+    for line in ind_file.open():
+        try:
+            ind_id, _, _ = line.strip().split()
+        except ValueError:
+            # too few or too many lines
+            raise PandoraConfigException(f"The .ind file {ind_file} seems to be wrong. All lines should contain three values.")
+
+        seen_inds.add(ind_id.strip())
+        total_inds += 1
+
+    # make sure all individuals have a unique ID
+    if len(seen_inds) != total_inds:
+        raise PandoraConfigException(f"The .ind file {ind_file} seems to be wrong. Duplicate sample IDs found.")
+
+
+def check_snp_file(snp_file: pathlib.Path):
+    seen_snps = set()
+    total_snps = 0
+
+    line_lengths = set()
+
+    for line in snp_file.open():
+        line = line.strip()
+        # each line contains 4, 5, or 6 values
+        n_values = len(line.split())
+        line_lengths.add(n_values)
+        if n_values < 4 or n_values > 6:
+            raise PandoraConfigException(f"The .snp file {snp_file} seems to be wrong. All lines need to contain either 4, 5, or 6 values.")
+
+        snp_name, chrom, *_ = line.split()
+        seen_snps.add(snp_name.strip())
+        total_snps += 1
+
+    # all lines should contain the same number of values
+    if len(line_lengths) != 1:
+        raise PandoraConfigException(
+            f"The .snp file {snp_file} seems to be wrong. All lines need to contain the same number of values.")
+
+    # make sure all SNPs have a unique ID
+    if len(seen_snps) != total_snps:
+        raise PandoraConfigException(f"The .snp file {snp_file} seems to be wrong. Duplicate SNP IDs found.")
 
 
 def smartpca_finished(n_pcs: int, result_prefix: FilePath,):
@@ -113,6 +183,11 @@ class Dataset:
             [self.ind_file.exists(), self.geno_file.exists(), self.snp_file.exists()]
         )
 
+    def check_files(self):
+        check_ind_file(self.ind_file)
+        check_geno_file(self.geno_file)
+        check_snp_file(self.snp_file)
+
     def remove_input_files(self):
         self.ind_file.unlink(missing_ok=True)
         self.geno_file.unlink(missing_ok=True)
@@ -146,6 +221,8 @@ class Dataset:
                 f"Not all input files for file prefix {self.file_prefix} present. "
                 f"Looking for files in EIGEN format with endings .geno, .snp, and .ind"
             )
+        # check that all required input files are correctly formatted
+        self.check_files()
 
         with tempfile.NamedTemporaryFile(mode="w") as tmpfile:
             smartpca_params = f"""

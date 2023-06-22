@@ -53,6 +53,18 @@ def get_pca_populations(pca_populations: Optional[FilePath]):
     return [pop.strip() for pop in pca_populations.open()]
 
 
+def deduplicate_snp_id(snp_id: str, seen_snps: Set[str]):
+    deduplicate = snp_id
+
+    snp_id_counter = 0
+
+    while deduplicate in seen_snps:
+        snp_id_counter += 1
+        deduplicate = f"{snp_id}_r{snp_id_counter}"
+
+    return deduplicate
+
+
 class Dataset:
     def __init__(self, file_prefix: FilePath, pca_populations: Optional[FilePath] = None, samples: pd.DataFrame = None):
         self.file_prefix: FilePath = file_prefix
@@ -209,21 +221,14 @@ class Dataset:
 
         with bs_snp_file.open(mode="a") as f:
             for bootstrap_idx in bootstrap_snp_indices:
-                snp_line = snps[bootstrap_idx]
+                snp_line = snps[bootstrap_idx].strip()
 
                 # lines look like this:
                 # 1   SampleExample 0 0 1 1
                 snp_id, chrom_id, rest = snp_line.split(maxsplit=2)
-                deduplicate = snp_id
-
-                snp_id_counter = 0
-
-                while deduplicate in seen_snps:
-                    snp_id_counter += 1
-                    deduplicate = f"{snp_id}_r{snp_id_counter}"
-
-                seen_snps.add(deduplicate)
-                f.write(f"{deduplicate} {chrom_id} {rest}")
+                snp_id = deduplicate_snp_id(snp_id, seen_snps)
+                seen_snps.add(snp_id)
+                f.write(f"{snp_id} {chrom_id} {rest}\n")
 
         # 2. Bootstrap the .geno file using the bootstrap_snp_indices above
         # the .geno file contains one column for each individual sample
@@ -231,10 +236,12 @@ class Dataset:
         genos = self.geno_file.open(mode="rb").readlines()
         with bs_geno_file.open(mode="ab") as f:
             for bootstrap_idx in bootstrap_snp_indices:
-                geno_line = genos[bootstrap_idx]
+                geno_line = genos[bootstrap_idx].strip()
                 f.write(geno_line)
+                f.write(b"\n")
 
         # when bootstrapping on SNP level, the .ind file does not change
         shutil.copy(self.ind_file, bs_ind_file)
 
         return Dataset(bootstrap_prefix, self.pca_populations_file)
+

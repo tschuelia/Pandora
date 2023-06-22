@@ -11,7 +11,9 @@ def get_distinct_colors(n_colors: int) -> List[str]:
         List[str]: List of n plotly HSV color strings.
 
     """
-    return [f"hsv({v}%, 100%, 80%)" for v in np.linspace(0, 100, n_colors, endpoint=False)]
+    hue_values = np.linspace(0, 100, n_colors, endpoint=False)
+    hue_values = np.clip(hue_values, 0, 100)
+    return [f"hsv({v}%, 100%, 80%)" for v in hue_values]
 
 
 def get_rdylgr_color_scale():

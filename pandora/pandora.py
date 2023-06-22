@@ -5,14 +5,14 @@ import random
 import statistics
 import textwrap
 from multiprocessing import Pool
-from plotly import graph_objects as go
 
 import yaml
+from plotly import graph_objects as go
 
 from pandora import __version__
-from pandora.custom_types import *
-from pandora.custom_errors import *
 from pandora.converter import run_convertf
+from pandora.custom_errors import *
+from pandora.custom_types import *
 from pandora.dataset import Dataset, smartpca_finished
 from pandora.logger import *
 from pandora.pca_comparison import PCAComparison
@@ -28,6 +28,7 @@ class PandoraConfig:
     # Bootstrap related settings
     n_pcs: int
     n_bootstraps: int
+    keep_bootstraps: bool
 
     # PCA related
     smartpca: Executable
@@ -251,7 +252,8 @@ class Pandora:
             )
 
         # 3. EIGEN files can be rather large, so we delete the bootstrapped datasets
-        [bs.remove_input_files() for bs in self.bootstrap_datasets]
+        if not self.pandora_config.keep_bootstraps:
+            [bs.remove_input_files() for bs in self.bootstrap_datasets]
 
         # TODO: die Schritte oben zusammen ziehen damit bootstrap -> PCA -> löschen nicht sequenziell für all N gemacht wird
         # sondern alles direkt parallel
@@ -392,73 +394,54 @@ class Pandora:
         )
 
         if projected_samples_only:
-            # first, plot all samples in lightgray
-            fig = go.Figure(
-                go.Scatter(x=x_data, y=y_data, marker_color="lightgray", mode="markers", showlegend=False)
-            )
+            marker_colors = []
+            marker_text = []
 
-            # next, plot the projected samples color-coded by their support values
-            projected_data = pca_data.loc[
-                lambda x: x.sample_id.isin(self.dataset.projected_samples.sample_id)
-            ].copy()
-
-            projected_data["support"] = [
-                self.sample_support_values.get(row.sample_id)
-                for idx, row in projected_data.iterrows()
-            ]
-
-            support_values_annotations = [
-                f"{round(row.support, 2)}<br>({row.sample_id})"
-                if row.support < rogue_threshold else ""
-                for idx, row in projected_data.iterrows()
-            ]
-
-            fig.add_trace(
-                go.Scatter(
-                    x=projected_data[f"PC{pcx}"],
-                    y=projected_data[f"PC{pcy}"],
-                    mode="markers+text",
-                    text=support_values_annotations,
-                    textposition="bottom center",
-                    marker=dict(
-                        color=projected_data.support.tolist(),
-                        colorscale=get_rdylgr_color_scale(),
-                        colorbar=dict(title="Bootstrap support"),
-                        showscale=True,
-                        cmin=0,
-                        cmax=1,
-                    ),
-                    showlegend=False
-                )
-            )
+            for idx, row in pca_data.iterrows():
+                if row.sample_id in self.dataset.projected_samples.sample_id.unique():
+                    # check if the sample is projected, if so the marker color should be according to it's support
+                    support = self.sample_support_values.get(row.sample_id)
+                    marker_colors.append(support)
+                    if support < rogue_threshold:
+                        # if the support is worse than the threshold, annotate the projected sample
+                        marker_text.append(f"{round(support, 2)}<br>({row.sample_id})")
+                    else:
+                        # do not annotate
+                        marker_text.append("")
+                else:
+                    # otherwise print an unlabeled, gray marker
+                    marker_colors.append("lightgray")
+                    marker_text.append("")
 
         else:
+            marker_colors = list(self.sample_support_values.values())
             support_values = sorted(self.sample_support_values.items())
 
-            support_values_annotations = [
+            # annotate only samples with support below rogue_threshold
+            marker_text = [
                 f"{round(support, 2)}<br>({sample})"
                 if support < rogue_threshold else ""
                 for (sample, support) in support_values
             ]
 
-            fig = go.Figure(
-                go.Scatter(
-                    x=x_data,
-                    y=y_data,
-                    mode="markers+text",
-                    text=support_values_annotations,
-                    textposition="bottom center",
-                    marker=dict(
-                        color=[v for _, v in support_values],
-                        colorscale=get_rdylgr_color_scale(),
-                        colorbar=dict(title="Bootstrap support"),
-                        showscale=True,
-                        cmin=0,
-                        cmax=1,
-                    ),
-                )
+        fig = go.Figure(
+            go.Scatter(
+                x=x_data,
+                y=y_data,
+                mode="markers+text",
+                text=marker_text,
+                textposition="bottom center",
+                marker=dict(
+                    color=marker_colors,
+                    colorscale=get_rdylgr_color_scale(),
+                    colorbar=dict(title="Bootstrap support"),
+                    showscale=True,
+                    cmin=0,
+                    cmax=1,
+                ),
             )
-            fig.update_traces(textposition=improve_plotly_text_position(x_data))
+        )
+        fig.update_traces(textposition=improve_plotly_text_position(x_data))
 
         fig.update_xaxes(title=f"PC {pcx + 1}")
         fig.update_yaxes(title=f"PC {pcy + 1}")
@@ -497,6 +480,7 @@ def pandora_config_from_configfile(configfile: FilePath) -> PandoraConfig:
         # Bootstrap related settings
         n_pcs=config_data.get("n_pcs", 0.95),
         n_bootstraps=config_data.get("n_bootstraps", 100),
+        keep_bootstraps=config_data.get("keep_bootstraps", False),
 
         # PCA related
         smartpca=config_data.get("smartpca", "smartpca"),

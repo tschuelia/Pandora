@@ -1,0 +1,34 @@
+parameter file: /var/folders/c3/6cf6l4n106v0gfcqwr1bt8nr0000gn/T/tmpbx1sive0
+### THE INPUT PARAMETERS
+##PARAMETER NAME: VALUE
+genotypename: data/example.geno
+snpname: data/example.snp
+indivname: data/example.ind
+evecoutname: data/smartpca/example.evec
+evaloutname: data/smartpca/example.eval
+numoutevec: 2
+maxpops: 2
+shrinkmode: NO
+familynames: NO
+## smartpca version: 18140
+norm used
+
+lsqproject used
+snps deleted (nodata): 0.  deletesnpoutname: for detailsnumber of samples used: 5 number of snps used: 7
+number of pops for axes: 2
+Using 8 threads, and partial sum lookup algorithm.
+total number of snps killed in pass: 0  used: 7
+
+## Tracy-Widom statistics: rows: 5  cols: 7
+  #N    eigenvalue  difference    twstat      p-value effect. n
+   1      3.144925          NA        NA           NA        NA
+   2      0.479073   -2.665852        NA           NA        NA
+   3      0.278742   -0.200331        NA           NA        NA
+   4      0.097261   -0.181481        NA           NA        NA
+    kurtosis           snps    indivs
+ eigenvector    1     1.311     1.503
+ eigenvector    2     1.989     2.133
+lsqproj called!
+population:   0                 Case    2
+population:   1              Control    3
+number of blocks for block jackknife: 1

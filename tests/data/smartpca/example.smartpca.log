@@ -1,0 +1,63 @@
+parameter file: /var/folders/c3/6cf6l4n106v0gfcqwr1bt8nr0000gn/T/tmpbx1sive0
+### THE INPUT PARAMETERS
+##PARAMETER NAME: VALUE
+genotypename: data/example.geno
+snpname: data/example.snp
+indivname: data/example.ind
+evecoutname: data/smartpca/example.evec
+evaloutname: data/smartpca/example.eval
+numoutevec: 2
+maxpops: 2
+shrinkmode: NO
+familynames: NO
+## smartpca version: 18140
+norm used
+
+lsqproject used
+snps deleted (nodata): 0.  deletesnpoutname: for detailsnumber of samples used: 5 number of snps used: 7
+number of pops for axes: 2
+Using 8 threads, and partial sum lookup algorithm.
+total number of snps killed in pass: 0  used: 7
+
+## Tracy-Widom statistics: rows: 5  cols: 7
+  #N    eigenvalue  difference    twstat      p-value effect. n
+   1      3.144925          NA        NA           NA        NA
+   2      0.479073   -2.665852        NA           NA        NA
+   3      0.278742   -0.200331        NA           NA        NA
+   4      0.097261   -0.181481        NA           NA        NA
+    kurtosis           snps    indivs
+ eigenvector    1     1.311     1.503
+ eigenvector    2     1.989     2.133
+lsqproj called!
+population:   0                 Case    2
+population:   1              Control    3
+number of blocks for block jackknife: 1
+number of blocks 1: no standard error
+## end of Fst statistics between populations
+
+fst *1000:
+          C     C
+   C      0   415
+   C    415     0
+
+std. err.  * 1000000:
+          C     C
+   C      0     0
+   C      0     0
+
+eigenvector 1:means
+                Case     -0.505
+             Control      0.336
+## Anova statistics for population differences along each eigenvector:
+                                              p-value
+             eigenvector_1_Case_Control_     0.0261881
+eigenvector 2:means
+                Case     -0.085
+             Control      0.057
+             eigenvector_2_Case_Control_      0.803635
+
+## Statistical significance of differences beween populations:
+                                pop1                  pop2      chisq          p-value   |pop1|   |pop2|
+popdifference:                  Case               Control         9.567    0.00836718       2       3
+
+##end of smartpca:        0.002 seconds cpu        0.000 Mbytes in use

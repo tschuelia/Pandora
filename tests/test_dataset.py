@@ -149,6 +149,49 @@ class TestDatasetSmartPCA:
     def test_smartpca(self, smartpca, example_dataset):
         n_pcs = 2
         with tempfile.TemporaryDirectory() as result_dir:
+            assert example_dataset.pca is None
             result_dir = pathlib.Path(result_dir)
             example_dataset.smartpca(smartpca, n_pcs, result_dir)
+            assert isinstance(example_dataset.pca, PCA)
+
+    def test_smartpca_with_additional_settings(self, smartpca, example_dataset):
+        n_pcs = 2
+        smartpca_settings = {
+            "numoutlieriter": 0,
+            "shrinkmode": True
+        }
+        with tempfile.TemporaryDirectory() as result_dir:
+            assert example_dataset.pca is None
+            result_dir = pathlib.Path(result_dir)
+            example_dataset.smartpca(smartpca, n_pcs, result_dir, smartpca_optional_settings=smartpca_settings)
+            assert isinstance(example_dataset.pca, PCA)
+
+    def test_smartpca_from_existing(self, smartpca, example_dataset):
+        n_pcs = 2
+        with tempfile.TemporaryDirectory() as result_dir:
+            assert example_dataset.pca is None
+            result_dir = pathlib.Path(result_dir)
+            example_dataset.smartpca(smartpca, n_pcs, result_dir)
+            assert isinstance(example_dataset.pca, PCA)
+
+            # rerun with redo=False to make sure loading from previous finished runs works
+            example_dataset.smartpca(smartpca, n_pcs, result_dir, redo=False)
+
+    def test_smartpca_with_poplist(self, smartpca, example_dataset_with_poplist):
+        n_pcs = 2
+        with tempfile.TemporaryDirectory() as result_dir:
+            assert example_dataset_with_poplist.pca is None
+            result_dir = pathlib.Path(result_dir)
+            example_dataset_with_poplist.smartpca(smartpca, n_pcs, result_dir)
+            assert isinstance(example_dataset_with_poplist.pca, PCA)
+
+    def test_smartpca_ignores_nonsense_setting(self, smartpca, example_dataset):
+        n_pcs = 2
+        smartpca_settings = {
+            "nonsenseSetting": "fail",
+        }
+        with tempfile.TemporaryDirectory() as result_dir:
+            assert example_dataset.pca is None
+            result_dir = pathlib.Path(result_dir)
+            example_dataset.smartpca(smartpca, n_pcs, result_dir, smartpca_optional_settings=smartpca_settings)
             assert isinstance(example_dataset.pca, PCA)

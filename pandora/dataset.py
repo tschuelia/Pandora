@@ -257,7 +257,7 @@ class Dataset:
             ]
             with smartpca_log.open("w") as logfile:
                 try:
-                    subprocess.run(cmd, stdout=logfile, stderr=logfile)
+                    subprocess.run(cmd, stdout=logfile, stderr=logfile, check=True)
                 except subprocess.CalledProcessError:
                     raise RuntimeError(f"Error running smartPCA. "
                                        f"Check the smartPCA logfile {smartpca_log.absolute()} for details.")

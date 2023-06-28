@@ -1,4 +1,6 @@
 # Pandora
+[![Build and test Pandora](https://github.com/tschuelia/Pandora/actions/workflows/test-pandora.yml/badge.svg)](https://github.com/tschuelia/Pandora/actions/workflows/test-pandora.yml)
+
 Pandora's Box for PCA analyses. This tool is intended to quantify the uncertainty of PCA analyses. 
 As the name suggests: there might be results surfacing that you don't like :-)
 

@@ -1,0 +1,16 @@
+name: pandora
+channels:
+  - conda-forge
+  - bioconda
+  - nodefaults
+dependencies:
+  - pandas
+  - numpy
+  - scikit-learn >= 1.0
+  - scipy
+  - plotly
+  - pyyaml
+  - pytest
+  - pyarrow
+  - pip
+  - eigensoft

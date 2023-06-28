@@ -1,0 +1,34 @@
+name: Build and test Pandora
+run-name: Build and run the tests of the Pandora python library.
+on: [push]
+jobs:
+  Run-Pandora-Tests:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        python-version: ["3.8", "3.11"]
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v3
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Setup Conda
+        uses: mamba-org/setup-micromamba@v1
+        with:
+          environment-file: etc/environment.yml
+          cache-environment: true
+          create-args:
+            python=${{ matrix.python-version }}
+      - name: Install Pandora and setup requirements
+        run: |
+          rm tests/test_config.py
+          echo "SMARTPCA = 'smartpca'" > tests/test_config.py
+          echo "CONVERTF = 'convertf'" >> tests/test_config.py
+          cat tests/test_config.py
+      - name: Run Pandora tests
+        run: |
+          PYTHONPATH=. pytest
+        shell: micromamba-shell {0}

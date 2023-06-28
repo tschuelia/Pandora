@@ -11,6 +11,7 @@ from sklearn.mixture import GaussianMixture
 from sklearn.model_selection import GridSearchCV
 
 from pandora.custom_types import *
+from pandora.custom_errors import *
 from pandora.plotting import get_distinct_colors
 
 
@@ -44,22 +45,51 @@ class PCA:
         - auf sample_id Wichtigkeit hinweisen (Vergleichbarkeit!)
 
         """
+        if len(explained_variances) != n_pcs:
+            raise PandoraException(
+                f"Explained variance required for each PC. Got {n_pcs} but {len(explained_variances)} variances."
+            )
+
         self.n_pcs = n_pcs
         self.explained_variances = explained_variances
 
         if isinstance(pca_data, np.ndarray):
+            if pca_data.ndim != 2:
+                raise PandoraException(
+                    f"Numpy PCA data must be two dimensional. Passed data has {pca_data.ndim} dimensions."
+                )
+
+            if pca_data.shape[1] != n_pcs:
+                raise PandoraException(
+                    f"Numpy PCA data needs to be of shape (n_samples, n_pcs={n_pcs}). "
+                    f"Instead got {pca_data.shape[1]} PCs."
+                )
+
             pca_data = pd.DataFrame(
                 pca_data, columns=[f"PC{i}" for i in range(self.n_pcs)]
             )
 
         if sample_ids is not None:
+            if len(sample_ids) != pca_data.shape[0]:
+                raise PandoraException(
+                    f"One sample ID required for each sample. Got {len(sample_ids)} IDs, "
+                    f"but pca_data has {pca_data.shape[0]} samples."
+                )
+            # overwrite/set sample IDs
             pca_data["sample_id"] = sample_ids
-
-        if populations is not None:
-            pca_data["population"] = populations
 
         if "sample_id" not in pca_data.columns:
             pca_data["sample_id"] = None
+
+        if populations is not None:
+            if len(populations) != pca_data.shape[0]:
+                raise PandoraException(
+                    f"One population required for each sample. Got {len(populations)} populations, "
+                    
+                    f"but pca_data has {pca_data.shape[0]} samples."
+                )
+            # overwrite/set populations
+            pca_data["population"] = populations
 
         if "population" not in pca_data.columns:
             pca_data["population"] = None
@@ -282,13 +312,17 @@ def check_smartpca_results(evec: FilePath, eval: FilePath):
     with evec.open() as f:
         line = f.readline().strip()
         if not line.startswith("#eigvals"):
-            raise RuntimeError(f"SmartPCA evec result file appears to be incorrect: {evec}")
+            raise RuntimeError(
+                f"SmartPCA evec result file appears to be incorrect: {evec}"
+            )
 
         variances = line.split()[1:]
         try:
             [float(v) for v in variances]
         except ValueError:
-            raise RuntimeError(f"SmartPCA evec result file appears to be incorrect: {evec}")
+            raise RuntimeError(
+                f"SmartPCA evec result file appears to be incorrect: {evec}"
+            )
         n_pcs = len(variances)
 
         # all following lines should look like this:
@@ -296,13 +330,17 @@ def check_smartpca_results(evec: FilePath, eval: FilePath):
         for line in f.readlines():
             values = line.strip().split()
             if len(values) != n_pcs + 2:
-                raise RuntimeError(f"SmartPCA evec result file appears to be incorrect: {evec}")
+                raise RuntimeError(
+                    f"SmartPCA evec result file appears to be incorrect: {evec}"
+                )
 
             # all PC values should be floats
             try:
                 [float(v) for v in values[1:-1]]
             except ValueError:
-                raise RuntimeError(f"SmartPCA evec result file appears to be incorrect: {evec}")
+                raise RuntimeError(
+                    f"SmartPCA evec result file appears to be incorrect: {evec}"
+                )
 
     # check the eval file: each line should cotain a single float only
     for line in eval.open():
@@ -310,7 +348,9 @@ def check_smartpca_results(evec: FilePath, eval: FilePath):
         try:
             float(line)
         except ValueError:
-            raise RuntimeError(f"SmartPCA eval result file appears to be incorrect: {eval}")
+            raise RuntimeError(
+                f"SmartPCA eval result file appears to be incorrect: {eval}"
+            )
 
 
 def from_smartpca(evec: FilePath, eval: FilePath) -> PCA:

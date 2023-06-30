@@ -126,7 +126,8 @@ class PCAComparison:
         sample_distances = self._get_sample_distances()
         support_values = 1 / (1 + sample_distances)
         return pd.DataFrame(
-            data={"sample_id": self.sample_ids, "support": support_values}
+            data={"support": support_values.values},
+            index=self.sample_ids
         )
 
     def detect_rogue_samples(self, support_value_rogue_cutoff: float = 0.05) -> pd.DataFrame:
@@ -147,11 +148,11 @@ class PCAComparison:
         return rogue
 
     def remove_rogue_samples(self, support_value_rogue_cutoff: float = 0.05) -> PCAComparison:
-        rogue_samples = self.detect_rogue_samples(support_value_rogue_cutoff).sample_id
+        rogue_samples = self.detect_rogue_samples(support_value_rogue_cutoff).index
 
         comparable_pruned = PCA(
             pca_data=self.comparable.pca_data.loc[
-                lambda x: ~x.sample_id.isin(rogue_samples)
+                lambda x: ~x.index.isin(rogue_samples)
             ],
             explained_variances=self.comparable.explained_variances,
             n_pcs=self.comparable.n_pcs,

@@ -172,7 +172,7 @@ def plot_pca_clusters(
 
 def plot_support_values(
     pca: PCA,
-    sample_support_values: Dict[str, float],
+    sample_support_values: pd.Series,
     support_value_rogue_cutoff: float = 0.01,
     pcx: int = 0,
     pcy: int = 1,
@@ -188,7 +188,7 @@ def plot_support_values(
         )
 
     # check that the provided support values match the sample IDs in the PCA data
-    if not all(s in pca.pca_data.sample_id.tolist() for s in sample_support_values):
+    if not all(s in pca.pca_data.sample_id.tolist() for s in sample_support_values.index):
         raise PandoraException(
             "Sample IDs of provided support values don't match the sample IDs in the PCA data."
         )
@@ -200,7 +200,7 @@ def plot_support_values(
     y_data = pca_data[f"PC{pcy}"]
 
     rogue_threshold = np.quantile(
-        list(sample_support_values.values()), support_value_rogue_cutoff
+        list(sample_support_values.values), support_value_rogue_cutoff
     )
 
     if projected_samples is not None:
@@ -210,7 +210,7 @@ def plot_support_values(
         for idx, row in pca_data.iterrows():
             if row.sample_id in projected_samples:
                 # check if the sample is projected, if so the marker color should be according to it's support
-                support = sample_support_values.get(row.sample_id)
+                support = sample_support_values.loc[lambda x: x.index == row.sample_id].item()
                 marker_colors.append(support)
                 if support < rogue_threshold:
                     # if the support is worse than the threshold, annotate the projected sample
@@ -224,13 +224,12 @@ def plot_support_values(
                 marker_text.append("")
 
     else:
-        marker_colors = list(sample_support_values.values())
-        support_values = sorted(sample_support_values.items())
+        marker_colors = list(sample_support_values.values)
 
         # annotate only samples with support below rogue_threshold
         marker_text = [
             f"{round(support, 2)}<br>({sample})" if support < rogue_threshold else ""
-            for (sample, support) in support_values
+            for (sample, support) in sorted(sample_support_values.items())
         ]
 
     fig = go.Figure(

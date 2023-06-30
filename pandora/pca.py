@@ -1,7 +1,6 @@
 from __future__ import annotations  # allows type hint PCA inside PCA class
 
 import math
-import warnings
 
 import numpy as np
 from sklearn.cluster import KMeans
@@ -16,6 +15,7 @@ class PCA:
     """Class structure for PCA results.
 
     This class provides methods for dealing with PCA results.
+    TODO: fix docstring (e.g. types)
 
     Attributes:
         - pca_data (pd.DataFrame): Pandas dataframe with shape (n_samples, n_pcs + 2) that contains the PCA results.
@@ -31,8 +31,8 @@ class PCA:
 
     def __init__(
         self,
-        pca_data: Union[pd.DataFrame, np.ndarray],
-        explained_variances: List[float],
+        pca_data: Union[pd.DataFrame, npt.NDArray[float]],
+        explained_variances: npt.NDArray[float],
         n_pcs: int,
         sample_ids: List[str] = None,
         populations: List[str] = None,
@@ -42,7 +42,10 @@ class PCA:
         - auf sample_id Wichtigkeit hinweisen (Vergleichbarkeit!)
 
         """
-        if len(explained_variances) != n_pcs:
+        if explained_variances.ndim != 1:
+            raise PandoraException(f"Explained variance should be a 1D numpy array. "
+                                   f"Instead got {explained_variances.ndim} dimensions.")
+        if explained_variances.shape[0] != n_pcs:
             raise PandoraException(
                 f"Explained variance required for each PC. Got {n_pcs} but {len(explained_variances)} variances."
             )
@@ -235,6 +238,6 @@ def from_smartpca(evec: FilePath, eval: FilePath) -> PCA:
     eigenvalues = [float(ev) for ev in eigenvalues]
     explained_variances = [ev / sum(eigenvalues) for ev in eigenvalues]
     # keep only the first n_pcs explained variances
-    explained_variances = explained_variances[:n_pcs]
+    explained_variances = np.asarray(explained_variances[:n_pcs])
 
     return PCA(pca_data=pca_data, explained_variances=explained_variances, n_pcs=n_pcs)

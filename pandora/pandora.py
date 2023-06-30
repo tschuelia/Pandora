@@ -2,10 +2,11 @@ import dataclasses
 import itertools
 import multiprocessing
 import random
-import statistics
 import textwrap
+import statistics
 from multiprocessing import Pool
 
+import pandas as pd
 import yaml
 
 from pandora import __version__
@@ -85,6 +86,10 @@ class PandoraConfig:
         return self.result_dir / "pandora.supportValues.txt"
 
     @property
+    def sample_support_values_csv(self) -> FilePath:
+        return self.result_dir / "pandora.supportValues.pairwise.csv"
+
+    @property
     def sample_support_values_projected_samples_file(self) -> FilePath:
         return self.result_dir / "pandora.supportValues.projected.txt"
 
@@ -139,9 +144,10 @@ class Pandora:
             pca_populations=pandora_config.pca_populations,
         )
         self.bootstrap_datasets: List[Dataset] = []
+        # TODO: umbauen auf pd.Dataframes
         self.bootstrap_similarities: Dict[Tuple[int, int], float] = {}
         self.bootstrap_cluster_similarities: Dict[Tuple[int, int], float] = {}
-        self.sample_support_values: Dict[str, float] = {}
+        self.sample_support_values: pd.DataFrame = pd.DataFrame()
 
     def do_pca(self):
         self.dataset.smartpca(
@@ -265,7 +271,7 @@ class Pandora:
         else:
             kmeans_k = self.dataset.pca.get_optimal_kmeans_k()
 
-        sample_support = dict((sample, []) for sample in self.dataset.samples.sample_id)
+        sample_supports = []
 
         for (i1, bootstrap1), (i2, bootstrap2) in itertools.combinations(
             enumerate(self.bootstrap_datasets), r=2
@@ -279,12 +285,10 @@ class Pandora:
             ] = pca_comparison.compare_clustering(kmeans_k)
 
             support_values = pca_comparison.get_sample_support_values()
-            for idx, row in support_values.iterrows():
-                sample_support[row.sample_id].append(row.support)
+            support_values = support_values.rename(columns={"support": f"({i1}, {i2})"})
+            sample_supports.append(support_values)
 
-        # compute the support value for each sample
-        for sample in self.dataset.samples.sample_id:
-            self.sample_support_values[sample] = np.mean(sample_support[sample])
+        self.sample_support_values = pd.concat(sample_supports, axis=1)
 
     def log_and_save_bootstrap_results(self):
         # store the pairwise results in a file
@@ -324,13 +328,13 @@ class Pandora:
         self.pandora_config.result_file.open(mode="a").write(bootstrap_results_string)
         logger.info(bootstrap_results_string)
 
-    def _log_support_values(self, title: str, support_values: Iterable[float]):
+    def _log_support_values(self, title: str, support_values: pd.Series):
         _rd = self.pandora_config.result_decimals
-        _min = round(min(support_values), _rd)
-        _max = round(max(support_values), _rd)
-        _mean = round(statistics.mean(support_values), _rd)
-        _median = round(statistics.median(support_values), _rd)
-        _stdev = round(statistics.stdev(support_values), _rd)
+        _min = round(support_values.min(), _rd)
+        _max = round(support_values.max(), _rd)
+        _mean = round(support_values.mean(), _rd)
+        _median = round(support_values.median(), _rd)
+        _stdev = round(support_values.std(), _rd)
 
         support_values_result_string = textwrap.dedent(
             f"""
@@ -348,31 +352,30 @@ class Pandora:
     def log_and_save_sample_support_values(self):
         _rd = self.pandora_config.result_decimals
 
-        all_samples = self.pandora_config.sample_support_values_file
+        all_samples_file = self.pandora_config.sample_support_values_file
 
-        with all_samples.open("w") as _all:
-            for idx, row in self.dataset.samples.iterrows():
-                sid = row.sample_id
-                sv = round(self.sample_support_values.get(sid), _rd)
-                _all.write(f"{sid}\t{sv}\n")
+        with all_samples_file.open("w") as _all:
+            for sample_id, support in self.sample_support_values.mean(axis=1).items():
+                _all.write(f"{sample_id}\t{round(support, _rd)}\n")
 
-        self._log_support_values("All Samples", self.sample_support_values.values())
+        self._log_support_values("All Samples", self.sample_support_values.mean(axis=1))
+
+        # store all pairwise support values in a csv file in case someone want to explore it further
+        self.sample_support_values.to_csv(self.pandora_config.sample_support_values_csv)
 
         if self.dataset.projected_samples.empty:
             return
 
-        projected_samples = (
+        projected_samples_file = (
             self.pandora_config.sample_support_values_projected_samples_file
         )
-        projected_support_values = []
-        with projected_samples.open("w") as _projected:
-            for idx, row in self.dataset.projected_samples.iterrows():
-                sid = row.sample_id
-                sv = self.sample_support_values.get(sid)
-                projected_support_values.append(sv)
-                _projected.write(f"{sid}\t{round(sv, _rd)}\n")
 
-        self._log_support_values("Projected Samples", projected_support_values)
+        projected_sample_support_values = self.sample_support_values.loc[lambda x: x.index.isin(self.dataset.projected_samples.sample_id.tolist())]
+        with projected_samples_file.open("w") as _projected:
+            for sample_id, support in projected_sample_support_values.mean(axis=1).items():
+                _projected.write(f"{sample_id}\t{round(support, _rd)}\n")
+
+        self._log_support_values("Projected Samples", projected_sample_support_values.mean(axis=1))
 
     def plot_sample_support_values(self, projected_samples_only: bool = False):
         pcx = self.pandora_config.plot_pcx
@@ -382,7 +385,7 @@ class Pandora:
 
         fig = plot_support_values(
             self.dataset.pca,
-            self.sample_support_values,
+            self.sample_support_values.mean(axis=1),
             self.pandora_config.support_value_rogue_cutoff,
             pcx,
             pcy,

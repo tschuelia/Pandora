@@ -1,9 +1,10 @@
 import numpy as np
 import pandas as pd
+import pathlib
 import pytest
 
 from pandora.custom_errors import PandoraException
-from pandora.pca import PCA
+from pandora.pca import *
 
 
 class TestPCA:
@@ -11,7 +12,7 @@ class TestPCA:
         n_samples = 20
         n_pcs = 2
 
-        explained_variances = [0.0, 0.0]
+        explained_variances = np.asarray([0.0, 0.0])
 
         # correct number of dimensions
         data = np.random.random_sample(size=(n_samples, n_pcs))
@@ -41,7 +42,7 @@ class TestPCA:
     def test_init_with_pandas_dataframe(self):
         n_pcs = 2
 
-        explained_variances = [0.0, 0.0]
+        explained_variances = np.asarray([0.0, 0.0])
 
         data = pd.DataFrame(
             {
@@ -83,7 +84,7 @@ class TestPCA:
     def test_init_with_pandas_dataframe_containing_samples_and_populations(self):
         n_pcs = 2
 
-        explained_variances = [0.0, 0.0]
+        explained_variances = np.asarray([0.0, 0.0])
 
         sample_ids = ["sample1", "sample2", "sample3"]
         populations = ["pop1", "pop2", "pop3"]
@@ -116,3 +117,17 @@ class TestPCA:
         assert all(pca.pca_data.population == new_populations)
         # sample IDs should not change
         assert all(pca.pca_data.sample_id == sample_ids)
+
+
+def test_check_smartpca_results_passes_for_correct_results(correct_smartpca_result_prefix):
+    evec = pathlib.Path(f"{correct_smartpca_result_prefix}.evec")
+    eval = pathlib.Path(f"{correct_smartpca_result_prefix}.eval")
+
+    # should run without any issues
+    check_smartpca_results(evec, eval)
+
+
+# def test_check_smartpca_resuts_fails_for_incorrect_results():
+#     evec_temp
+#     evec = pathlib.Path(f"{incorrect_smartpca_npcs_result_prefix}.evec")
+#     eval = pathlib.Path(f"{incorrect_smartpca_npcs_result_prefix}.eval")

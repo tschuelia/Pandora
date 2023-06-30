@@ -125,10 +125,7 @@ class PCAComparison:
 
     def get_sample_support_values(self) -> pd.DataFrame:
         sample_distances = self._get_sample_distances()
-        normalized_distances = (sample_distances - sample_distances.min()) / (
-            sample_distances.max() - sample_distances.min() + 1e-10
-        )
-        support_values = 1 - normalized_distances
+        support_values = 1 / (1 + sample_distances)
         return pd.DataFrame(
             data={"sample_id": self.sample_ids, "support": support_values}
         )

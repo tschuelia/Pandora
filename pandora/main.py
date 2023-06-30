@@ -131,7 +131,7 @@ def main():
             pandora_results.plot_bootstraps()
             pandora_results.plot_sample_support_values()
 
-            if pandora_config.projected_populations is not None:
+            if pandora_config.pca_populations is not None:
                 pandora_results.plot_sample_support_values(projected_samples_only=True)
 
     logger.info("\n\n========= PANDORA RESULTS =========")
@@ -159,7 +159,7 @@ def main():
             f"> Sample Support values: {pandora_config.sample_support_values_file.absolute()}"
         )
 
-    if pandora_config.projected_populations is not None:
+    if pandora_config.pca_populations is not None:
         logger.info(
             f"> Projected Sample Support values: {pandora_config.sample_support_values_projected_samples_file.absolute()}"
         )

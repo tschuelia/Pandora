@@ -98,23 +98,6 @@ class PCA:
 
         self.pc_vectors = self._get_pca_data_numpy()
 
-    def set_populations(self, populations: Union[List, pd.Series]):
-        """
-        Attributes the given populations to the PCA data. The number of populations given must be identical to the
-        number of samples in the PCA data.
-
-        Args:
-             populations (Union[List, pd.Series]): A population for each sample in the PCA data.
-
-        Raises:
-            ValueError: If the number of populations does not match the number of samples in the PCA data.
-        """
-        if len(populations) != self.pca_data.shape[0]:
-            raise ValueError(
-                f"Provide a population for each sample. Got {self.pca_data.shape[0]} samples but {len(populations)} populations."
-            )
-        self.pca_data["population"] = populations
-
     def _get_pca_data_numpy(self) -> np.ndarray:
         """
         Converts the PCA data to a numpy array.
@@ -225,7 +208,7 @@ class PCA:
         fig = go.Figure() if fig is None else fig
 
         if self.pca_data.population.isna().all():
-            raise ValueError(
+            raise PandoraException(
                 "Cannot plot populations: no populations associated with PCA data."
             )
 
@@ -262,10 +245,13 @@ class PCA:
         fig = go.Figure() if fig is None else fig
 
         if len(pca_populations) == 0:
-            raise ValueError(
+            raise PandoraException(
                 "It appears that all populations were used for the PCA. "
                 "To plot projections provide a non-empty list of populations with which the PCA was performed!"
             )
+
+        if not all(p in self.pca_data.population.unique() for p in pca_populations):
+            raise PandoraException("Not all of the passed pca_populations seem to be present in self.pca_data.")
 
         populations = self.pca_data.population.unique()
         projection_colors = get_distinct_colors(populations.shape[0])
@@ -312,7 +298,7 @@ def check_smartpca_results(evec: FilePath, eval: FilePath):
     with evec.open() as f:
         line = f.readline().strip()
         if not line.startswith("#eigvals"):
-            raise RuntimeError(
+            raise PandoraException(
                 f"SmartPCA evec result file appears to be incorrect: {evec}"
             )
 
@@ -320,7 +306,7 @@ def check_smartpca_results(evec: FilePath, eval: FilePath):
         try:
             [float(v) for v in variances]
         except ValueError:
-            raise RuntimeError(
+            raise PandoraException(
                 f"SmartPCA evec result file appears to be incorrect: {evec}"
             )
         n_pcs = len(variances)
@@ -330,7 +316,7 @@ def check_smartpca_results(evec: FilePath, eval: FilePath):
         for line in f.readlines():
             values = line.strip().split()
             if len(values) != n_pcs + 2:
-                raise RuntimeError(
+                raise PandoraException(
                     f"SmartPCA evec result file appears to be incorrect: {evec}"
                 )
 
@@ -338,7 +324,7 @@ def check_smartpca_results(evec: FilePath, eval: FilePath):
             try:
                 [float(v) for v in values[1:-1]]
             except ValueError:
-                raise RuntimeError(
+                raise PandoraException(
                     f"SmartPCA evec result file appears to be incorrect: {evec}"
                 )
 
@@ -348,7 +334,7 @@ def check_smartpca_results(evec: FilePath, eval: FilePath):
         try:
             float(line)
         except ValueError:
-            raise RuntimeError(
+            raise PandoraException(
                 f"SmartPCA eval result file appears to be incorrect: {eval}"
             )
 

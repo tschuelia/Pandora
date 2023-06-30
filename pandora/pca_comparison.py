@@ -274,6 +274,9 @@ def match_and_transform(comparable: PCA, reference: PCA) -> Tuple[PCA, PCA, floa
             In all downstream comparisons or pairwise plotting, use these PCA objects.
     """
     comparable, reference = _clip_missing_samples_for_comparison(comparable, reference)
+
+    assert all(comparable.pca_data.sample_id == reference.pca_data.sample_id)
+
     comp_data = comparable.pc_vectors
     ref_data = reference.pc_vectors
 

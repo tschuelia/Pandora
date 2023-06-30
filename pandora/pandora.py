@@ -37,7 +37,7 @@ class PandoraConfig:
 
     # sample support values
     rogueness_cutoff: float
-    projected_populations: Union[
+    pca_populations: Union[
         FilePath, None
     ]  # list of populations to use for PCA and later project the remaining the populations on the PCA
 
@@ -139,7 +139,7 @@ class Pandora:
         self.pandora_config: PandoraConfig = pandora_config
         self.dataset: Dataset = Dataset(
             file_prefix=pandora_config.dataset_prefix,
-            pca_populations=pandora_config.projected_populations,
+            pca_populations=pandora_config.pca_populations,
         )
         self.bootstrap_datasets: List[Dataset] = []
         self.bootstrap_similarities: Dict[Tuple[int, int], float] = {}
@@ -467,9 +467,9 @@ def pandora_config_from_configfile(configfile: FilePath) -> PandoraConfig:
     if result_dir is None:
         raise PandoraConfigException("No result_dir set.")
 
-    projected_populations = config_data.get("projected_populations")
-    if projected_populations is not None:
-        projected_populations = pathlib.Path(projected_populations)
+    pca_populations = config_data.get("pca_populations")
+    if pca_populations is not None:
+        pca_populations = pathlib.Path(pca_populations)
 
     # fmt: off
     return PandoraConfig(
@@ -489,7 +489,7 @@ def pandora_config_from_configfile(configfile: FilePath) -> PandoraConfig:
 
         # sample support values
         rogueness_cutoff=config_data.get("rogueness_cutoff", 0.95),
-        projected_populations=projected_populations,
+        pca_populations=pca_populations,
 
         # Cluster settings
         kmeans_k=config_data.get("kmeans_k", None),

@@ -4,15 +4,12 @@ import math
 import warnings
 
 import numpy as np
-import pandas as pd
-from plotly import graph_objects as go
 from sklearn.cluster import KMeans
 from sklearn.mixture import GaussianMixture
 from sklearn.model_selection import GridSearchCV
 
 from pandora.custom_types import *
 from pandora.custom_errors import *
-from pandora.plotting import get_distinct_colors
 
 
 class PCA:
@@ -158,138 +155,6 @@ class PCA:
         kmeans = KMeans(random_state=42, n_clusters=kmeans_k, n_init=10)
         kmeans.fit(pca_data_np)
         return kmeans
-
-    def plot_clusters(
-        self,
-        pcx: int = 0,
-        pcy: int = 1,
-        kmeans_k: int = None,
-        fig: go.Figure = None,
-        **kwargs,
-    ) -> go.Figure:
-        """
-        TODO: Docstring
-        """
-        show_variance_in_axes = fig is None
-        fig = go.Figure() if fig is None else fig
-
-        if kmeans_k is None:
-            kmeans_k = self.get_optimal_kmeans_k()
-
-        cluster_labels = self.cluster(kmeans_k=kmeans_k).labels_
-
-        _pca_data = self.pca_data.copy()
-        _pca_data["cluster"] = cluster_labels
-
-        colors = get_distinct_colors(kmeans_k)
-
-        for i in range(kmeans_k):
-            _data = _pca_data.loc[_pca_data.cluster == i]
-            fig.add_trace(
-                go.Scatter(
-                    x=_data[f"PC{pcx}"],
-                    y=_data[f"PC{pcy}"],
-                    mode="markers",
-                    marker_color=colors[i],
-                    name=f"Cluster {i + 1}",
-                    **kwargs,
-                )
-            )
-
-        return self._update_fig(fig, pcx, pcy, show_variance_in_axes)
-
-    def plot_populations(
-        self, pcx: int = 0, pcy: int = 1, fig: go.Figure = None, **kwargs
-    ) -> go.Figure:
-        """
-        TODO: Docstring
-        """
-        show_variance_in_axes = fig is None
-        fig = go.Figure() if fig is None else fig
-
-        if self.pca_data.population.isna().all():
-            raise PandoraException(
-                "Cannot plot populations: no populations associated with PCA data."
-            )
-
-        populations = self.pca_data.population.unique()
-        colors = get_distinct_colors(len(populations))
-
-        for i, population in enumerate(populations):
-            _data = self.pca_data.loc[self.pca_data.population == population]
-            fig.add_trace(
-                go.Scatter(
-                    x=_data[f"PC{pcx}"],
-                    y=_data[f"PC{pcy}"],
-                    mode="markers",
-                    marker_color=colors[i],
-                    name=population,
-                    **kwargs,
-                )
-            )
-
-        return self._update_fig(fig, pcx, pcy, show_variance_in_axes)
-
-    def plot_projections(
-        self,
-        pca_populations: List[str],
-        pcx: int = 0,
-        pcy: int = 1,
-        fig: go.Figure = None,
-        **kwargs,
-    ):
-        """
-        TODO: Docstring
-        """
-        show_variance_in_axes = fig is None
-        fig = go.Figure() if fig is None else fig
-
-        if len(pca_populations) == 0:
-            raise PandoraException(
-                "It appears that all populations were used for the PCA. "
-                "To plot projections provide a non-empty list of populations with which the PCA was performed!"
-            )
-
-        if not all(p in self.pca_data.population.unique() for p in pca_populations):
-            raise PandoraException("Not all of the passed pca_populations seem to be present in self.pca_data.")
-
-        populations = self.pca_data.population.unique()
-        projection_colors = get_distinct_colors(populations.shape[0])
-
-        for i, population in enumerate(populations):
-            _data = self.pca_data.loc[self.pca_data.population == population]
-            marker_color = (
-                projection_colors[i]
-                if population not in pca_populations
-                else "lightgray"
-            )
-            fig.add_trace(
-                go.Scatter(
-                    x=_data[f"PC{pcx}"],
-                    y=_data[f"PC{pcy}"],
-                    mode="markers",
-                    marker_color=marker_color,
-                    name=population,
-                    **kwargs,
-                )
-            )
-        return self._update_fig(fig, pcx, pcy, show_variance_in_axes)
-
-    def _update_fig(
-        self, fig: go.Figure, pcx: int, pcy: int, show_variance_in_axes: bool
-    ):
-        xtitle = f"PC {pcx + 1}"
-        ytitle = f"PC {pcy + 1}"
-
-        if show_variance_in_axes:
-            xtitle += f" ({round(self.explained_variances[pcx] * 100, 1)}%)"
-            ytitle += f" ({round(self.explained_variances[pcy] * 100, 1)}%)"
-
-        fig.update_xaxes(title=xtitle)
-        fig.update_yaxes(title=ytitle)
-        fig.update_layout(template="plotly_white", height=1000, width=1000)
-
-        return fig
 
 
 def check_smartpca_results(evec: FilePath, eval: FilePath):

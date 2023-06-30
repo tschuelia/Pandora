@@ -7,16 +7,13 @@ import textwrap
 from multiprocessing import Pool
 
 import yaml
-from plotly import graph_objects as go
 
 from pandora import __version__
 from pandora.converter import run_convertf
-from pandora.custom_errors import *
-from pandora.custom_types import *
 from pandora.dataset import Dataset, smartpca_finished
 from pandora.logger import *
 from pandora.pca_comparison import PCAComparison
-from pandora.plotting import get_rdylgr_color_scale, improve_plotly_text_position
+from pandora.plotting import *
 
 
 @dataclasses.dataclass
@@ -36,7 +33,7 @@ class PandoraConfig:
     smartpca_optional_settings: dict[str, str]
 
     # sample support values
-    rogueness_cutoff: float
+    support_value_rogue_cutoff: float
     pca_populations: Union[
         FilePath, None
     ]  # list of populations to use for PCA and later project the remaining the populations on the PCA
@@ -160,16 +157,14 @@ class Pandora:
         pcy = self.pandora_config.plot_pcy
 
         # plot with annotated populations
-        fig = dataset.pca.plot_populations(
-            pcx=pcx,
-            pcy=pcy,
-        )
+        fig = plot_pca_populations(dataset.pca, pcx, pcy)
         fig.write_image(
             self.pandora_config.plot_dir / f"{plot_prefix}_with_populations.pdf"
         )
 
         # plot with annotated clusters
-        fig = dataset.pca.plot_clusters(
+        fig = plot_pca_clusters(
+            dataset.pca,
             pcx=pcx,
             pcy=pcy,
             kmeans_k=self.pandora_config.kmeans_k,
@@ -179,7 +174,8 @@ class Pandora:
         )
 
         if len(self.dataset.pca_populations) > 0:
-            fig = dataset.pca.plot_projections(
+            fig = plot_pca_projections(
+                dataset.pca,
                 pca_populations=list(self.dataset.pca_populations),
                 pcx=pcx,
                 pcy=pcy,
@@ -382,70 +378,16 @@ class Pandora:
         pcx = self.pandora_config.plot_pcx
         pcy = self.pandora_config.plot_pcy
 
-        # to make sure we are annotating the correct support values for the correct PC vectors, we explicitly sort
-        # the x-, y-, and support value data
-        pca_data = self.dataset.pca.pca_data.sort_values(by="sample_id").reset_index(drop=True)
-        x_data = pca_data[f"PC{pcx}"]
-        y_data = pca_data[f"PC{pcy}"]
+        projected_samples = self.dataset.projected_samples.sample_id.unique() if projected_samples_only else None
 
-        rogue_threshold = np.quantile(
-            list(self.sample_support_values.values()),
-            self.pandora_config.rogueness_cutoff,
+        fig = plot_support_values(
+            self.dataset.pca,
+            self.sample_support_values,
+            self.pandora_config.support_value_rogue_cutoff,
+            pcx,
+            pcy,
+            projected_samples
         )
-
-        if projected_samples_only:
-            marker_colors = []
-            marker_text = []
-
-            for idx, row in pca_data.iterrows():
-                if row.sample_id in self.dataset.projected_samples.sample_id.unique():
-                    # check if the sample is projected, if so the marker color should be according to it's support
-                    support = self.sample_support_values.get(row.sample_id)
-                    marker_colors.append(support)
-                    if support < rogue_threshold:
-                        # if the support is worse than the threshold, annotate the projected sample
-                        marker_text.append(f"{round(support, 2)}<br>({row.sample_id})")
-                    else:
-                        # do not annotate
-                        marker_text.append("")
-                else:
-                    # otherwise print an unlabeled, gray marker
-                    marker_colors.append("lightgray")
-                    marker_text.append("")
-
-        else:
-            marker_colors = list(self.sample_support_values.values())
-            support_values = sorted(self.sample_support_values.items())
-
-            # annotate only samples with support below rogue_threshold
-            marker_text = [
-                f"{round(support, 2)}<br>({sample})"
-                if support < rogue_threshold else ""
-                for (sample, support) in support_values
-            ]
-
-        fig = go.Figure(
-            go.Scatter(
-                x=x_data,
-                y=y_data,
-                mode="markers+text",
-                text=marker_text,
-                textposition="bottom center",
-                marker=dict(
-                    color=marker_colors,
-                    colorscale=get_rdylgr_color_scale(),
-                    colorbar=dict(title="Bootstrap support"),
-                    showscale=True,
-                    cmin=0,
-                    cmax=1,
-                ),
-            )
-        )
-        fig.update_traces(textposition=improve_plotly_text_position(x_data))
-
-        fig.update_xaxes(title=f"PC {pcx + 1}")
-        fig.update_yaxes(title=f"PC {pcy + 1}")
-        fig.update_layout(template="plotly_white", height=1000, width=1000)
 
         if projected_samples_only:
             fig_name = "projected_sample_support_values.pdf"
@@ -488,7 +430,7 @@ def pandora_config_from_configfile(configfile: FilePath) -> PandoraConfig:
         smartpca_optional_settings=config_data.get("smartpca_optional_settings", {}),
 
         # sample support values
-        rogueness_cutoff=config_data.get("rogueness_cutoff", 0.95),
+        support_value_rogue_cutoff=config_data.get("support_value_rogue_cutoff", 0.95),
         pca_populations=pca_populations,
 
         # Cluster settings

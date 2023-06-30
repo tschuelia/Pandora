@@ -4,7 +4,6 @@ from __future__ import (
 
 import warnings
 
-import pandas as pd
 from plotly import graph_objects as go
 from scipy.spatial import procrustes
 from sklearn.metrics import fowlkes_mallows_score
@@ -130,7 +129,7 @@ class PCAComparison:
             data={"sample_id": self.sample_ids, "support": support_values}
         )
 
-    def detect_rogue_samples(self, rogue_cutoff: float = 0.05) -> pd.DataFrame:
+    def detect_rogue_samples(self, support_value_rogue_cutoff: float = 0.05) -> pd.DataFrame:
         """
         TODO: Docstring updaten
         Returns a list of sample IDs that are considered rogue samples when comparing self.comparable to self.reference.
@@ -138,7 +137,7 @@ class PCAComparison:
         is larger than the rogue_cutoff-percentile of pairwise PC vector distances
         """
         support_values = self.get_sample_support_values()
-        rogue_threshold = support_values.support.quantile(rogue_cutoff)
+        rogue_threshold = support_values.support.quantile(support_value_rogue_cutoff)
 
         rogue = support_values.loc[
             lambda x: (x.support < rogue_threshold)
@@ -147,8 +146,8 @@ class PCAComparison:
 
         return rogue
 
-    def remove_rogue_samples(self, rogue_cutoff: float = 0.05) -> PCAComparison:
-        rogue_samples = self.detect_rogue_samples(rogue_cutoff).sample_id
+    def remove_rogue_samples(self, support_value_rogue_cutoff: float = 0.05) -> PCAComparison:
+        rogue_samples = self.detect_rogue_samples(support_value_rogue_cutoff).sample_id
 
         comparable_pruned = PCA(
             pca_data=self.comparable.pca_data.loc[
@@ -168,8 +167,8 @@ class PCAComparison:
 
         return PCAComparison(comparable=comparable_pruned, reference=reference_pruned)
 
-    def plot_rogue(self, pcx: int = 0, pcy: int = 1, rogue_cutoff: float = 0.05, **kwargs):
-        rogue_samples = self.detect_rogue_samples(rogue_cutoff=rogue_cutoff)
+    def plot_rogue(self, pcx: int = 0, pcy: int = 1, support_value_rogue_cutoff: float = 0.05, **kwargs):
+        rogue_samples = self.detect_rogue_samples(support_value_rogue_cutoff=support_value_rogue_cutoff)
         rogue_samples["color"] = get_distinct_colors(rogue_samples.shape[0])
         rogue_samples["text"] = [f"{row.sample_id}<br>({round(row.support, 2)})" for idx, row in rogue_samples.iterrows()]
 

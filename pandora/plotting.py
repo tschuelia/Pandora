@@ -33,11 +33,11 @@ def get_rdylgr_color_scale() -> List[Tuple[float, str]]:
     return list(zip(steps, colors))
 
 
-def improve_plotly_text_position(x_values: pd.Series[float]) -> List[str]:
+def improve_plotly_text_position(x_values: pd.Series) -> List[str]:
     """
     Returns improved text positions for sample annotations in plotly figures based on the x-values of the samples.
     Args:
-        x_values (pd.Series[float]): x values of the samples to plot
+        x_values (pd.Series): x values of the samples to plot
 
     Returns:
         List[str]: A list of text positions, one position for each sample in x_values.
@@ -275,7 +275,7 @@ def plot_pca_clusters(
 
 def plot_support_values(
     pca: PCA,
-    sample_support_values: pd.Series[float],
+    sample_support_values: pd.Series,
     support_value_rogue_cutoff: float = 0.5,
     pcx: int = 0,
     pcy: int = 1,
@@ -290,7 +290,7 @@ def plot_support_values(
 
     Args:
         pca (PCA): PCA data to plot.
-        sample_support_values (pd.Series[float]): Bootstrap support value for each sample in pca.pca_data.
+        sample_support_values (pd.Series): Bootstrap support value for each sample in pca.pca_data.
         support_value_rogue_cutoff (float): Samples with a support value below this threshold are annotated with
             the sample ID and the support value. All other samples are only color-coded.
         pcx (int): Index of the principal component plotted on the x-axis (zero-indexed).

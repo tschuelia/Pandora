@@ -7,28 +7,42 @@ from pandora.pca_comparison import PCAComparison
 
 
 def get_distinct_colors(n_colors: int) -> List[str]:
-    """Returns a list of n HSV colors evenly spaced in the HSV colorspace.
+    """
+    Returns a list of n HSV colors evenly spaced in the HSV colorspace.
 
     Args:
         n_colors (int): Number of colors to return
 
     Returns:
         List[str]: List of n plotly HSV color strings.
-
     """
     hue_values = np.linspace(0, 100, n_colors, endpoint=False)
     hue_values = np.clip(hue_values, 0, 100)
     return [f"hsv({v}%, 100%, 80%)" for v in hue_values]
 
 
-def get_rdylgr_color_scale():
+def get_rdylgr_color_scale() -> List[Tuple[float, str]]:
+    """
+    Returns a continuous hex color scale from red (#d60000) to green (#209c05).
+
+    Returns: A list of (float, str) tuples that can be used as continuous color scale in plotly figures.
+    """
     colors = ["#d60000", "#f2ce02", "#ebff0a", "#85e62c", "#209c05"]
     steps = np.linspace(0, 1, num=len(colors), endpoint=True)
 
     return list(zip(steps, colors))
 
 
-def improve_plotly_text_position(x_values) -> List[str]:
+def improve_plotly_text_position(x_values: pd.Series[float]) -> List[str]:
+    """
+    Returns improved text positions for sample annotations in plotly figures based on the x-values of the samples.
+    Args:
+        x_values (pd.Series[float]): x values of the samples to plot
+
+    Returns:
+        List[str]: A list of text positions, one position for each sample in x_values.
+
+    """
     positions = [
         "top left",
         "top center",
@@ -40,9 +54,46 @@ def improve_plotly_text_position(x_values) -> List[str]:
     return [positions[i % len(positions)] for i in range(len(x_values))]
 
 
+def _check_plot_pcs(pca: PCA, pcx: int, pcy: int):
+    """
+    Checks whether the PCs requested for plotting on the x- and y-axis are present in the pca data.
+
+    Args:
+        pca (PCA): PCA data to plot.
+        pcx (int): Index of PC to plot on the x-axis.
+        pcy: Index of PC to plot on the y-axis.
+
+    Returns: None
+
+    Raises:
+        PandoraException: if either pcx or pcy does not exist in the PCA data.
+
+    """
+    pcx = f"PC{pcx}"
+    if pcx not in pca.pca_data.columns:
+        raise PandoraException(f"Requested plot PC {pcx} for x-axis does not exist.")
+    pcy = f"PC{pcy}"
+    if pcy not in pca.pca_data.columns:
+        raise PandoraException(f"Requested plot PC {pcy} for x-axis does not exist.")
+
+
 def _update_fig(
     pca: PCA, fig: go.Figure, pcx: int, pcy: int, show_variance_in_axes: bool
-):
+) -> go.Figure:
+    """
+    Updates a figure depicting a PCA plot (x-axis, y-axis, layout).
+
+    Args:
+        pca (PCA): PCA object to plot.
+        fig (go.Figure): Plotly figure to update.
+        pcx (int): Index of the principal component plotted on the x-axis (zero-indexed).
+        pcy (int): Index of the principal component plotted on the y-axis (zero-indexed).
+        show_variance_in_axes (bool): If true, also includes pca.explained_variance data in the x-, and y-axis titles.
+
+    Returns:
+        go.Figure: Figure with updated x- and y-axes as well as an updated layout.
+
+    """
     xtitle = f"PC {pcx + 1}"
     ytitle = f"PC {pcy + 1}"
 
@@ -57,7 +108,25 @@ def _update_fig(
     return fig
 
 
-def plot_pca_populations(pca: PCA, pcx: int = 0, pcy: int = 1, fig: go.Figure = None, **kwargs):
+def plot_pca_populations(
+    pca: PCA, pcx: int = 0, pcy: int = 1, fig: Optional[go.Figure] = None, **kwargs
+) -> go.Figure:
+    """
+    Plots the data for the provided PCA data using the given principal component indices
+    and colors all populations as provided by PCA using distinct colors.
+
+    Args:
+        pca (PCA): PCA data to plot.
+        pcx (int): Index of the principal component plotted on the x-axis (zero-indexed).
+        pcy (int): Index of the principal component plotted on the y-axis (zero-indexed).
+        fig (go.Figure): Optional figure containing previous plotting data (e.g. another PCA plot).
+        **kwargs: Optional plot arguments passed to go.Scatter. Refer to the plotly documentation for options.
+            The following settings are not allowed: [x, y, mode, marker, marker_color, name]
+
+    Returns:
+        go.Figure: Plotly figure depicting the PCA data
+    """
+    _check_plot_pcs(pca, pcx, pcy)
     show_variance_in_axes = fig is None
     fig = go.Figure() if fig is None else fig
 
@@ -90,12 +159,30 @@ def plot_pca_projections(
     pca_populations: List[str],
     pcx: int = 0,
     pcy: int = 1,
-    fig: go.Figure = None,
+    fig: Optional[go.Figure] = None,
     **kwargs,
 ):
     """
-    TODO: Docstring
+    Plots the data for the provided PCA data using the given principal component indices.
+    Only samples with populations *not* in pca_populations are color-coded according to their population.
+    All other samples are colored in lightgray.
+
+    Use this plotting function if you want to highlight only projected samples in a PCA plot.
+
+    Args:
+        pca (PCA): PCA data to plot.
+        pca_populations (List[str]): List of population names used to compute the PCA. Samples belonging to these
+            populations are plotted in lightgray.
+        pcx (int): Index of the principal component plotted on the x-axis (zero-indexed).
+        pcy (int): Index of the principal component plotted on the y-axis (zero-indexed).
+        fig (go.Figure): Optional figure containing previous plotting data (e.g. another PCA plot).
+        **kwargs: Optional plot arguments passed to go.Scatter. Refer to the plotly documentation for options.
+            The following settings are not allowed: [x, y, mode, marker, marker_color, name]
+
+    Returns:
+        go.Figure: Plotly figure depicting the PCA data.
     """
+    _check_plot_pcs(pca, pcx, pcy)
     show_variance_in_axes = fig is None
     fig = go.Figure() if fig is None else fig
 
@@ -106,7 +193,9 @@ def plot_pca_projections(
         )
 
     if not all(p in pca.pca_data.population.unique() for p in pca_populations):
-        raise PandoraException("Not all of the passed pca_populations seem to be present in self.pca_data.")
+        raise PandoraException(
+            "Not all of the passed pca_populations seem to be present in self.pca_data."
+        )
 
     populations = pca.pca_data.population.unique()
     projection_colors = get_distinct_colors(populations.shape[0])
@@ -114,9 +203,7 @@ def plot_pca_projections(
     for i, population in enumerate(populations):
         _data = pca.pca_data.loc[lambda x: x.population == population]
         marker_color = (
-            projection_colors[i]
-            if population not in pca_populations
-            else "lightgray"
+            projection_colors[i] if population not in pca_populations else "lightgray"
         )
         fig.add_trace(
             go.Scatter(
@@ -135,13 +222,28 @@ def plot_pca_clusters(
     pca: PCA,
     pcx: int = 0,
     pcy: int = 1,
-    kmeans_k: int = None,
-    fig: go.Figure = None,
+    kmeans_k: Optional[int] = None,
+    fig: Optional[go.Figure] = None,
     **kwargs,
 ) -> go.Figure:
     """
-    TODO: Docstring
+    Plots the data for the provided PCA data using the given principal component indices and color-codes samples
+    according to their cluster label as inferred by using K-Means clustering.
+
+    Args:
+        pca (PCA): PCA data to plot.
+        pcx (int): Index of the principal component plotted on the x-axis (zero-indexed).
+        pcy (int): Index of the principal component plotted on the y-axis (zero-indexed).
+        kmeans_k (int): Optional k to use for K-Means clustering. If not set, the optimal number of clusters k
+            is automatically determined based on the data provided by PCA.
+        fig (go.Figure): Optional figure containing previous plotting data (e.g. another PCA plot).
+        **kwargs: Optional plot arguments passed to go.Scatter. Refer to the plotly documentation for options.
+            The following settings are not allowed: [x, y, mode, marker, marker_color, name]
+
+    Returns:
+        go.Figure: Plotly figure depicting the PCA data.
     """
+    _check_plot_pcs(pca, pcx, pcy)
     show_variance_in_axes = fig is None
     fig = go.Figure() if fig is None else fig
 
@@ -173,16 +275,38 @@ def plot_pca_clusters(
 
 def plot_support_values(
     pca: PCA,
-    sample_support_values: pd.Series,
+    sample_support_values: pd.Series[float],
     support_value_rogue_cutoff: float = 0.5,
     pcx: int = 0,
     pcy: int = 1,
     projected_samples: Optional[List[str]] = None,
-    **kwargs
+    **kwargs,
 ) -> go.Figure:
+    """
+    Plots the data for the provided PCA data using the given principal component indices, color-coding the support value
+    for each sample. The colors range from red (low support) to green (high support).
+    If projected_samples is set, only samples in projected_samples are color-coded according to their support value,
+    all other samples are shown in lightgray.
+
+    Args:
+        pca (PCA): PCA data to plot.
+        sample_support_values (pd.Series[float]): Bootstrap support value for each sample in pca.pca_data.
+        support_value_rogue_cutoff (float): Samples with a support value below this threshold are annotated with
+            the sample ID and the support value. All other samples are only color-coded.
+        pcx (int): Index of the principal component plotted on the x-axis (zero-indexed).
+        pcy (int): Index of the principal component plotted on the y-axis (zero-indexed).
+        projected_samples (List[str]): List of sample IDs. If set, only samples in this list are color-coded according
+            to their support value. All other samples are shown in gray.
+        **kwargs: Optional plot arguments passed to go.Scatter. Refer to the plotly documentation for options.
+            The following settings are not allowed: [x, y, mode, marker, marker_color, name, text, textposition]
+
+    Returns:
+        go.Figure: Plotly figure depicting the PCA data.
+    """
+    _check_plot_pcs(pca, pcx, pcy)
     # check that the number of support values matches the number of samples in the PCA data
     if len(sample_support_values) != pca.pca_data.shape[0]:
-        # TODO: statt striktem check einfach lightgray falls das sample nicht vertreten ist (= support value NaN)
+        # TODO: statt striktem check einfach lightgray falls das sample nicht vertreten ist (= support value NaN)?
         raise PandoraException(
             f"Provide exactly one support value for each sample. "
             f"Got {len(sample_support_values)} support values, "
@@ -190,7 +314,9 @@ def plot_support_values(
         )
 
     # check that the provided support values match the sample IDs in the PCA data
-    if not all(s in pca.pca_data.sample_id.tolist() for s in sample_support_values.index):
+    if not all(
+        s in pca.pca_data.sample_id.tolist() for s in sample_support_values.index
+    ):
         raise PandoraException(
             "Sample IDs of provided support values don't match the sample IDs in the PCA data."
         )
@@ -208,7 +334,9 @@ def plot_support_values(
         for idx, row in pca_data.iterrows():
             if row.sample_id in projected_samples:
                 # check if the sample is projected, if so the marker color should be according to it's support
-                support = sample_support_values.loc[lambda x: x.index == row.sample_id].item()
+                support = sample_support_values.loc[
+                    lambda x: x.index == row.sample_id
+                ].item()
                 marker_colors.append(support)
                 if support < support_value_rogue_cutoff:
                     # if the support is worse than the threshold, annotate the projected sample
@@ -226,7 +354,9 @@ def plot_support_values(
 
         # annotate only samples with support below support_value_rogue_cutoff
         marker_text = [
-            f"{round(support, 2)}<br>({sample})" if support < support_value_rogue_cutoff else ""
+            f"{round(support, 2)}<br>({sample})"
+            if support < support_value_rogue_cutoff
+            else ""
             for (sample, support) in sorted(sample_support_values.items())
         ]
 
@@ -245,7 +375,7 @@ def plot_support_values(
                 cmin=0,
                 cmax=1,
             ),
-            **kwargs
+            **kwargs,
         )
     )
     fig.update_traces(textposition=improve_plotly_text_position(x_data))
@@ -256,7 +386,25 @@ def plot_support_values(
     return fig
 
 
-def plot_pca_comparison(pca_comparison: PCAComparison, pcx: int = 0, pcy: int = 1, **kwargs) -> go.Figure:
+def plot_pca_comparison(
+    pca_comparison: PCAComparison, pcx: int = 0, pcy: int = 1, **kwargs
+) -> go.Figure:
+    """
+    Method to plot the closest match between two PCAs. Plots the transformed PCAs based on the PCAComparison object.
+
+    Args:
+        pca_comparison (PCAComparison): PCAComparison object containing the two PCAs to plot.
+        pcx (int): Index of the principal component plotted on the x-axis (zero-indexed).
+        pcy (int): Index of the principal component plotted on the y-axis (zero-indexed).
+        **kwargs: Optional plot arguments passed to go.Scatter. Refer to the plotly documentation for options.
+            The following settings are not allowed: [x, y, mode, marker, marker_color, name, marker_symbol]
+
+    Returns:
+        go.Figure: Plotly figure depicting both PCAs in PCAComparison.
+    """
+    _check_plot_pcs(pca_comparison.reference, pcx, pcy)
+    _check_plot_pcs(pca_comparison.comparable, pcx, pcy)
+
     fig = go.Figure(
         [
             go.Scatter(
@@ -287,10 +435,37 @@ def plot_pca_comparison(pca_comparison: PCAComparison, pcx: int = 0, pcy: int = 
     return fig
 
 
-def plot_pca_comparison_rogue_samples(pca_comparison: PCAComparison, support_value_rogue_cutoff: float = 0.5, pcx: int = 0, pcy: int = 1, **kwargs) -> go.Figure:
-    rogue_samples = pca_comparison.detect_rogue_samples(support_value_rogue_cutoff=support_value_rogue_cutoff)
+def plot_pca_comparison_rogue_samples(
+    pca_comparison: PCAComparison,
+    support_value_rogue_cutoff: float = 0.5,
+    pcx: int = 0,
+    pcy: int = 1,
+    **kwargs,
+) -> go.Figure:
+    """
+    Method to plot the closest match between two PCAs. Plots the transformed PCAs based on the PCAComparison object.
+
+    Args:
+        pca_comparison (PCAComparison): PCAComparison object containing the two PCAs to plot.
+        support_value_rogue_cutoff (float): Samples with a support value below this threshold are considered rogue and
+            are highlighted by color, their sample ID and support value.
+        pcx (int): Index of the principal component plotted on the x-axis (zero-indexed).
+        pcy (int): Index of the principal component plotted on the y-axis (zero-indexed).
+        **kwargs: Optional plot arguments passed to go.Scatter. Refer to the plotly documentation for options.
+            The following settings are not allowed: [x, y, mode, marker, marker_color, name, text, textposition, marker_symbol]
+    Returns:
+        go.Figure: Plotly figure depicting both PCAs in PCAComparison.
+    """
+    _check_plot_pcs(pca_comparison.reference, pcx, pcy)
+    _check_plot_pcs(pca_comparison.comparable, pcx, pcy)
+    rogue_samples = pca_comparison.detect_rogue_samples(
+        support_value_rogue_cutoff=support_value_rogue_cutoff
+    )
     rogue_samples["color"] = get_distinct_colors(rogue_samples.shape[0])
-    rogue_samples["text"] = [f"{row.sample_id}<br>({round(row.support, 2)})" for idx, row in rogue_samples.iterrows()]
+    rogue_samples["text"] = [
+        f"{row.sample_id}<br>({round(row.support, 2)})"
+        for idx, row in rogue_samples.iterrows()
+    ]
 
     fig = go.Figure(
         [
@@ -314,24 +489,32 @@ def plot_pca_comparison_rogue_samples(pca_comparison: PCAComparison, support_val
             ),
             # Rogue samples
             go.Scatter(
-                x=pca_comparison.reference.pca_data.loc[lambda x: x.sample_id.isin(rogue_samples.sample_id)][f"PC{pcx}"],
-                y=pca_comparison.reference.pca_data.loc[lambda x: x.sample_id.isin(rogue_samples.sample_id)][f"PC{pcy}"],
+                x=pca_comparison.reference.pca_data.loc[
+                    lambda x: x.sample_id.isin(rogue_samples.sample_id)
+                ][f"PC{pcx}"],
+                y=pca_comparison.reference.pca_data.loc[
+                    lambda x: x.sample_id.isin(rogue_samples.sample_id)
+                ][f"PC{pcy}"],
                 marker_color=rogue_samples.color,
                 text=rogue_samples.text,
                 textposition="bottom center",
                 mode="markers+text",
-                showlegend=False
+                showlegend=False,
             ),
             go.Scatter(
-                x=pca_comparison.comparable.pca_data.loc[lambda x: x.sample_id.isin(rogue_samples.sample_id)][f"PC{pcx}"],
-                y=pca_comparison.comparable.pca_data.loc[lambda x: x.sample_id.isin(rogue_samples.sample_id)][f"PC{pcy}"],
+                x=pca_comparison.comparable.pca_data.loc[
+                    lambda x: x.sample_id.isin(rogue_samples.sample_id)
+                ][f"PC{pcx}"],
+                y=pca_comparison.comparable.pca_data.loc[
+                    lambda x: x.sample_id.isin(rogue_samples.sample_id)
+                ][f"PC{pcy}"],
                 marker_color=rogue_samples.color,
                 marker_symbol="star",
                 text=rogue_samples.text,
                 textposition="bottom center",
                 mode="markers+text",
-                showlegend=False
-            )
+                showlegend=False,
+            ),
         ]
     )
 

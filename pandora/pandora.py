@@ -285,7 +285,7 @@ class Pandora:
             ] = pca_comparison.compare_clustering(kmeans_k)
 
             support_values = pca_comparison.get_sample_support_values()
-            support_values = support_values.rename(columns={"support": f"({i1}, {i2})"})
+            support_values.name = f"({i1}, {i2})"
             sample_supports.append(support_values)
 
         self.sample_support_values = pd.concat(sample_supports, axis=1)

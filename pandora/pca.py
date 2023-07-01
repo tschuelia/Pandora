@@ -201,7 +201,7 @@ def check_smartpca_results(evec: pathlib.Path, eval: pathlib.Path):
                     f"SmartPCA evec result file appears to be incorrect: {evec}"
                 )
 
-    # check the eval file: each line should cotain a single float only
+    # check the eval file: each line should contain a single float only
     for line in eval.open():
         line = line.strip()
         try:

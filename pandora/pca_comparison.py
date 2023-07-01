@@ -14,9 +14,19 @@ from pandora.custom_errors import *
 from pandora.pca import PCA
 
 
-def _correct_missing(pca: PCA, samples_in_both):
+def filter_samples(pca: PCA, samples_to_keep: List[str]) -> PCA:
+    """
+    Filters the given PCA by removing all samples not contained in samples_to_keep
+
+    Args:
+        pca (PCA): PCA object to filter.
+        samples_to_keep (List[str]): List of sample IDs to keep.
+
+    Returns: new PCA object containing the data of pca for all samples in samples_to_keep
+
+    """
     pca_data = pca.pca_data
-    pca_data = pca_data.loc[pca_data.sample_id.isin(samples_in_both)]
+    pca_data = pca_data.loc[pca_data.sample_id.isin(samples_to_keep)]
 
     return PCA(
         pca_data=pca_data, explained_variances=pca.explained_variances, n_pcs=pca.n_pcs
@@ -24,6 +34,20 @@ def _correct_missing(pca: PCA, samples_in_both):
 
 
 def _check_sample_clipping(before_clipping: PCA, after_clipping: PCA) -> None:
+    """
+    Compares the number of samples prior to and after clipping. Raises a RuntimeWarning in case more
+    than 20% of samples were removed, indicating a potential major mismatch between the two PCAs.
+
+    Args:
+        before_clipping (PCA): PCA object prior to sample filtering.
+        after_clipping (PCA): PCA object after sample filtering.
+
+    Returns: None
+
+    Raises:
+        RuntimeWarning: If after_clipping contains more than 20% less samples than before_clipping.
+
+    """
     n_samples_before = before_clipping.pca_data.shape[0]
     n_samples_after = after_clipping.pca_data.shape[0]
 
@@ -41,6 +65,20 @@ def _check_sample_clipping(before_clipping: PCA, after_clipping: PCA) -> None:
 def _clip_missing_samples_for_comparison(
     comparable: PCA, reference: PCA
 ) -> Tuple[PCA, PCA]:
+    """
+    Reduces comparable and reference to similar sample IDs to make sure we compare projections for identical samples.
+
+    Args:
+        comparable (PCA): first PCA object to compare
+        reference (PCA): second PCA object to compare
+
+    Returns:
+        (PCA, PCA): Comparable and reference PCAs containing only the samples present in both PCAs.
+
+    Raises:
+        RuntimeWarning: If after_clipping contains more than 20% less samples than before_clipping.
+
+    """
     comp_data = comparable.pca_data
     ref_data = reference.pca_data
 
@@ -49,8 +87,8 @@ def _clip_missing_samples_for_comparison(
 
     shared_samples = sorted(comp_ids.intersection(ref_ids))
 
-    comparable_clipped = _correct_missing(comparable, shared_samples)
-    reference_clipped = _correct_missing(reference, shared_samples)
+    comparable_clipped = filter_samples(comparable, shared_samples)
+    reference_clipped = filter_samples(reference, shared_samples)
 
     assert comparable_clipped.pc_vectors.shape == reference_clipped.pc_vectors.shape
     # Issue a warning if we clip more than 20% of all samples of either PCA
@@ -62,8 +100,36 @@ def _clip_missing_samples_for_comparison(
 
 
 class PCAComparison:
+    """Class structure for comparing two PCA results.
+
+    This class provides methods for comparing both PCAs based on all samples,
+    for comparing the K-Means clustering results, and for computing sample support values.
+
+    Prior to comparing the results, both PCAs are filtered such that they only contain samples present in both PCAs.
+
+    Note that for comparing PCA results, the sample IDs are used to ensure the correct comparison of projections.
+    If an error occurs during initialization, this is most likely due to incorrect sample IDs.
+
+    Attributes:
+        comparable (PCA): comparable PCA object after sample filtering and Procrustes Transformation.
+        reference (PCA): reference PCA object after sample filtering and Procrustes Transformation.
+        sample_ids (pd.Series[str]): pd.Series containing the sample IDs present in both PCA objects
+    """
+
     def __init__(self, comparable: PCA, reference: PCA):
-        # first we transform comparable towards reference such that we can compare the PCAs
+        """
+        Initializes a new PCAComparison object using comparable and reference.
+        On initialization, comparable and reference are both reduced to contain only samples present in both PCAs.
+        In order to compare the two PCAs, on initialization Procrustes Analysis is applied transforming
+        comparable towards reference. Procrustes Analysis transforms comparable by applying scaling, translation,
+        rotation and reflection aiming to match all sample projections as close as possible to the projections in
+        reference.
+
+        Args:
+            comparable: PCA object to compare.
+            reference: PCA object to transform comparable towards.
+        """
+
         self.comparable, self.reference, self.disparity = match_and_transform(
             comparable=comparable, reference=reference
         )
@@ -71,16 +137,12 @@ class PCAComparison:
 
     def compare(self) -> float:
         """
-        Compare self to other by transforming self towards other and then computing the samplewise cosine similarity.
-        Returns the average and standard deviation. The resulting similarity is on a scale of 0 to 1, with 1 meaning
-        self and other are identical.
-        TODO: nope wir nehmen jetzt doch procrustes und die similarity von procrustes direkt
-
-        Args:
-            other (PCA): PCA object to compare self to.
+        Compares self.comparable to self.reference using Procrustes Analysis and returns the similarity.
 
         Returns:
-            float: Similarity as average cosine similarity per sample PC-vector in self and other.
+            float: Similarity score on a scale of 0 (entirely different) to 1 (identical) measuring the similarity of
+                self.comparable and self.reference.
+
         """
         similarity = np.sqrt(1 - self.disparity)
 
@@ -88,14 +150,15 @@ class PCAComparison:
 
     def compare_clustering(self, kmeans_k: int = None) -> float:
         """
-        Compare self clustering to other clustering using other as ground truth.
+        Compares the assigned cluster labels based on K-Means clustering on self.reference and self.comparable.
 
         Args:
-            other (PCA): PCA object to compare self to.
-            kmeans_k (int): Number of clusters. If not set, the optimal number of clusters is determined automatically.
+            kmeans_k (int): Number k of clusters to use for K-Means clustering.
+                If not set, the optimal number of clusters is determined automatically using self.reference.
 
         Returns:
-            float: The Fowlkes-Mallow score of Cluster similarity between the clusters of self and other
+            float: The Fowlkes-Mallow score of Cluster similarity between the clustering results
+                of self.reference and self.comparable. The score ranges from 0 (entirely distinct) to 1 (identical).
         """
         if kmeans_k is None:
             # we are comparing self to other -> use other as ground truth
@@ -111,7 +174,15 @@ class PCAComparison:
 
         return fowlkes_mallows_score(ref_cluster_labels, comp_cluster_labels)
 
-    def _get_sample_distances(self) -> pd.Series:
+    def _get_sample_distances(self) -> pd.Series[float]:
+        """
+        Computest the euclidean distances between pairs of samples in self.reference and self.comparable.
+
+        Returns:
+            pd.Series[float]: Euclidean distance between projections for each sample in
+                self.reference and self.comparable. Contains one value for each sample in self.sample_ids
+
+        """
         # make sure we are comparing the correct PC-vectors in the following
         assert np.all(
             self.comparable.pca_data.sample_id == self.reference.pca_data.sample_id
@@ -120,23 +191,36 @@ class PCAComparison:
         sample_distances = euclidean_distances(
             self.reference.pc_vectors, self.comparable.pc_vectors
         ).diagonal()
-        return pd.Series(sample_distances)
+        return pd.Series(sample_distances, index=self.sample_ids)
 
-    def get_sample_support_values(self) -> pd.DataFrame:
+    def get_sample_support_values(self) -> pd.Series[float]:
+        """
+        Computes the samples support value for each sample in self.sample_id using the euclidean distance
+        between projections in self.reference and self.comparable.
+        The euclidean distance `d` is normalized to [0, 1] by computing ` 1 / (1 + d)`.
+        The higher the support the closer the projections are in euclidean space in self.reference and self.comparable.
+
+        Returns:
+            pd.Series[float]: Support value when comparing self.reference and self.comparable for each sample in self.sample_id
+
+        """
         sample_distances = self._get_sample_distances()
         support_values = 1 / (1 + sample_distances)
-        return pd.DataFrame(
-            data={"support": support_values.values}, index=self.sample_ids
-        )
+        return support_values
 
     def detect_rogue_samples(
         self, support_value_rogue_cutoff: float = 0.5
-    ) -> pd.DataFrame:
+    ) -> pd.Series[float]:
         """
-        TODO: Docstring updaten
-        Returns a list of sample IDs that are considered rogue samples when comparing self.comparable to self.reference.
-        A sample is considered rogue if the euclidean distance between its PC vectors in self and other
-        is larger than the rogue_cutoff-percentile of pairwise PC vector distances
+        Returns the support values for all samples with a support value below support_value_rogue_cutoff.
+
+        Args:
+            support_value_rogue_cutoff (float): Threshold flagging samples as rogue. Default is 0.5.
+
+        Returns:
+            pd.Series[float]: Support values for all samples with a support value below support_value_rogue_cutoff.
+                The indices of the pandas Series correspond to the sample IDs.
+
         """
         support_values = self.get_sample_support_values()
 
@@ -150,6 +234,19 @@ def _numpy_to_pca_dataframe(
     sample_ids: pd.Series[str],
     populations: pd.Series[str],
 ):
+    """
+    Transforms a numpy ndarray to a pandas Dataframe as required for initializing a PCA object.
+
+    Args:
+        pc_vectors (npt.NDArray[float]): Numpy ndarray containing the PCA results (PC vectors) for all samples.
+        sample_ids (pd.Series[str]): Pandas Series containing the sample IDs corresponding to the pc_vectors.
+        populations (pd.Series[str]): Pandas Series containing the populations corresponding to the sample_ids.
+
+    Returns:
+        pd.DataFrame: Pandas dataframe containing all required columns to initialize a PCA object
+            (sample_id, population, PC{i} for i in range(pc_vectors.shape[1]))
+
+    """
     if pc_vectors.ndim != 2:
         raise PandoraException(
             f"Numpy PCA data must be two dimensional. Passed data has {pc_vectors.ndim} dimensions."
@@ -179,26 +276,44 @@ def _numpy_to_pca_dataframe(
 
 def match_and_transform(comparable: PCA, reference: PCA) -> Tuple[PCA, PCA, float]:
     """
-    Finds a transformation matrix that most closely matches comparable to reference and transforms comparable.
+    Uses Procrustes Analysis to find a transformation matrix that most closely matches comparable to reference.
+    and transforms comparable.
 
     Args:
         comparable (PCA): The PCA that should be transformed
         reference (PCA): The PCA that comparable should be transformed towards
 
     Returns:
-        Tuple[PCA, PCA]: Two new PCA objects, the first one is the transformed comparable and the second one is the standardized reference.
-            In all downstream comparisons or pairwise plotting, use these PCA objects.
+        Tuple[PCA, PCA, float]: Two new PCA objects and the disparity. The first new PCA is the transformed comparable
+            and the second one is the standardized reference. The disparity is the sum of squared distances between the
+            transformed comparable and transformed reference PCAs.
+
+    Raises:
+        PandoraException:
+            - Mismatch in sample IDs between comparable and reference (identical sample IDs required for comparison)
+            - No samples left after clipping. This is most likely caused by incorrect annotations of sample IDs.
     """
     comparable, reference = _clip_missing_samples_for_comparison(comparable, reference)
 
-    assert all(comparable.pca_data.sample_id == reference.pca_data.sample_id)
+    if not all(comparable.pca_data.sample_id == reference.pca_data.sample_id):
+        raise PandoraException(
+            "Sample IDS between reference and comparable don't match but is required for comparing PCA results. "
+        )
 
     comp_data = comparable.pc_vectors
     ref_data = reference.pc_vectors
 
-    # TODO: reorder PCs (if we find a dataset where this is needed...don't want to blindly implement something)
-    # check if the number of samples match for now
-    assert comp_data.shape == ref_data.shape
+    if comp_data.shape != ref_data.shape:
+        raise PandoraException(
+            f"Number of samples or PCs in comparable and reference do not match. "
+            f"Got {comp_data.shape} and {ref_data.shape} respectively."
+        )
+
+    if comp_data.shape[0] == 0:
+        raise PandoraException(
+            "No samples left for comparison after clipping. "
+            "Make sure all sample IDs are correctly annotated"
+        )
 
     standardized_reference, transformed_comparable, disparity = procrustes(
         ref_data, comp_data
@@ -221,15 +336,19 @@ def match_and_transform(comparable: PCA, reference: PCA) -> Tuple[PCA, PCA, floa
         comparable.pca_data.sample_id,
         comparable.pca_data.population,
     )
+
     transformed_comparable = PCA(
         pca_data=transformed_comparable,
         explained_variances=comparable.explained_variances,
         n_pcs=comparable.n_pcs,
     )
 
-    assert all(
+    if not all(
         standardized_reference.pca_data.sample_id
         == transformed_comparable.pca_data.sample_id
-    )
+    ):
+        raise PandoraException(
+            "Sample IDS between reference and comparable don't match but is required for comparing PCA results. "
+        )
 
     return standardized_reference, transformed_comparable, disparity

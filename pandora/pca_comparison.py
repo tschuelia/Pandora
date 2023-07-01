@@ -35,7 +35,7 @@ def filter_samples(pca: PCA, samples_to_keep: List[str]) -> PCA:
 
 def _check_sample_clipping(before_clipping: PCA, after_clipping: PCA) -> None:
     """
-    Compares the number of samples prior to and after clipping. Raises a RuntimeWarning in case more
+    Compares the number of samples prior to and after clipping. Will show a warning message in case more
     than 20% of samples were removed, indicating a potential major mismatch between the two PCAs.
 
     Args:
@@ -44,15 +44,9 @@ def _check_sample_clipping(before_clipping: PCA, after_clipping: PCA) -> None:
 
     Returns: None
 
-    Raises:
-        RuntimeWarning: If after_clipping contains more than 20% less samples than before_clipping.
-
     """
     n_samples_before = before_clipping.pca_data.shape[0]
     n_samples_after = after_clipping.pca_data.shape[0]
-
-    if n_samples_after == 0:
-        raise RuntimeWarning("All samples were removed for the comparison.")
 
     if n_samples_after <= 0.8 * n_samples_before:
         warnings.warn(
@@ -74,9 +68,6 @@ def _clip_missing_samples_for_comparison(
 
     Returns:
         (PCA, PCA): Comparable and reference PCAs containing only the samples present in both PCAs.
-
-    Raises:
-        RuntimeWarning: If after_clipping contains more than 20% less samples than before_clipping.
 
     """
     comp_data = comparable.pca_data

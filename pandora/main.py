@@ -36,7 +36,7 @@ def argument_parser():
     parser.add_argument(
         "-c",
         "--config",
-        type=FilePath,
+        type=pathlib.Path,
         required=True,
         help="Path to the yaml config file to use for the Pandora analyses. "
         "Needs to be in valid yaml format. See the example file for guidance on how to configure your run.",

@@ -4,14 +4,14 @@ from __future__ import (
 
 import warnings
 
-from plotly import graph_objects as go
+import pandas as pd
 from scipy.spatial import procrustes
 from sklearn.metrics import fowlkes_mallows_score
 from sklearn.metrics.pairwise import euclidean_distances
 
 from pandora.custom_types import *
+from pandora.custom_errors import *
 from pandora.pca import PCA
-from pandora.plotting import get_distinct_colors
 
 
 def _correct_missing(pca: PCA, samples_in_both):
@@ -126,11 +126,12 @@ class PCAComparison:
         sample_distances = self._get_sample_distances()
         support_values = 1 / (1 + sample_distances)
         return pd.DataFrame(
-            data={"support": support_values.values},
-            index=self.sample_ids
+            data={"support": support_values.values}, index=self.sample_ids
         )
 
-    def detect_rogue_samples(self, support_value_rogue_cutoff: float = 0.05) -> pd.DataFrame:
+    def detect_rogue_samples(
+        self, support_value_rogue_cutoff: float = 0.5
+    ) -> pd.DataFrame:
         """
         TODO: Docstring updaten
         Returns a list of sample IDs that are considered rogue samples when comparing self.comparable to self.reference.
@@ -138,124 +139,42 @@ class PCAComparison:
         is larger than the rogue_cutoff-percentile of pairwise PC vector distances
         """
         support_values = self.get_sample_support_values()
-        rogue_threshold = support_values.support.quantile(support_value_rogue_cutoff)
 
-        rogue = support_values.loc[
-            lambda x: (x.support < rogue_threshold)
-            & (~np.isclose(x.support, rogue_threshold, rtol=1e-6))
-        ]
+        rogue = support_values.loc[lambda x: (x.support < support_value_rogue_cutoff)]
 
         return rogue
 
-    def remove_rogue_samples(self, support_value_rogue_cutoff: float = 0.05) -> PCAComparison:
-        rogue_samples = self.detect_rogue_samples(support_value_rogue_cutoff).index
 
-        comparable_pruned = PCA(
-            pca_data=self.comparable.pca_data.loc[
-                lambda x: ~x.index.isin(rogue_samples)
-            ],
-            explained_variances=self.comparable.explained_variances,
-            n_pcs=self.comparable.n_pcs,
+def _numpy_to_pca_dataframe(
+    pc_vectors: npt.NDArray[float],
+    sample_ids: pd.Series[str],
+    populations: pd.Series[str],
+):
+    if pc_vectors.ndim != 2:
+        raise PandoraException(
+            f"Numpy PCA data must be two dimensional. Passed data has {pc_vectors.ndim} dimensions."
         )
 
-        reference_pruned = PCA(
-            pca_data=self.reference.pca_data.loc[
-                lambda x: ~x.sample_id.isin(rogue_samples)
-            ],
-            explained_variances=self.reference.explained_variances,
-            n_pcs=self.reference.n_pcs,
+    pca_data = pd.DataFrame(
+        pc_vectors, columns=[f"PC{i}" for i in range(pc_vectors.shape[1])]
+    )
+
+    if sample_ids.shape[0] != pca_data.shape[0]:
+        raise PandoraException(
+            f"One sample ID required for each sample. Got {len(sample_ids)} IDs, "
+            f"but pca_data has {pca_data.shape[0]} samples."
         )
 
-        return PCAComparison(comparable=comparable_pruned, reference=reference_pruned)
+    pca_data["sample_id"] = sample_ids.values
 
-    def plot_rogue(self, pcx: int = 0, pcy: int = 1, support_value_rogue_cutoff: float = 0.05, **kwargs):
-        rogue_samples = self.detect_rogue_samples(support_value_rogue_cutoff=support_value_rogue_cutoff)
-        rogue_samples["color"] = get_distinct_colors(rogue_samples.shape[0])
-        rogue_samples["text"] = [f"{row.sample_id}<br>({round(row.support, 2)})" for idx, row in rogue_samples.iterrows()]
-
-        fig = go.Figure(
-            [
-                go.Scatter(
-                    x=self.reference.pca_data[f"PC{pcx}"],
-                    y=self.reference.pca_data[f"PC{pcy}"],
-                    marker_color="lightgray",
-                    name="Standardized reference PCA",
-                    mode="markers",
-                    **kwargs,
-                ),
-                go.Scatter(
-                    x=self.comparable.pca_data[f"PC{pcx}"],
-                    y=self.comparable.pca_data[f"PC{pcy}"],
-                    marker_color="lightgray",
-                    marker_symbol="star",
-                    name="Transformed comparable PCA",
-                    mode="markers",
-                    **kwargs,
-                ),
-                # Rogue samples
-                go.Scatter(
-                    x=self.reference.pca_data.loc[lambda x: x.sample_id.isin(rogue_samples.sample_id)][f"PC{pcx}"],
-                    y=self.reference.pca_data.loc[lambda x: x.sample_id.isin(rogue_samples.sample_id)][f"PC{pcy}"],
-                    marker_color=rogue_samples.color,
-                    text=rogue_samples.text,
-                    textposition="bottom center",
-                    mode="markers+text",
-                    showlegend=False
-                ),
-                go.Scatter(
-                    x=self.comparable.pca_data.loc[lambda x: x.sample_id.isin(rogue_samples.sample_id)][f"PC{pcx}"],
-                    y=self.comparable.pca_data.loc[lambda x: x.sample_id.isin(rogue_samples.sample_id)][f"PC{pcy}"],
-                    marker_color=rogue_samples.color,
-                    marker_symbol="star",
-                    text=rogue_samples.text,
-                    textposition="bottom center",
-                    mode="markers+text",
-                    showlegend=False
-                )
-            ]
+    if populations.shape[0] != pca_data.shape[0]:
+        raise PandoraException(
+            f"One population required for each sample. Got {len(populations)} populations, "
+            f"but pca_data has {pca_data.shape[0]} samples."
         )
 
-        fig.update_xaxes(title=f"PC {pcx + 1}")
-        fig.update_yaxes(title=f"PC {pcy + 1}")
-
-        fig.update_layout(template="plotly_white", height=1000, width=1000)
-
-        return fig
-
-    def plot(
-        self,
-        pcx: int = 0,
-        pcy: int = 1,
-        **kwargs,
-    ):
-        fig = go.Figure(
-            [
-                go.Scatter(
-                    x=self.reference.pca_data[f"PC{pcx}"],
-                    y=self.reference.pca_data[f"PC{pcy}"],
-                    marker_color="darkblue",
-                    name="Standardized reference PCA",
-                    mode="markers",
-                    **kwargs,
-                ),
-                go.Scatter(
-                    x=self.comparable.pca_data[f"PC{pcx}"],
-                    y=self.comparable.pca_data[f"PC{pcy}"],
-                    marker_color="orange",
-                    marker_symbol="star",
-                    name="Transformed comparable PCA",
-                    mode="markers",
-                    **kwargs,
-                ),
-            ]
-        )
-
-        fig.update_xaxes(title=f"PC {pcx + 1}")
-        fig.update_yaxes(title=f"PC {pcy + 1}")
-
-        fig.update_layout(template="plotly_white", height=1000, width=1000)
-
-        return fig
+    pca_data["population"] = populations.values
+    return pca_data
 
 
 def match_and_transform(comparable: PCA, reference: PCA) -> Tuple[PCA, PCA, float]:
@@ -285,25 +204,32 @@ def match_and_transform(comparable: PCA, reference: PCA) -> Tuple[PCA, PCA, floa
         ref_data, comp_data
     )
 
+    standardized_reference = _numpy_to_pca_dataframe(
+        standardized_reference,
+        reference.pca_data.sample_id,
+        reference.pca_data.population,
+    )
+
     standardized_reference = PCA(
         pca_data=standardized_reference,
         explained_variances=reference.explained_variances,
         n_pcs=reference.n_pcs,
-        sample_ids=reference.pca_data.sample_id,
-        populations=reference.pca_data.population,
     )
 
+    transformed_comparable = _numpy_to_pca_dataframe(
+        transformed_comparable,
+        comparable.pca_data.sample_id,
+        comparable.pca_data.population,
+    )
     transformed_comparable = PCA(
         pca_data=transformed_comparable,
         explained_variances=comparable.explained_variances,
         n_pcs=comparable.n_pcs,
-        sample_ids=comparable.pca_data.sample_id,
-        populations=comparable.pca_data.population,
     )
 
-    assert (
-        all(standardized_reference.pca_data.sample_id
-        == transformed_comparable.pca_data.sample_id)
+    assert all(
+        standardized_reference.pca_data.sample_id
+        == transformed_comparable.pca_data.sample_id
     )
 
     return standardized_reference, transformed_comparable, disparity

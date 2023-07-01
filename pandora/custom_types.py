@@ -6,7 +6,6 @@ from enum import Enum
 from typing import Union, Tuple, Dict, List, Iterable, Optional, Set
 
 
-FilePath = pathlib.Path
 Executable = Union[str, pathlib.Path]
 _PCA = Union[np.ndarray, pd.DataFrame]
 

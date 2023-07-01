@@ -19,9 +19,9 @@ from pandora.plotting import *
 
 @dataclasses.dataclass
 class PandoraConfig:
-    dataset_prefix: FilePath
+    dataset_prefix: pathlib.Path
     file_format: FileFormat
-    result_dir: FilePath
+    result_dir: pathlib.Path
 
     # Bootstrap related settings
     n_pcs: int
@@ -36,7 +36,7 @@ class PandoraConfig:
     # sample support values
     support_value_rogue_cutoff: float
     pca_populations: Union[
-        FilePath, None
+        pathlib.Path, None
     ]  # list of populations to use for PCA and later project the remaining the populations on the PCA
 
     # Cluster settings
@@ -62,39 +62,39 @@ class PandoraConfig:
         """
 
     @property
-    def pandora_logfile(self) -> FilePath:
+    def pandora_logfile(self) -> pathlib.Path:
         return self.result_dir / "pandora.log"
 
     @property
-    def configfile(self) -> FilePath:
+    def configfile(self) -> pathlib.Path:
         return self.result_dir / "pandora.yaml"
 
     @property
-    def result_file(self) -> FilePath:
+    def result_file(self) -> pathlib.Path:
         return self.result_dir / "pandora.txt"
 
     @property
-    def bootstrap_result_dir(self) -> FilePath:
+    def bootstrap_result_dir(self) -> pathlib.Path:
         return self.result_dir / "bootstrap"
 
     @property
-    def pairwise_bootstrap_result_file(self) -> FilePath:
+    def pairwise_bootstrap_result_file(self) -> pathlib.Path:
         return self.result_dir / "pandora.bootstrap.txt"
 
     @property
-    def sample_support_values_file(self) -> FilePath:
+    def sample_support_values_file(self) -> pathlib.Path:
         return self.result_dir / "pandora.supportValues.txt"
 
     @property
-    def sample_support_values_csv(self) -> FilePath:
+    def sample_support_values_csv(self) -> pathlib.Path:
         return self.result_dir / "pandora.supportValues.pairwise.csv"
 
     @property
-    def sample_support_values_projected_samples_file(self) -> FilePath:
+    def sample_support_values_projected_samples_file(self) -> pathlib.Path:
         return self.result_dir / "pandora.supportValues.projected.txt"
 
     @property
-    def plot_dir(self) -> FilePath:
+    def plot_dir(self) -> pathlib.Path:
         return self.result_dir / "plots"
 
     @property
@@ -401,7 +401,7 @@ class Pandora:
         return fig
 
 
-def pandora_config_from_configfile(configfile: FilePath) -> PandoraConfig:
+def pandora_config_from_configfile(configfile: pathlib.Path) -> PandoraConfig:
     config_data = yaml.safe_load(configfile.open())
 
     dataset_prefix = config_data.get("dataset_prefix")
@@ -433,7 +433,7 @@ def pandora_config_from_configfile(configfile: FilePath) -> PandoraConfig:
         smartpca_optional_settings=config_data.get("smartpca_optional_settings", {}),
 
         # sample support values
-        support_value_rogue_cutoff=config_data.get("support_value_rogue_cutoff", 0.95),
+        support_value_rogue_cutoff=config_data.get("support_value_rogue_cutoff", 0.5),
         pca_populations=pca_populations,
 
         # Cluster settings

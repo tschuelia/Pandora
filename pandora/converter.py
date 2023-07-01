@@ -15,7 +15,7 @@ FILE_SUFFIXES = {
 }
 
 
-def get_filenames(prefix: FilePath, format: FileFormat):
+def get_filenames(prefix: pathlib.Path, format: FileFormat):
     if format not in FILE_SUFFIXES:
         raise PandoraException(f"Unrecognized file format: {format.value}")
 
@@ -30,9 +30,9 @@ def get_filenames(prefix: FilePath, format: FileFormat):
 
 def run_convertf(
     convertf: Executable,
-    in_prefix: FilePath,
+    in_prefix: pathlib.Path,
     in_format: FileFormat,
-    out_prefix: FilePath,
+    out_prefix: pathlib.Path,
     out_format: FileFormat,
     redo: bool = False,
 ):
@@ -71,7 +71,7 @@ def run_convertf(
     _clean_converted_names(ind_out)
 
 
-def _clean_converted_names(ind_out: FilePath):
+def _clean_converted_names(ind_out: pathlib.Path):
     # for some reason, the file conversion from PLINK to EIGEN results in weird sample IDs
     # -> clean them  to match the original IDs the affected file is the ind_out file
     corrected_content = []

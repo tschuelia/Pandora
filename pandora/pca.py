@@ -12,98 +12,89 @@ from pandora.custom_errors import *
 
 
 class PCA:
-    """Class structure for PCA results.
+    """Class structure encapsulating PCA results.
 
-    This class provides methods for dealing with PCA results.
-    TODO: fix docstring (e.g. types)
+    This class provides a wrapper for PCA results.
 
     Attributes:
-        - pca_data (pd.DataFrame): Pandas dataframe with shape (n_samples, n_pcs + 2) that contains the PCA results.
-                Has the following columns:
-                    - sample_id (str or None): name for each sample, None if a np.ndarray is passed in the constructor
-                    - population (str or None): population for each sample, None if a np.ndarray is passed in the constructor
-                    - PC{i} for i in range(n_pcs) (float): data for the i-th PC for each sample,
-                      0-indexed, so the first PC corresponds to column PC0
-        - explained_variances (List[float]): List of explained variances for each PC
-        - n_pcs (int): number of principal components
-        - pc_vectors: TODO
+        pca_data (pd.DataFrame): Pandas dataframe with shape (n_samples, n_pcs + 2) that contains the PCA results.
+            The dataframe contains one row per sample and has the following columns:
+                - sample_id (str): ID of the respective sample.
+                - population (str): Name of the respective population.
+                - PC{i} for i in range(n_pcs) (float): data for the i-th PC for each sample,
+                  0-indexed, so the first PC corresponds to column PC0
+        explained_variances (npt.NDArray[float]): Numpy ndarray containing the explained variances for each PC (shape=(n_pcs,))
+        n_pcs (int): number of principal components
+        pc_vectors: Numpy ndarray of shape (n_samples, n_pcs) containing the PCA result matrix.
     """
 
     def __init__(
         self,
-        pca_data: Union[pd.DataFrame, npt.NDArray[float]],
+        pca_data: pd.DataFrame,
         explained_variances: npt.NDArray[float],
         n_pcs: int,
-        sample_ids: List[str] = None,
-        populations: List[str] = None,
     ):
         """
-        TODO: Documentation
-        - auf sample_id Wichtigkeit hinweisen (Vergleichbarkeit!)
+        Initializes a new PCA object.
 
+        Args:
+            pca_data (pd.DataFrame): Pandas dataframe containing the sample ID, population and PC-Vector of all samples.
+                The dataframe should contain one row per sample.
+                Pandora expects the following columns:
+                    - sample_id (str): ID of the respective sample.
+                    - population (str): Name of the respective population.
+                    - PC{i} for i in range(n_pcs) (float): data for the i-th PC for each sample,
+                      0-indexed, so the first PC corresponds to column PC0
+            explained_variances (npt.NDArray[float]): Numpy ndarray containing the explained variances for each PC (shape=(n_pcs,))
+            n_pcs (int): number of principal components
+
+        Raises:
+            PandoraException:
+                - explained_variances is not a 1D numpy array or contains more/fewer values than n_pcs
+                - pca_data does not contain a "sample_id" column
+                - pca_data does not contain a "population" column
+                - pca_data does not contain (the correct amount of) PC{i} columns
         """
         if explained_variances.ndim != 1:
-            raise PandoraException(f"Explained variance should be a 1D numpy array. "
-                                   f"Instead got {explained_variances.ndim} dimensions.")
+            raise PandoraException(
+                f"Explained variance should be a 1D numpy array. "
+                f"Instead got {explained_variances.ndim} dimensions."
+            )
         if explained_variances.shape[0] != n_pcs:
             raise PandoraException(
                 f"Explained variance required for each PC. Got {n_pcs} but {len(explained_variances)} variances."
             )
 
-        self.n_pcs = n_pcs
-        self.explained_variances = explained_variances
-
-        if isinstance(pca_data, np.ndarray):
-            if pca_data.ndim != 2:
-                raise PandoraException(
-                    f"Numpy PCA data must be two dimensional. Passed data has {pca_data.ndim} dimensions."
-                )
-
-            if pca_data.shape[1] != n_pcs:
-                raise PandoraException(
-                    f"Numpy PCA data needs to be of shape (n_samples, n_pcs={n_pcs}). "
-                    f"Instead got {pca_data.shape[1]} PCs."
-                )
-
-            pca_data = pd.DataFrame(
-                pca_data, columns=[f"PC{i}" for i in range(self.n_pcs)]
-            )
-
-        if sample_ids is not None:
-            if len(sample_ids) != pca_data.shape[0]:
-                raise PandoraException(
-                    f"One sample ID required for each sample. Got {len(sample_ids)} IDs, "
-                    f"but pca_data has {pca_data.shape[0]} samples."
-                )
-            # overwrite/set sample IDs
-            pca_data["sample_id"] = sample_ids
-
         if "sample_id" not in pca_data.columns:
-            pca_data["sample_id"] = None
-
-        if populations is not None:
-            if len(populations) != pca_data.shape[0]:
-                raise PandoraException(
-                    f"One population required for each sample. Got {len(populations)} populations, "
-                    
-                    f"but pca_data has {pca_data.shape[0]} samples."
-                )
-            # overwrite/set populations
-            pca_data["population"] = populations
+            raise PandoraException("Column `sample_id` required.")
 
         if "population" not in pca_data.columns:
-            pca_data["population"] = None
+            raise PandoraException("Column `population` required.")
 
+        if pca_data.shape[1] != n_pcs + 2:
+            # two extra columns (sample_id, population)
+            raise PandoraException(
+                f"One data column required for each PC. Got {n_pcs} but {pca_data.shape[1] - 2} PC columns."
+            )
+
+        pc_columns = [f"PC{i}" for i in range(n_pcs)]
+        if not all(c in pca_data.columns for c in pc_columns):
+            raise PandoraException(
+                f"Expected all of the following columns to be present in pca_data: {pc_columns}."
+                f"Instead got {[c for c in pca_data.columns if c not in ['sample_id', 'population']]}"
+            )
+
+        self.n_pcs = n_pcs
+        self.explained_variances = explained_variances
         self.pca_data = pca_data.sort_values(by="sample_id").reset_index(drop=True)
-
-        self.pc_vectors = self._get_pca_data_numpy()
+        self.pc_vectors: npt.NDArray[float] = self._get_pca_data_numpy()
 
     def _get_pca_data_numpy(self) -> np.ndarray:
         """
         Converts the PCA data to a numpy array.
 
         Returns:
-             np.ndarray: Array of shape (x, y) with x = number of samples and y = self.n_pcs.
+             np.ndarray: Array of shape (n_samples, self.n_pcs).
                  Does not contain the sample IDs or populations.
         """
         return self.pca_data[[f"PC{i}" for i in range(self.n_pcs)]].to_numpy()
@@ -113,10 +104,11 @@ class PCA:
         Determines the optimal number of clusters k for K-Means clustering according to the Bayesian Information Criterion (BIC).
 
         Args:
-            k_boundaries (Tuple[int, int]): Minimum and maximum number of clusters. If None is given, determine the boundaries automatically.
-                        If self.pca_data.populations is not identical for all samples, use the number of distinct populations,
-                        otherwise use the square root of the number of samples as maximum max_k.
-                        The minimum min_k is min(max_k, 3).
+            k_boundaries (Tuple[int, int]): Minimum and maximum number of clusters. If None is given,
+                determine the boundaries automatically.
+                If self.pca_data.populations is not identical for all samples, use the number of distinct populations,
+                otherwise use the square root of the number of samples as maximum max_k.
+                The minimum min_k is min(max_k, 3).
 
         Returns:
             int: the optimal number of clusters between min_n and max_n
@@ -160,7 +152,20 @@ class PCA:
         return kmeans
 
 
-def check_smartpca_results(evec: FilePath, eval: FilePath):
+def check_smartpca_results(evec: pathlib.Path, eval: pathlib.Path):
+    """
+    Checks whether the smartpca results finished properly and contain all required information.
+
+    Args:
+        evec (pathlib.Path): Filepath pointing to a .evec result file of a smartpca run.
+        eval (pathlib.Path): Filepath pointing to a .eval result file of a smartpca run.
+
+    Returns: None
+
+    Raises:
+        PandoraException: If either the evec file or the eval file are incorrect.
+
+    """
     # check the evec file:
     # - first line should start with #eigvals: and then determines the number of PCs
     with evec.open() as f:
@@ -207,16 +212,19 @@ def check_smartpca_results(evec: FilePath, eval: FilePath):
             )
 
 
-def from_smartpca(evec: FilePath, eval: FilePath) -> PCA:
+def from_smartpca(evec: pathlib.Path, eval: pathlib.Path) -> PCA:
     """
-    Creates a PCA object from a smartPCA results file.
+    Creates a PCA object based on the results of a smartpca run
 
     Args:
-        evec (FilePath): FilePath to the evec results of SmartPCA run.
-        eval (FilePath): FilePath to the eval results of SmartPCA run.
+        evec (pathlib.Path): Filepath pointing to a .evec result file of a smartpca run.
+        eval (pathlib.Path): Filepath pointing to a .eval result file of a smartpca run.
 
     Returns:
-        PCA: PCA object encapsulating the results of the SmartPCA run.
+        PCA: PCA object of the results of the respective smartpca run.
+
+    Raises:
+        PandoraException: If either the evec file or the eval file are incorrect.
 
     """
     # make sure both files are in correct format

@@ -86,7 +86,7 @@ def check_snp_file(snp_file: pathlib.Path):
         raise PandoraConfigException(f"The .snp file {snp_file} seems to be wrong. Duplicate SNP IDs found.")
 
 
-def smartpca_finished(n_pcs: int, result_prefix: FilePath,):
+def smartpca_finished(n_pcs: int, result_prefix: pathlib.Path,):
     """
     Checks whether existing smartPCA results are correct.
     We consider them to be correct if
@@ -117,7 +117,7 @@ def smartpca_finished(n_pcs: int, result_prefix: FilePath,):
     return True
 
 
-def get_pca_populations(pca_populations: Optional[FilePath]):
+def get_pca_populations(pca_populations: Optional[pathlib.Path]):
     if pca_populations is None:
         return []
     return [pop.strip() for pop in pca_populations.open()]
@@ -136,16 +136,16 @@ def deduplicate_snp_id(snp_id: str, seen_snps: Set[str]):
 
 
 class Dataset:
-    def __init__(self, file_prefix: FilePath, pca_populations: Optional[FilePath] = None, samples: pd.DataFrame = None):
-        self.file_prefix: FilePath = file_prefix
-        self.file_dir: FilePath = self.file_prefix.parent
+    def __init__(self, file_prefix: pathlib.Path, pca_populations: Optional[pathlib.Path] = None, samples: pd.DataFrame = None):
+        self.file_prefix: pathlib.Path = file_prefix
+        self.file_dir: pathlib.Path = self.file_prefix.parent
         self.name: str = self.file_prefix.name
 
-        self.ind_file: FilePath = pathlib.Path(f"{self.file_prefix}.ind")
-        self.geno_file: FilePath = pathlib.Path(f"{self.file_prefix}.geno")
-        self.snp_file: FilePath = pathlib.Path(f"{self.file_prefix}.snp")
+        self.ind_file: pathlib.Path = pathlib.Path(f"{self.file_prefix}.ind")
+        self.geno_file: pathlib.Path = pathlib.Path(f"{self.file_prefix}.geno")
+        self.snp_file: pathlib.Path = pathlib.Path(f"{self.file_prefix}.snp")
 
-        self.pca_populations_file: FilePath = pca_populations
+        self.pca_populations_file: pathlib.Path = pca_populations
         self.pca_populations: List[str] = get_pca_populations(self.pca_populations_file)
         self.samples: pd.DataFrame = self.get_sample_info() if samples is None else samples
         self.projected_samples: pd.DataFrame = self.samples.loc[lambda x: ~x.used_for_pca]
@@ -197,7 +197,7 @@ class Dataset:
         self,
         smartpca: Executable,
         n_pcs: int = 20,
-        result_dir: FilePath = None,
+        result_dir: pathlib.Path = None,
         redo: bool = False,
         smartpca_optional_settings: Dict = None,
     ):
@@ -264,7 +264,7 @@ class Dataset:
 
         self.pca = from_smartpca(evec_out, eval_out)
 
-    def create_bootstrap(self, bootstrap_prefix: FilePath, seed: int, redo: bool) -> Dataset:
+    def create_bootstrap(self, bootstrap_prefix: pathlib.Path, seed: int, redo: bool) -> Dataset:
         bs_ind_file = pathlib.Path(f"{bootstrap_prefix}.ind")
         bs_geno_file = pathlib.Path(f"{bootstrap_prefix}.geno")
         bs_snp_file = pathlib.Path(f"{bootstrap_prefix}.snp")

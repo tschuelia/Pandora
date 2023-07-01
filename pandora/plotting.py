@@ -3,6 +3,7 @@ from plotly import graph_objects as go
 from pandora.custom_types import *
 from pandora.custom_errors import *
 from pandora.pca import PCA
+from pandora.pca_comparison import PCAComparison
 
 
 def get_distinct_colors(n_colors: int) -> List[str]:
@@ -173,14 +174,15 @@ def plot_pca_clusters(
 def plot_support_values(
     pca: PCA,
     sample_support_values: pd.Series,
-    support_value_rogue_cutoff: float = 0.01,
+    support_value_rogue_cutoff: float = 0.5,
     pcx: int = 0,
     pcy: int = 1,
     projected_samples: Optional[List[str]] = None,
     **kwargs
-):
+) -> go.Figure:
     # check that the number of support values matches the number of samples in the PCA data
     if len(sample_support_values) != pca.pca_data.shape[0]:
+        # TODO: statt striktem check einfach lightgray falls das sample nicht vertreten ist (= support value NaN)
         raise PandoraException(
             f"Provide exactly one support value for each sample. "
             f"Got {len(sample_support_values)} support values, "
@@ -199,10 +201,6 @@ def plot_support_values(
     x_data = pca_data[f"PC{pcx}"]
     y_data = pca_data[f"PC{pcy}"]
 
-    rogue_threshold = np.quantile(
-        list(sample_support_values.values), support_value_rogue_cutoff
-    )
-
     if projected_samples is not None:
         marker_colors = []
         marker_text = []
@@ -212,7 +210,7 @@ def plot_support_values(
                 # check if the sample is projected, if so the marker color should be according to it's support
                 support = sample_support_values.loc[lambda x: x.index == row.sample_id].item()
                 marker_colors.append(support)
-                if support < rogue_threshold:
+                if support < support_value_rogue_cutoff:
                     # if the support is worse than the threshold, annotate the projected sample
                     marker_text.append(f"{round(support, 2)}<br>({row.sample_id})")
                 else:
@@ -226,9 +224,9 @@ def plot_support_values(
     else:
         marker_colors = list(sample_support_values.values)
 
-        # annotate only samples with support below rogue_threshold
+        # annotate only samples with support below support_value_rogue_cutoff
         marker_text = [
-            f"{round(support, 2)}<br>({sample})" if support < rogue_threshold else ""
+            f"{round(support, 2)}<br>({sample})" if support < support_value_rogue_cutoff else ""
             for (sample, support) in sorted(sample_support_values.items())
         ]
 
@@ -258,3 +256,88 @@ def plot_support_values(
     return fig
 
 
+def plot_pca_comparison(pca_comparison: PCAComparison, pcx: int = 0, pcy: int = 1, **kwargs) -> go.Figure:
+    fig = go.Figure(
+        [
+            go.Scatter(
+                x=pca_comparison.reference.pca_data[f"PC{pcx}"],
+                y=pca_comparison.reference.pca_data[f"PC{pcy}"],
+                marker_color="darkblue",
+                name="Standardized reference PCA",
+                mode="markers",
+                **kwargs,
+            ),
+            go.Scatter(
+                x=pca_comparison.comparable.pca_data[f"PC{pcx}"],
+                y=pca_comparison.comparable.pca_data[f"PC{pcy}"],
+                marker_color="orange",
+                marker_symbol="star",
+                name="Transformed comparable PCA",
+                mode="markers",
+                **kwargs,
+            ),
+        ]
+    )
+
+    fig.update_xaxes(title=f"PC {pcx + 1}")
+    fig.update_yaxes(title=f"PC {pcy + 1}")
+
+    fig.update_layout(template="plotly_white", height=1000, width=1000)
+
+    return fig
+
+
+def plot_pca_comparison_rogue_samples(pca_comparison: PCAComparison, support_value_rogue_cutoff: float = 0.5, pcx: int = 0, pcy: int = 1, **kwargs) -> go.Figure:
+    rogue_samples = pca_comparison.detect_rogue_samples(support_value_rogue_cutoff=support_value_rogue_cutoff)
+    rogue_samples["color"] = get_distinct_colors(rogue_samples.shape[0])
+    rogue_samples["text"] = [f"{row.sample_id}<br>({round(row.support, 2)})" for idx, row in rogue_samples.iterrows()]
+
+    fig = go.Figure(
+        [
+            # all samples
+            go.Scatter(
+                x=pca_comparison.reference.pca_data[f"PC{pcx}"],
+                y=pca_comparison.reference.pca_data[f"PC{pcy}"],
+                marker_color="lightgray",
+                name="Standardized reference PCA",
+                mode="markers",
+                **kwargs,
+            ),
+            go.Scatter(
+                x=pca_comparison.comparable.pca_data[f"PC{pcx}"],
+                y=pca_comparison.comparable.pca_data[f"PC{pcy}"],
+                marker_color="lightgray",
+                marker_symbol="star",
+                name="Transformed comparable PCA",
+                mode="markers",
+                **kwargs,
+            ),
+            # Rogue samples
+            go.Scatter(
+                x=pca_comparison.reference.pca_data.loc[lambda x: x.sample_id.isin(rogue_samples.sample_id)][f"PC{pcx}"],
+                y=pca_comparison.reference.pca_data.loc[lambda x: x.sample_id.isin(rogue_samples.sample_id)][f"PC{pcy}"],
+                marker_color=rogue_samples.color,
+                text=rogue_samples.text,
+                textposition="bottom center",
+                mode="markers+text",
+                showlegend=False
+            ),
+            go.Scatter(
+                x=pca_comparison.comparable.pca_data.loc[lambda x: x.sample_id.isin(rogue_samples.sample_id)][f"PC{pcx}"],
+                y=pca_comparison.comparable.pca_data.loc[lambda x: x.sample_id.isin(rogue_samples.sample_id)][f"PC{pcy}"],
+                marker_color=rogue_samples.color,
+                marker_symbol="star",
+                text=rogue_samples.text,
+                textposition="bottom center",
+                mode="markers+text",
+                showlegend=False
+            )
+        ]
+    )
+
+    fig.update_xaxes(title=f"PC {pcx + 1}")
+    fig.update_yaxes(title=f"PC {pcy + 1}")
+
+    fig.update_layout(template="plotly_white", height=1000, width=1000)
+
+    return fig

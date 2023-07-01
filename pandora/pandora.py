@@ -29,7 +29,7 @@ class PandoraConfig:
     # PCA related
     smartpca: Executable
     convertf: Executable
-    smartpca_optional_settings: dict[str, str]
+    smartpca_optional_settings: Dict[str, str]
 
     # sample support values
     support_value_rogue_cutoff: float

@@ -61,7 +61,7 @@ def _check_plot_pcs(pca: PCA, pcx: int, pcy: int):
     Args:
         pca (PCA): PCA data to plot.
         pcx (int): Index of PC to plot on the x-axis.
-        pcy: Index of PC to plot on the y-axis.
+        pcy (int): Index of PC to plot on the y-axis.
 
     Returns: None
 
@@ -291,6 +291,8 @@ def plot_support_values(
     Args:
         pca (PCA): PCA data to plot.
         sample_support_values (pd.Series): Bootstrap support value for each sample in pca.pca_data.
+            Note: The index of the Series is expected to contain the sample IDs and
+            to be identical to the pca.pca_data.sample_id column.
         support_value_rogue_cutoff (float): Samples with a support value below this threshold are annotated with
             the sample ID and the support value. All other samples are only color-coded.
         pcx (int): Index of the principal component plotted on the x-axis (zero-indexed).
@@ -458,14 +460,18 @@ def plot_pca_comparison_rogue_samples(
     """
     _check_plot_pcs(pca_comparison.reference, pcx, pcy)
     _check_plot_pcs(pca_comparison.comparable, pcx, pcy)
+
     rogue_samples = pca_comparison.detect_rogue_samples(
         support_value_rogue_cutoff=support_value_rogue_cutoff
     )
-    rogue_samples["color"] = get_distinct_colors(rogue_samples.shape[0])
-    rogue_samples["text"] = [
-        f"{row.sample_id}<br>({round(row.support, 2)})"
-        for idx, row in rogue_samples.iterrows()
+    rogue_colors = get_distinct_colors(rogue_samples.shape[0])
+    rogue_text = [
+        f"{row.index}<br>({round(row.value, 2)})"
+        for idx, row in rogue_samples.items()
     ]
+
+    rogue_reference = pca_comparison.reference.pca_data.loc[lambda x: x.sample_id.isin(rogue_samples.index)]
+    rogue_comparable = pca_comparison.comparable.pca_data.loc[lambda x: x.sample_id.isin(rogue_samples.index)]
 
     fig = go.Figure(
         [
@@ -489,28 +495,20 @@ def plot_pca_comparison_rogue_samples(
             ),
             # Rogue samples
             go.Scatter(
-                x=pca_comparison.reference.pca_data.loc[
-                    lambda x: x.sample_id.isin(rogue_samples.sample_id)
-                ][f"PC{pcx}"],
-                y=pca_comparison.reference.pca_data.loc[
-                    lambda x: x.sample_id.isin(rogue_samples.sample_id)
-                ][f"PC{pcy}"],
-                marker_color=rogue_samples.color,
-                text=rogue_samples.text,
+                x=rogue_reference[f"PC{pcx}"],
+                y=rogue_reference[f"PC{pcy}"],
+                marker_color=rogue_colors,
+                text=rogue_text,
                 textposition="bottom center",
                 mode="markers+text",
                 showlegend=False,
             ),
             go.Scatter(
-                x=pca_comparison.comparable.pca_data.loc[
-                    lambda x: x.sample_id.isin(rogue_samples.sample_id)
-                ][f"PC{pcx}"],
-                y=pca_comparison.comparable.pca_data.loc[
-                    lambda x: x.sample_id.isin(rogue_samples.sample_id)
-                ][f"PC{pcy}"],
-                marker_color=rogue_samples.color,
+                x=rogue_comparable[f"PC{pcx}"],
+                y=rogue_comparable[f"PC{pcy}"],
+                marker_color=rogue_colors,
                 marker_symbol="star",
-                text=rogue_samples.text,
+                text=rogue_text,
                 textposition="bottom center",
                 mode="markers+text",
                 showlegend=False,

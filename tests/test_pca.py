@@ -90,9 +90,3 @@ def test_check_smartpca_results_passes_for_correct_results(correct_smartpca_resu
 
     # should run without any issues
     check_smartpca_results(evec, eval)
-
-
-# def test_check_smartpca_resuts_fails_for_incorrect_results():
-#     evec_temp
-#     evec = pathlib.Path(f"{incorrect_smartpca_npcs_result_prefix}.evec")
-#     eval = pathlib.Path(f"{incorrect_smartpca_npcs_result_prefix}.eval")

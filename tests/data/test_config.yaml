@@ -1,0 +1,15 @@
+dataset_prefix: tests/data/example
+file_format: EIGENSTRAT
+result_dir: tests/data/results/
+n_bootstraps: 3
+keep_bootstraps: True
+threads: 2
+seed: 0
+plot_results: True
+n_pcs: 20
+kmeans_k: 3
+result_decimals: 2
+smartpca_optional_settings:
+  shrinkmode: NO
+  numoutlieriter: 0
+

@@ -6,14 +6,12 @@ import textwrap
 import statistics
 from multiprocessing import Pool
 
-import pandas as pd
 import yaml
 
 from pandora import __version__
 from pandora.converter import run_convertf
 from pandora.dataset import Dataset, smartpca_finished
 from pandora.logger import *
-from pandora.pca_comparison import PCAComparison
 from pandora.plotting import *
 
 
@@ -54,12 +52,6 @@ class PandoraConfig:
     # Plot settings
     plot_pcx: int
     plot_pcy: int
-
-    def __post_init__(self):
-        # TODO: validate inputs
-        """
-        - Check that all input files are present
-        """
 
     @property
     def pandora_logfile(self) -> pathlib.Path:
@@ -370,18 +362,28 @@ class Pandora:
             self.pandora_config.sample_support_values_projected_samples_file
         )
 
-        projected_sample_support_values = self.sample_support_values.loc[lambda x: x.index.isin(self.dataset.projected_samples.sample_id.tolist())]
+        projected_sample_support_values = self.sample_support_values.loc[
+            lambda x: x.index.isin(self.dataset.projected_samples.sample_id.tolist())
+        ]
         with projected_samples_file.open("w") as _projected:
-            for sample_id, support in projected_sample_support_values.mean(axis=1).items():
+            for sample_id, support in projected_sample_support_values.mean(
+                axis=1
+            ).items():
                 _projected.write(f"{sample_id}\t{round(support, _rd)}\n")
 
-        self._log_support_values("Projected Samples", projected_sample_support_values.mean(axis=1))
+        self._log_support_values(
+            "Projected Samples", projected_sample_support_values.mean(axis=1)
+        )
 
     def plot_sample_support_values(self, projected_samples_only: bool = False):
         pcx = self.pandora_config.plot_pcx
         pcy = self.pandora_config.plot_pcy
 
-        projected_samples = self.dataset.projected_samples.sample_id.unique() if projected_samples_only else None
+        projected_samples = (
+            self.dataset.projected_samples.sample_id.unique()
+            if projected_samples_only
+            else None
+        )
 
         fig = plot_support_values(
             self.dataset.pca,
@@ -389,7 +391,7 @@ class Pandora:
             self.pandora_config.support_value_rogue_cutoff,
             pcx,
             pcy,
-            projected_samples
+            projected_samples,
         )
 
         if projected_samples_only:
@@ -418,39 +420,39 @@ def pandora_config_from_configfile(configfile: pathlib.Path) -> PandoraConfig:
 
     # fmt: off
     return PandoraConfig(
-        dataset_prefix=pathlib.Path(dataset_prefix),
-        file_format=FileFormat(config_data.get("file_format", "EIGENSTRAT")),
-        result_dir=pathlib.Path(result_dir),
+        dataset_prefix  = pathlib.Path(dataset_prefix),
+        file_format     = FileFormat(config_data.get("file_format", "EIGENSTRAT")),
+        result_dir      = pathlib.Path(result_dir),
 
         # Bootstrap related settings
-        n_pcs=config_data.get("n_pcs", 0.95),
-        n_bootstraps=config_data.get("n_bootstraps", 100),
-        keep_bootstraps=config_data.get("keep_bootstraps", False),
+        n_pcs           = config_data.get("n_pcs", 0.95),
+        n_bootstraps    = config_data.get("n_bootstraps", 100),
+        keep_bootstraps = config_data.get("keep_bootstraps", False),
 
         # PCA related
-        smartpca=config_data.get("smartpca", "smartpca"),
-        convertf=config_data.get("convertf", "convertf"),
-        smartpca_optional_settings=config_data.get("smartpca_optional_settings", {}),
+        smartpca = config_data.get("smartpca", "smartpca"),
+        convertf = config_data.get("convertf", "convertf"),
+        smartpca_optional_settings = config_data.get("smartpca_optional_settings", {}),
 
         # sample support values
-        support_value_rogue_cutoff=config_data.get("support_value_rogue_cutoff", 0.5),
-        pca_populations=pca_populations,
+        support_value_rogue_cutoff = config_data.get("support_value_rogue_cutoff", 0.5),
+        pca_populations = pca_populations,
 
         # Cluster settings
-        kmeans_k=config_data.get("kmeans_k", None),
+        kmeans_k = config_data.get("kmeans_k", None),
 
         # Pandora execution mode settings
-        do_bootstrapping=config_data.get("bootstrap", True),
-        plot_results=config_data.get("plot_results", False),
-        redo=config_data.get("redo", False),
-        seed=config_data.get("seed", 0),
-        threads=config_data.get("threads", multiprocessing.cpu_count()),
-        result_decimals=config_data.get("result_decimals", 2),
-        verbosity=config_data.get("verbosity", 2),
+        do_bootstrapping    = config_data.get("bootstrap", True),
+        plot_results        = config_data.get("plot_results", False),
+        redo                = config_data.get("redo", False),
+        seed                = config_data.get("seed", 0),
+        threads             = config_data.get("threads", multiprocessing.cpu_count()),
+        result_decimals     = config_data.get("result_decimals", 2),
+        verbosity           = config_data.get("verbosity", 2),
 
         # Plot settings
-        plot_pcx=config_data.get("plot_pcx", 0),
-        plot_pcy=config_data.get("plot_pcy", 0),
+        plot_pcx = config_data.get("plot_pcx", 0),
+        plot_pcy = config_data.get("plot_pcy", 1),
     )
     # fmt: on
 

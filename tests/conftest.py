@@ -1,6 +1,6 @@
 import pytest
+import yaml
 
-from pandora.custom_types import *
 from pandora.dataset import Dataset
 from pandora.pca import *
 from .test_config import SMARTPCA, CONVERTF
@@ -124,3 +124,14 @@ def pca_reference_and_comparable_with_score_lower_than_one() -> Tuple[PCA, PCA]:
     )
 
     return pca1, pca2
+
+
+@pytest.fixture
+def pandora_test_config() -> pathlib.Path:
+    return pathlib.Path(__file__).parent / "data" / "test_config.yaml"
+
+
+@pytest.fixture
+def pandora_test_config_yaml(pandora_test_config) -> Dict:
+    return yaml.safe_load(pandora_test_config.open())
+

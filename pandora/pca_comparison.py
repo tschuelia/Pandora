@@ -215,7 +215,7 @@ class PCAComparison:
         """
         support_values = self.get_sample_support_values()
 
-        rogue = support_values.loc[lambda x: (x.support < support_value_rogue_cutoff)]
+        rogue = support_values.loc[lambda x: (x < support_value_rogue_cutoff)]
 
         return rogue
 

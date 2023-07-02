@@ -55,6 +55,30 @@ class TestDatasetBootstrap:
             # check that all files are correctly formatted
             bootstrap.check_files()
 
+    def test_bootstrap_files_correct_with_redo(self, example_dataset):
+        in_ind_count = sum(1 for _ in example_dataset.ind_file.open())
+        in_geno_count = sum(1 for _ in example_dataset.geno_file.open())
+        in_snp_count = sum(1 for _ in example_dataset.snp_file.open())
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmpdir = pathlib.Path(tmpdir)
+            bootstrap_prefix = tmpdir / "bootstrap"
+            _ = example_dataset.create_bootstrap(bootstrap_prefix, seed=42, redo=True)
+            # do bootstrap again and check if the files are correctly redone
+            bootstrap = example_dataset.create_bootstrap(bootstrap_prefix, seed=42, redo=True)
+
+            # check that the number of lines is correct
+            bs_ind_count = sum(1 for _ in bootstrap.ind_file.open())
+            bs_geno_count = sum(1 for _ in bootstrap.geno_file.open())
+            bs_snp_count = sum(1 for _ in bootstrap.snp_file.open())
+
+            assert in_ind_count == bs_ind_count
+            assert in_geno_count == bs_geno_count
+            assert in_snp_count == bs_snp_count
+
+            # check that all files are correctly formatted
+            bootstrap.check_files()
+
     def test_bootstrap_using_existing_files(self, example_dataset):
         """
         Test that when setting redo=False, the resulting bootstrap dataset files

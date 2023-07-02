@@ -274,6 +274,10 @@ class Dataset:
         if files_exist and not redo:
             return Dataset(bootstrap_prefix, self.pca_populations_file)
 
+        bs_ind_file.unlink(missing_ok=True)
+        bs_geno_file.unlink(missing_ok=True)
+        bs_snp_file.unlink(missing_ok=True)
+
         # sample the SNPs using the snp file
         # each line in the snp file corresponds to one SNP
         num_snps = sum(1 for _ in self.snp_file.open())

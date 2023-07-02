@@ -86,7 +86,7 @@ def check_snp_file(snp_file: pathlib.Path):
         raise PandoraConfigException(f"The .snp file {snp_file} seems to be wrong. Duplicate SNP IDs found.")
 
 
-def smartpca_finished(n_pcs: int, result_prefix: pathlib.Path,):
+def smartpca_finished(n_pcs: int, result_prefix: pathlib.Path):
     """
     Checks whether existing smartPCA results are correct.
     We consider them to be correct if

@@ -240,11 +240,13 @@ class Pandora:
             bootstrap_dataset = Dataset(
                 bootstrap_prefix,
                 self.dataset.pca_populations_file,
-                self.dataset.samples
+                self.dataset.samples,
             )
         else:
             # draw bootstrap dataset
-            bootstrap_dataset = self.dataset.create_bootstrap(bootstrap_prefix, seed, redo)
+            bootstrap_dataset = self.dataset.create_bootstrap(
+                bootstrap_prefix, seed, redo
+            )
 
         # run smartpca
         bootstrap_dataset.smartpca(
@@ -268,12 +270,13 @@ class Pandora:
                 f"Drawing {self.pandora_config.n_bootstraps} bootstrapped datasets and running SmartPCA."
             )
         )
-        # In order to save storage, we are deleting the bootstrap datasets (.ind, .geno, .snp) files.
-        # So before we create bootstrap datasets, we have to check whether the subsequent PCA run finished already
-        # we do this check for each of the expected Bootstrap outputs and only compute the missing ones
         random.seed(self.pandora_config.seed)
         args = [
-            (self.pandora_config.bootstrap_result_dir / f"bootstrap_{i}", random.randint(0, 1_000_000), self.pandora_config.redo)
+            (
+                self.pandora_config.bootstrap_result_dir / f"bootstrap_{i}",
+                random.randint(0, 1_000_000),
+                self.pandora_config.redo,
+            )
             for i in range(self.pandora_config.n_bootstraps)
         ]
         with Pool(self.pandora_config.threads) as p:
@@ -289,14 +292,46 @@ class Pandora:
         if self.pandora_config.plot_results:
             logger.info(fmt_message(f"Plotting bootstrap PCA results."))
             self._plot_bootstraps()
-            self.plot_sample_support_values()
+            self._plot_sample_support_values()
 
             if self.pandora_config.pca_populations is not None:
-                self.plot_sample_support_values(projected_samples_only=True)
+                self._plot_sample_support_values(projected_samples_only=True)
 
     def _plot_bootstraps(self):
         for i, bootstrap in enumerate(self.bootstrap_datasets):
             self._plot_pca(bootstrap, f"bootstrap_{i}")
+
+    def _plot_sample_support_values(self, projected_samples_only: bool = False):
+        if self.dataset.pca is None:
+            raise PandoraException(
+                "Support values are plotted using self.dataset.pca, but PCA was not performed for self.dataset. "
+                "Make sure to run self.do_pca prior to plotting."
+            )
+        pcx = self.pandora_config.plot_pcx
+        pcy = self.pandora_config.plot_pcy
+
+        projected_samples = (
+            self.dataset.projected_samples.sample_id.unique()
+            if projected_samples_only
+            else None
+        )
+
+        fig = plot_support_values(
+            self.dataset.pca,
+            self.sample_support_values.mean(axis=1),
+            self.pandora_config.support_value_rogue_cutoff,
+            pcx,
+            pcy,
+            projected_samples,
+        )
+
+        if projected_samples_only:
+            fig_name = "projected_sample_support_values.pdf"
+        else:
+            fig_name = "sample_support_values.pdf"
+
+        fig.write_image(self.pandora_config.plot_dir / fig_name)
+        return fig
 
     def _compare_bootstrap_similarity(self):
         # Compare all bootstraps pairwise
@@ -310,6 +345,7 @@ class Pandora:
         for (i1, bootstrap1), (i2, bootstrap2) in itertools.combinations(
             enumerate(self.bootstrap_datasets), r=2
         ):
+            print("COMPARISON ", i1, i2)
             pca_comparison = PCAComparison(
                 comparable=bootstrap1.pca, reference=bootstrap2.pca
             )
@@ -390,6 +426,9 @@ class Pandora:
         logger.info(support_values_result_string)
 
     def log_and_save_sample_support_values(self):
+        if len(self.sample_support_values) == 0:
+            raise PandoraException("No bootstrap results to log!")
+
         _rd = self.pandora_config.result_decimals
 
         all_samples_file = self.pandora_config.sample_support_values_file
@@ -422,33 +461,6 @@ class Pandora:
         self._log_support_values(
             "Projected Samples", projected_sample_support_values.mean(axis=1)
         )
-
-    def plot_sample_support_values(self, projected_samples_only: bool = False):
-        pcx = self.pandora_config.plot_pcx
-        pcy = self.pandora_config.plot_pcy
-
-        projected_samples = (
-            self.dataset.projected_samples.sample_id.unique()
-            if projected_samples_only
-            else None
-        )
-
-        fig = plot_support_values(
-            self.dataset.pca,
-            self.sample_support_values.mean(axis=1),
-            self.pandora_config.support_value_rogue_cutoff,
-            pcx,
-            pcy,
-            projected_samples,
-        )
-
-        if projected_samples_only:
-            fig_name = "projected_sample_support_values.pdf"
-        else:
-            fig_name = "sample_support_values.pdf"
-
-        fig.write_image(self.pandora_config.plot_dir / fig_name)
-        return fig
 
 
 def pandora_config_from_configfile(configfile: pathlib.Path) -> PandoraConfig:

@@ -1,4 +1,5 @@
 dataset_prefix: tests/data/example
+pca_populations: tests/data/example_populations.txt
 file_format: EIGENSTRAT
 result_dir: tests/data/results/
 n_bootstraps: 3
@@ -11,3 +12,4 @@ result_decimals: 2
 smartpca_optional_settings:
   shrinkmode: NO
   numoutlieriter: 0
+

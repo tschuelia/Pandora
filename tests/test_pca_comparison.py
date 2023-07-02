@@ -50,6 +50,10 @@ def test_match_and_transform_fails_for_different_sample_ids(
 
 
 class TestPCAComparison:
+    def test_compare_fails_for_incorrect_type(self):
+        with pytest.raises(PandoraException, match="PCA objects"):
+            PCAComparison(None, None)
+
     def test_compare_for_identical_pcas(self, pca_reference):
         comparison = PCAComparison(pca_reference, pca_reference)
 

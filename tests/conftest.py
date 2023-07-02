@@ -1,8 +1,10 @@
 import pytest
+import shutil
 import yaml
 
 from pandora.dataset import Dataset
 from pandora.pca import *
+from pandora.pandora import PandoraConfig, pandora_config_from_configfile
 from .test_config import SMARTPCA, CONVERTF
 
 
@@ -32,7 +34,9 @@ def example_dataset(example_eigen_dataset_prefix) -> Dataset:
 
 
 @pytest.fixture
-def example_dataset_with_poplist(example_eigen_dataset_prefix, example_population_list) -> Dataset:
+def example_dataset_with_poplist(
+    example_eigen_dataset_prefix, example_population_list
+) -> Dataset:
     return Dataset(example_eigen_dataset_prefix, example_population_list)
 
 
@@ -77,22 +81,14 @@ def pca_reference(correct_smartpca_result_prefix) -> PCA:
 def pca_comparable_fewer_samples(pca_reference) -> PCA:
     # use only four of the samples from pca_reference
     pca_data = pca_reference.pca_data.copy()[:4]
-    return PCA(
-        pca_data,
-        pca_reference.explained_variances,
-        pca_reference.n_pcs
-    )
+    return PCA(pca_data, pca_reference.explained_variances, pca_reference.n_pcs)
 
 
 @pytest.fixture
 def pca_comparable_with_different_sample_ids(pca_reference) -> PCA:
     pca_data = pca_reference.pca_data.copy()
     pca_data.sample_id = pca_data.sample_id + "_foo"
-    return PCA(
-        pca_data,
-        pca_reference.explained_variances,
-        pca_reference.n_pcs
-    )
+    return PCA(pca_data, pca_reference.explained_variances, pca_reference.n_pcs)
 
 
 @pytest.fixture
@@ -103,11 +99,11 @@ def pca_reference_and_comparable_with_score_lower_than_one() -> Tuple[PCA, PCA]:
                 "sample_id": ["sample1", "sample2", "sample3"],
                 "population": ["population1", "population2", "population3"],
                 "PC0": [1, 2, 3],
-                "PC1": [1, 2, 3]
+                "PC1": [1, 2, 3],
             }
         ),
         np.asarray([0.0, 0.0]),
-        2
+        2,
     )
 
     pca2 = PCA(
@@ -116,22 +112,58 @@ def pca_reference_and_comparable_with_score_lower_than_one() -> Tuple[PCA, PCA]:
                 "sample_id": ["sample1", "sample2", "sample3"],
                 "population": ["population1", "population2", "population3  "],
                 "PC0": [1, 1, 2],
-                "PC1": [1, 2, 1]
+                "PC1": [1, 2, 1],
             }
         ),
         np.asarray([0.0, 0.0]),
-        2
+        2,
     )
 
     return pca1, pca2
 
 
 @pytest.fixture
-def pandora_test_config() -> pathlib.Path:
+def pandora_test_config_file() -> pathlib.Path:
     return pathlib.Path(__file__).parent / "data" / "test_config.yaml"
 
 
 @pytest.fixture
-def pandora_test_config_yaml(pandora_test_config) -> Dict:
-    return yaml.safe_load(pandora_test_config.open())
+def pandora_test_config(pandora_test_config_file, smartpca, convertf) -> PandoraConfig:
+    # load the config file and manually set smartpca and convertf options based on the test_config
+    pandora_config = pandora_config_from_configfile(pandora_test_config_file)
+    pandora_config.smartpca = smartpca
+    pandora_config.convertf = convertf
+    return pandora_config
 
+
+@pytest.fixture
+def pandora_test_config_yaml(pandora_test_config_file) -> Dict:
+    return yaml.safe_load(pandora_test_config_file.open())
+
+
+@pytest.fixture
+def pandora_test_config_with_pca_populations_file() -> pathlib.Path:
+    return (
+        pathlib.Path(__file__).parent / "data" / "test_config_with_pca_populations.yaml"
+    )
+
+
+@pytest.fixture
+def pandora_test_config_with_pca_populations(
+    pandora_test_config_with_pca_populations_file, smartpca, convertf
+) -> PandoraConfig:
+    # load the config file and manually set smartpca and convertf options based on the test_config
+    pandora_config = pandora_config_from_configfile(
+        pandora_test_config_with_pca_populations_file
+    )
+    pandora_config.smartpca = smartpca
+    pandora_config.convertf = convertf
+    return pandora_config
+
+
+@pytest.fixture(autouse=True)
+def cleanup_pandora_test_results():
+    yield
+    results_dir = pathlib.Path("tests") / "data" / "results"
+    if results_dir.exists():
+        shutil.rmtree(results_dir)

@@ -119,7 +119,15 @@ class PCAComparison:
         Args:
             comparable: PCA object to compare.
             reference: PCA object to transform comparable towards.
+
+        Raises
+            PandoraException: if either comparable of reference is not a PCA object
         """
+        if not isinstance(comparable, PCA) or not isinstance(reference, PCA):
+            raise PandoraException(
+                f"comparable and reference need to be PCA objects. "
+                f"Instead got {type(comparable)} and {type(reference)}."
+            )
 
         self.comparable, self.reference, self.disparity = match_and_transform(
             comparable=comparable, reference=reference

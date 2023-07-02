@@ -59,10 +59,6 @@ def main():
 
     # TODO: compare pandora_config with potentially existing config file and warn user if settings changed but redo was not set
 
-    # create the required output directories based on the analysis specified
-    pandora_config.create_result_dirs()
-    pandora_config.result_file.unlink(missing_ok=True)
-
     # set the log verbosity according to the pandora config
     logger.setLevel(pandora_config.loglevel)
 
@@ -103,36 +99,11 @@ def main():
 
     # TODO: implement alternative MDS analysis
     # Run PCA on the input dataset without any bootstrapping
-    logger.info(fmt_message("Running SmartPCA on the input dataset."))
     pandora_results.do_pca()
-
-    if pandora_config.plot_results:
-        logger.info(fmt_message("Plotting SmartPCA results for the input dataset."))
-        pandora_results.plot_dataset()
 
     if pandora_config.do_bootstrapping:
         # Bootstrapped PCAs
-        logger.info(
-            fmt_message(
-                f"Drawing {pandora_config.n_bootstraps} bootstrapped datasets and running SmartPCA."
-            )
-        )
         pandora_results.bootstrap_pcas()
-
-        # =======================================
-        # Compare results
-        # pairwise comparison between all bootstraps
-        # =======================================
-        logger.info(fmt_message(f"Comparing bootstrap PCA results."))
-        pandora_results.compare_bootstrap_similarity()
-
-        if pandora_config.plot_results:
-            logger.info(fmt_message(f"Plotting bootstrap PCA results."))
-            pandora_results.plot_bootstraps()
-            pandora_results.plot_sample_support_values()
-
-            if pandora_config.pca_populations is not None:
-                pandora_results.plot_sample_support_values(projected_samples_only=True)
 
     logger.info("\n\n========= PANDORA RESULTS =========")
     logger.info(f"> Input dataset: {pandora_config.dataset_prefix.absolute()}")
@@ -141,33 +112,7 @@ def main():
         pandora_results.log_and_save_bootstrap_results()
         pandora_results.log_and_save_sample_support_values()
 
-    logger.info(
-        textwrap.dedent(
-            """
-            ------------------
-            Result Files
-            ------------------"""
-        )
-    )
-    logger.info(f"> Pandora results: {pandora_config.result_file.absolute()}")
-
-    if pandora_config.do_bootstrapping:
-        logger.info(
-            f"> Pairwise bootstrap similarities: {pandora_config.pairwise_bootstrap_result_file.absolute()}"
-        )
-        logger.info(
-            f"> Sample Support values: {pandora_config.sample_support_values_file.absolute()}"
-        )
-
-    if pandora_config.pca_populations is not None:
-        logger.info(
-            f"> Projected Sample Support values: {pandora_config.sample_support_values_projected_samples_file.absolute()}"
-        )
-
-    if pandora_config.plot_results:
-        logger.info(
-            f"> All plots saved in directory: {pandora_config.plot_dir.absolute()}"
-        )
+    pandora_config.log_results_files()
 
     total_runtime = math.ceil(time.perf_counter() - SCRIPT_START)
     logger.info(

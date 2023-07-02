@@ -66,9 +66,13 @@ def _check_plot_pcs(pca: PCA, pcx: int, pcy: int):
     Returns: None
 
     Raises:
-        PandoraException: if either pcx or pcy does not exist in the PCA data.
+        PandoraException:
+            - if pcx == pcy
+            - if either pcx or pcy does not exist in the PCA data.
 
     """
+    if pcx == pcy:
+        raise PandoraException(f"pcx and pcy cannot be identical.")
     pcx = f"PC{pcx}"
     if pcx not in pca.pca_data.columns:
         raise PandoraException(f"Requested plot PC {pcx} for x-axis does not exist.")

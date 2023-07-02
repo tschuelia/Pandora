@@ -1,5 +1,6 @@
 import dataclasses
 import itertools
+import logging
 import multiprocessing
 import random
 import textwrap
@@ -11,7 +12,7 @@ import yaml
 from pandora import __version__
 from pandora.converter import run_convertf
 from pandora.dataset import Dataset, smartpca_finished
-from pandora.logger import *
+from pandora.logger import logger, fmt_message
 from pandora.plotting import *
 
 
@@ -52,6 +53,14 @@ class PandoraConfig:
     # Plot settings
     plot_pcx: int
     plot_pcy: int
+
+    def __post_init__(self):
+        if self.do_bootstrapping:
+            self.bootstrap_result_dir.mkdir(exist_ok=True, parents=True)
+        if self.plot_results:
+            self.plot_dir.mkdir(exist_ok=True, parents=True)
+
+        self.result_file.unlink(missing_ok=True)
 
     @property
     def pandora_logfile(self) -> pathlib.Path:
@@ -121,11 +130,30 @@ class PandoraConfig:
         self.configfile.open(mode="w").write(f"# PANDORA VERSION {__version__}\n\n")
         self.configfile.open(mode="a").write(config_yaml)
 
-    def create_result_dirs(self):
+    def log_results_files(self):
+        logger.info(
+            textwrap.dedent(
+                """
+                ------------------
+                Result Files
+                ------------------"""
+            )
+        )
+        logger.info(f"> Pandora results: {self.result_file.absolute()}")
         if self.do_bootstrapping:
-            self.bootstrap_result_dir.mkdir(exist_ok=True, parents=True)
+            logger.info(
+                f"> Pairwise bootstrap similarities: {self.pairwise_bootstrap_result_file.absolute()}"
+            )
+            logger.info(
+                f"> Sample Support values: {self.sample_support_values_file.absolute()}"
+            )
+
+            if self.pca_populations is not None:
+                logger.info(
+                    f"> Projected Sample Support values: {self.sample_support_values_projected_samples_file.absolute()}"
+                )
         if self.plot_results:
-            self.plot_dir.mkdir(exist_ok=True, parents=True)
+            logger.info(f"> All plots saved in directory: {self.plot_dir.absolute()}")
 
 
 class Pandora:
@@ -136,12 +164,12 @@ class Pandora:
             pca_populations=pandora_config.pca_populations,
         )
         self.bootstrap_datasets: List[Dataset] = []
-        # TODO: umbauen auf pd.Dataframes
         self.bootstrap_similarities: Dict[Tuple[int, int], float] = {}
         self.bootstrap_cluster_similarities: Dict[Tuple[int, int], float] = {}
         self.sample_support_values: pd.DataFrame = pd.DataFrame()
 
     def do_pca(self):
+        logger.info(fmt_message("Running SmartPCA on the input dataset."))
         self.dataset.smartpca(
             result_dir=self.pandora_config.result_dir,
             smartpca=self.pandora_config.smartpca,
@@ -150,7 +178,13 @@ class Pandora:
             smartpca_optional_settings=self.pandora_config.smartpca_optional_settings,
         )
 
+        if self.pandora_config.plot_results:
+            logger.info(fmt_message("Plotting SmartPCA results for the input dataset."))
+            self._plot_dataset()
+
     def _plot_pca(self, dataset: Dataset, plot_prefix: str):
+        if dataset.pca is None:
+            raise PandoraException("No PCA run for dataset yet. Nothing to plot.")
         pcx = self.pandora_config.plot_pcx
         pcy = self.pandora_config.plot_pcy
 
@@ -182,7 +216,7 @@ class Pandora:
                 self.pandora_config.plot_dir / f"{plot_prefix}_projections.pdf"
             )
 
-    def plot_dataset(self):
+    def _plot_dataset(self):
         self._plot_pca(self.dataset, self.dataset.name)
 
     # ===========================
@@ -197,66 +231,74 @@ class Pandora:
         )
         return bootstrap
 
+    def _bootstrap_pca(self, args):
+        bootstrap_prefix, seed, redo = args
+        if smartpca_finished(self.pandora_config.n_pcs, bootstrap_prefix):
+            # SmartPCA results are present and correct
+            # Thus we initialize a bootstrap dataset manually using the correct prefix
+            # We still need to call .smartpca later on to make sure bootstrap_dataset.pca is set properly
+            bootstrap_dataset = Dataset(
+                bootstrap_prefix,
+                self.dataset.pca_populations_file,
+                self.dataset.samples
+            )
+        else:
+            # draw bootstrap dataset
+            bootstrap_dataset = self.dataset.create_bootstrap(bootstrap_prefix, seed, redo)
+
+        # run smartpca
+        bootstrap_dataset.smartpca(
+            smartpca=self.pandora_config.smartpca,
+            n_pcs=self.pandora_config.n_pcs,
+            redo=self.pandora_config.redo,
+            smartpca_optional_settings=self.pandora_config.smartpca_optional_settings,
+        )
+
+        if not self.pandora_config.keep_bootstraps:
+            bootstrap_dataset.remove_input_files()
+
+        return bootstrap_dataset
+
     def bootstrap_pcas(self):
         """
         Create bootstrap datasets and run PCA on each dataset
         """
+        logger.info(
+            fmt_message(
+                f"Drawing {self.pandora_config.n_bootstraps} bootstrapped datasets and running SmartPCA."
+            )
+        )
         # In order to save storage, we are deleting the bootstrap datasets (.ind, .geno, .snp) files.
         # So before we create bootstrap datasets, we have to check whether the subsequent PCA run finished already
         # we do this check for each of the expected Bootstrap outputs and only compute the missing ones
         random.seed(self.pandora_config.seed)
-        random_seeds = [
-            random.randint(0, 1_000_000)
-            for _ in range(self.pandora_config.n_bootstraps)
-        ]
-
-        bootstraps_to_do = []
-        for i in range(self.pandora_config.n_bootstraps):
-            bs_prefix = self.pandora_config.bootstrap_result_dir / f"bootstrap_{i}"
-
-            if smartpca_finished(self.pandora_config.n_pcs, bs_prefix):
-                continue
-
-            # we need to pass the seed like this to make sure we use the same seed in subsequent runs
-            bootstraps_to_do.append((bs_prefix, random_seeds[i]))
-
-        # 1. Create bootstrap dataset
-        with Pool(self.pandora_config.threads) as p:
-            args = [
-                (prefix, seed, self.pandora_config.redo)
-                for prefix, seed in bootstraps_to_do
-            ]
-            list(p.starmap(self.dataset.create_bootstrap, args))
-
-        self.bootstrap_datasets = [
-            Dataset(
-                self.pandora_config.bootstrap_result_dir / f"bootstrap_{i}",
-                self.dataset.pca_populations_file,
-                self.dataset.samples,
-            )
+        args = [
+            (self.pandora_config.bootstrap_result_dir / f"bootstrap_{i}", random.randint(0, 1_000_000), self.pandora_config.redo)
             for i in range(self.pandora_config.n_bootstraps)
         ]
-
-        # 2. Run bootstrap PCAs
         with Pool(self.pandora_config.threads) as p:
-            # the subprocesses in Pool do not modify the object but work on a copy
-            # we thus replace the objects with their modified versions
-            self.bootstrap_datasets = list(
-                p.map(self._run_pca, self.bootstrap_datasets)
-            )
+            self.bootstrap_datasets = list(p.map(self._bootstrap_pca, args))
 
-        # 3. EIGEN files can be rather large, so we delete the bootstrapped datasets
-        if not self.pandora_config.keep_bootstraps:
-            [bs.remove_input_files() for bs in self.bootstrap_datasets]
+        # =======================================
+        # Compare results
+        # pairwise comparison between all bootstraps
+        # =======================================
+        logger.info(fmt_message(f"Comparing bootstrap PCA results."))
+        self._compare_bootstrap_similarity()
 
-        # TODO: die Schritte oben zusammen ziehen damit bootstrap -> PCA -> löschen nicht sequenziell für all N gemacht wird
-        # sondern alles direkt parallel
+        if self.pandora_config.plot_results:
+            logger.info(fmt_message(f"Plotting bootstrap PCA results."))
+            self._plot_bootstraps()
+            self.plot_sample_support_values()
 
-    def plot_bootstraps(self):
+            if self.pandora_config.pca_populations is not None:
+                self.plot_sample_support_values(projected_samples_only=True)
+
+    def _plot_bootstraps(self):
         for i, bootstrap in enumerate(self.bootstrap_datasets):
             self._plot_pca(bootstrap, f"bootstrap_{i}")
 
-    def compare_bootstrap_similarity(self):
+    def _compare_bootstrap_similarity(self):
         # Compare all bootstraps pairwise
         if self.pandora_config.kmeans_k is not None:
             kmeans_k = self.pandora_config.kmeans_k
@@ -283,6 +325,12 @@ class Pandora:
         self.sample_support_values = pd.concat(sample_supports, axis=1)
 
     def log_and_save_bootstrap_results(self):
+        if (
+            len(self.bootstrap_similarities) == 0
+            or len(self.bootstrap_cluster_similarities) == 0
+        ):
+            raise PandoraException("No bootstrap results to log!")
+
         # store the pairwise results in a file
         _rd = self.pandora_config.result_decimals
 

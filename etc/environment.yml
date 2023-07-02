@@ -9,6 +9,7 @@ dependencies:
   - scikit-learn >= 1.0
   - scipy
   - plotly
+  - python-kaleido
   - pyyaml
   - pytest
   - pyarrow

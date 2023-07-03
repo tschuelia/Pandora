@@ -40,4 +40,4 @@ def test_plot_pca_comparison(pca_reference):
 
 def test_plot_pca_comparison_rogue_samples(pca_reference):
     comparison = PCAComparison(pca_reference, pca_reference)
-    plot_pca_comparison_rogue_samples(comparison)
+    plot_pca_comparison_rogue_samples(comparison, support_value_rogue_cutoff=1.0)

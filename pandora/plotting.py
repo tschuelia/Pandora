@@ -470,8 +470,8 @@ def plot_pca_comparison_rogue_samples(
     )
     rogue_colors = get_distinct_colors(rogue_samples.shape[0])
     rogue_text = [
-        f"{row.index}<br>({round(row.value, 2)})"
-        for idx, row in rogue_samples.items()
+        f"{sample_id}<br>({round(support, 2)})"
+        for sample_id, support in rogue_samples.items()
     ]
 
     rogue_reference = pca_comparison.reference.pca_data.loc[lambda x: x.sample_id.isin(rogue_samples.index)]

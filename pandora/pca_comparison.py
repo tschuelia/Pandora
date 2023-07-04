@@ -8,6 +8,7 @@ import pandas as pd
 from scipy.spatial import procrustes
 from sklearn.metrics import fowlkes_mallows_score
 from sklearn.metrics.pairwise import euclidean_distances
+from sklearn.preprocessing import normalize
 
 from pandora.custom_types import *
 from pandora.custom_errors import *
@@ -317,6 +318,10 @@ def match_and_transform(comparable: PCA, reference: PCA) -> Tuple[PCA, PCA, floa
     standardized_reference, transformed_comparable, disparity = procrustes(
         ref_data, comp_data
     )
+
+    # normalize the data prior to comparison
+    standardized_reference = normalize(standardized_reference)
+    transformed_comparable = normalize(transformed_comparable)
 
     standardized_reference = _numpy_to_pca_dataframe(
         standardized_reference,

@@ -84,15 +84,9 @@ def main():
     # =======================================
     logger.info("\n--------- STARTING COMPUTATION ---------")
 
-    # before starting any computation, make sure that we have the input data in EIGENSTRAT format
-    # we need this format for bootstrapping and smartPCA
+    # if necessary, convert the input data to EIGENSTRAT format required for bootstrapping
     if pandora_config.file_format != FileFormat.EIGENSTRAT:
-        logger.info(
-            fmt_message(
-                f"Converting dataset from {pandora_config.file_format.value} to {FileFormat.EIGENSTRAT.value}"
-            )
-        )
-        convert_to_eigenstrat_format(pandora_config)
+        pandora_config.convert_to_eigenstrat_format()
 
     # initialize empty Pandora object that keeps track of all results
     pandora_results = Pandora(pandora_config)

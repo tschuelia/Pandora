@@ -55,6 +55,7 @@ class PandoraConfig:
     plot_pcy: int
 
     def __post_init__(self):
+        # Create all required result directories
         if self.do_bootstrapping:
             self.bootstrap_result_dir.mkdir(exist_ok=True, parents=True)
         if self.plot_results:
@@ -110,6 +111,27 @@ class PandoraConfig:
             raise ValueError(
                 f"verbosity needs to be 0 (ERROR), 1 (INFO), or 2 (DEBUG). Instead got value {self.verbosity}."
             )
+
+    def convert_to_eigenstrat_format(self):
+        logger.info(
+            fmt_message(
+                f"Converting dataset from {self.file_format.value} to {FileFormat.EIGENSTRAT.value}"
+            )
+        )
+        convertf_dir = self.result_dir / "convertf"
+        convertf_dir.mkdir(exist_ok=True)
+        convert_prefix = convertf_dir / self.dataset_prefix.name
+
+        run_convertf(
+            convertf=self.convertf,
+            in_prefix=self.dataset_prefix,
+            in_format=self.file_format,
+            out_prefix=convert_prefix,
+            out_format=FileFormat.EIGENSTRAT,
+            redo=self.redo,
+        )
+
+        self.dataset_prefix = convert_prefix
 
     def get_configuration(self):
         config = dataclasses.asdict(self)
@@ -222,6 +244,42 @@ class Pandora:
     # ===========================
     # BOOTSTRAP RELATED FUNCTIONS
     # ===========================
+    def bootstrap_pcas(self):
+        """
+        Create bootstrap datasets and run PCA on each dataset
+        """
+        logger.info(
+            fmt_message(
+                f"Drawing {self.pandora_config.n_bootstraps} bootstrapped datasets and running SmartPCA."
+            )
+        )
+        random.seed(self.pandora_config.seed)
+        args = [
+            (
+                self.pandora_config.bootstrap_result_dir / f"bootstrap_{i}",
+                random.randint(0, 1_000_000),
+                self.pandora_config.redo,
+            )
+            for i in range(self.pandora_config.n_bootstraps)
+        ]
+        with Pool(self.pandora_config.threads) as p:
+            self.bootstrap_datasets = list(p.map(self._bootstrap_pca, args))
+
+        # =======================================
+        # Compare results
+        # pairwise comparison between all bootstraps
+        # =======================================
+        logger.info(fmt_message(f"Comparing bootstrap PCA results."))
+        self._compare_bootstrap_similarity()
+
+        if self.pandora_config.plot_results:
+            logger.info(fmt_message(f"Plotting bootstrap PCA results."))
+            self._plot_bootstraps()
+            self._plot_sample_support_values()
+
+            if self.pandora_config.pca_populations is not None:
+                self._plot_sample_support_values(projected_samples_only=True)
+
     def _run_pca(self, bootstrap: Dataset):
         bootstrap.smartpca(
             smartpca=self.pandora_config.smartpca,
@@ -260,42 +318,6 @@ class Pandora:
             bootstrap_dataset.remove_input_files()
 
         return bootstrap_dataset
-
-    def bootstrap_pcas(self):
-        """
-        Create bootstrap datasets and run PCA on each dataset
-        """
-        logger.info(
-            fmt_message(
-                f"Drawing {self.pandora_config.n_bootstraps} bootstrapped datasets and running SmartPCA."
-            )
-        )
-        random.seed(self.pandora_config.seed)
-        args = [
-            (
-                self.pandora_config.bootstrap_result_dir / f"bootstrap_{i}",
-                random.randint(0, 1_000_000),
-                self.pandora_config.redo,
-            )
-            for i in range(self.pandora_config.n_bootstraps)
-        ]
-        with Pool(self.pandora_config.threads) as p:
-            self.bootstrap_datasets = list(p.map(self._bootstrap_pca, args))
-
-        # =======================================
-        # Compare results
-        # pairwise comparison between all bootstraps
-        # =======================================
-        logger.info(fmt_message(f"Comparing bootstrap PCA results."))
-        self._compare_bootstrap_similarity()
-
-        if self.pandora_config.plot_results:
-            logger.info(fmt_message(f"Plotting bootstrap PCA results."))
-            self._plot_bootstraps()
-            self._plot_sample_support_values()
-
-            if self.pandora_config.pca_populations is not None:
-                self._plot_sample_support_values(projected_samples_only=True)
 
     def _plot_bootstraps(self):
         for i, bootstrap in enumerate(self.bootstrap_datasets):
@@ -464,6 +486,17 @@ class Pandora:
 
 
 def pandora_config_from_configfile(configfile: pathlib.Path) -> PandoraConfig:
+    """
+    Creates a new PandoraConfig object using the provided yaml configuration file.
+
+    Args:
+        configfile (pathlib.Path): Configuration file in yaml format
+
+    Returns:
+        PandoraConfig: PandoraConfig object with the settings according to the given yaml file.
+            Uses the default settings as specified in the PandoraConfig class for optional options not explictly
+            specified in the configfile.
+    """
     config_data = yaml.safe_load(configfile.open())
 
     dataset_prefix = config_data.get("dataset_prefix")
@@ -515,20 +548,3 @@ def pandora_config_from_configfile(configfile: pathlib.Path) -> PandoraConfig:
         plot_pcy = config_data.get("plot_pcy", 1),
     )
     # fmt: on
-
-
-def convert_to_eigenstrat_format(pandora_config: PandoraConfig):
-    convertf_dir = pandora_config.result_dir / "convertf"
-    convertf_dir.mkdir(exist_ok=True)
-    convert_prefix = convertf_dir / pandora_config.dataset_prefix.name
-
-    run_convertf(
-        convertf=pandora_config.convertf,
-        in_prefix=pandora_config.dataset_prefix,
-        in_format=pandora_config.file_format,
-        out_prefix=convert_prefix,
-        out_format=FileFormat.EIGENSTRAT,
-        redo=pandora_config.redo,
-    )
-
-    pandora_config.dataset_prefix = convert_prefix

@@ -20,7 +20,7 @@ def test_plot_pca_populations(pca_reference):
 
 
 def test_plot_pca_projections(pca_reference):
-    pca_populations = pca_reference.pca_data.population.unique()[:1]
+    pca_populations = pca_reference.embedding.population.unique()[:1]
     plot_pca_projections(pca_reference, pca_populations)
 
 
@@ -29,7 +29,7 @@ def test_plot_pca_clusters(pca_reference):
 
 
 def test_plot_support_values(pca_reference):
-    support_values = pd.Series([0.0] * pca_reference.pca_data.shape[0], index=pca_reference.pca_data.sample_id)
+    support_values = pd.Series([0.0] * pca_reference.embedding.shape[0], index=pca_reference.embedding.sample_id)
     plot_support_values(pca_reference, support_values)
 
 

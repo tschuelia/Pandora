@@ -12,10 +12,10 @@ def test_match_and_transform_identical_pcas(pca_reference):
     assert disparity == pytest.approx(0.0, abs=1e-6)
 
     # pca1 and pca2 should have identical data
-    testing.assert_allclose(pca1.pc_vectors, pca2.pc_vectors)
+    testing.assert_allclose(pca1.embedding_vector, pca2.embedding_vector)
 
     # pca1 and pca2 should have identical sample IDs
-    assert all(pca1.pca_data.sample_id == pca2.pca_data.sample_id)
+    assert all(pca1.embedding.sample_id == pca2.embedding.sample_id)
 
 
 def test_clip_missing_samples_for_comparison(
@@ -28,16 +28,16 @@ def test_clip_missing_samples_for_comparison(
         )
 
     # both PCAs should now contain only the samples present in both PCAs
-    present_in_both = set(pca_reference.pca_data.sample_id).intersection(
-        set(pca_comparable_fewer_samples.pca_data.sample_id)
+    present_in_both = set(pca_reference.embedding.sample_id).intersection(
+        set(pca_comparable_fewer_samples.embedding.sample_id)
     )
     n_samples = len(present_in_both)
 
-    assert comparable_clipped.pca_data.shape[0] == n_samples
-    assert reference_clipped.pca_data.shape[0] == n_samples
+    assert comparable_clipped.embedding.shape[0] == n_samples
+    assert reference_clipped.embedding.shape[0] == n_samples
 
-    assert set(comparable_clipped.pca_data.sample_id) == present_in_both
-    assert set(reference_clipped.pca_data.sample_id) == present_in_both
+    assert set(comparable_clipped.embedding.sample_id) == present_in_both
+    assert set(reference_clipped.embedding.sample_id) == present_in_both
 
 
 def test_match_and_transform_fails_for_different_sample_ids(
@@ -68,17 +68,14 @@ class TestPCAComparison:
     def test_with_transformations(self, pca_reference):
         # REFLECTION
         # when multiplying pca_reference with -1 we should still get a similarity of 1.0
-        reflected_pca_data = pca_reference.pca_data.copy()
+        reflected_pca_data = pca_reference.embedding.copy()
         for col in reflected_pca_data.columns:
-            if "PC" not in col:
+            if "D" not in col:
                 continue
             reflected_pca_data[col] *= -1
 
-        pca_reflected = PCA(
-            pca_data=reflected_pca_data,
-            explained_variances=pca_reference.explained_variances,
-            n_pcs=pca_reference.n_pcs,
-        )
+        pca_reflected = PCA(embedding=reflected_pca_data, n_components=pca_reference.n_components,
+                            explained_variances=pca_reference.explained_variances)
 
         comparison = PCAComparison(pca_reflected, pca_reference)
 
@@ -86,17 +83,14 @@ class TestPCAComparison:
 
         # TRANSLATION
         # when adding +1 to pca_reference we should still get a similarity of 1.0
-        shifted_pca_data = pca_reference.pca_data.copy()
+        shifted_pca_data = pca_reference.embedding.copy()
         for col in shifted_pca_data.columns:
-            if "PC" not in col:
+            if "D" not in col:
                 continue
             reflected_pca_data[col] += 1
 
-        pca_shifted = PCA(
-            pca_data=shifted_pca_data,
-            explained_variances=pca_reference.explained_variances,
-            n_pcs=pca_reference.n_pcs,
-        )
+        pca_shifted = PCA(embedding=shifted_pca_data, n_components=pca_reference.n_components,
+                          explained_variances=pca_reference.explained_variances)
 
         comparison = PCAComparison(pca_shifted, pca_reference)
 
@@ -104,22 +98,19 @@ class TestPCAComparison:
 
         # ROTATION
         # when rotating pca_reference by 180 degrees we should still get a similarity of 1.0
-        pc_vectors = pca_reference.pc_vectors
-        rotated_pc_vectors = np.fliplr(pc_vectors)
+        embedding_vector = pca_reference.embedding_vector
+        rotated_embedding_vector = np.fliplr(embedding_vector)
 
         pca_data_rotated = pd.DataFrame(
             data={
-                "sample_id": pca_reference.pca_data.sample_id.values,
-                "population": pca_reference.pca_data.population.values,
-                "PC0": rotated_pc_vectors[:, 0],
-                "PC1": rotated_pc_vectors[:, 1],
+                "sample_id": pca_reference.embedding.sample_id.values,
+                "population": pca_reference.embedding.population.values,
+                "D0": rotated_embedding_vector[:, 0],
+                "D1": rotated_embedding_vector[:, 1],
             }
         )
-        pca_rotated = PCA(
-            pca_data=pca_data_rotated,
-            explained_variances=pca_reference.explained_variances,
-            n_pcs=pca_reference.n_pcs,
-        )
+        pca_rotated = PCA(embedding=pca_data_rotated, n_components=pca_reference.n_components,
+                          explained_variances=pca_reference.explained_variances)
 
         comparison = PCAComparison(pca_rotated, pca_reference)
         assert comparison.compare() == pytest.approx(1.0, abs=1e-6)

@@ -111,7 +111,7 @@ def smartpca_finished(n_pcs: int, result_prefix: pathlib.Path):
     # 2. check that the number of PCs of the existing results matches
     # the number of PCs set in the function call here
     pca = from_smartpca(evec_out, eval_out)
-    if pca.n_pcs != n_pcs:
+    if pca.n_components != n_pcs:
         return False
 
     return True
@@ -177,6 +177,15 @@ class Dataset:
                 data["used_for_pca"].append(population in populations_for_pca)
 
         return pd.DataFrame(data=data)
+
+    def get_sequence_length(self) -> int:
+        """
+        Counts and returns the number of SNPs in self.snp_file
+
+        Returns:
+            (int): Number of SNPs in self.snp_file.
+        """
+        return sum(1 for _ in self.snp_file.open())
 
     def files_exist(self):
         return all(
@@ -264,6 +273,10 @@ class Dataset:
 
         self.pca = from_smartpca(evec_out, eval_out)
 
+
+    def mds(self, n_components: int = 20):
+        raise NotImplementedError
+
     def create_bootstrap(self, bootstrap_prefix: pathlib.Path, seed: int, redo: bool) -> Dataset:
         bs_ind_file = pathlib.Path(f"{bootstrap_prefix}.ind")
         bs_geno_file = pathlib.Path(f"{bootstrap_prefix}.geno")
@@ -280,7 +293,7 @@ class Dataset:
 
         # sample the SNPs using the snp file
         # each line in the snp file corresponds to one SNP
-        num_snps = sum(1 for _ in self.snp_file.open())
+        num_snps = self.get_sequence_length()
 
         # check if a checkpoint with SNP indices exists
         ckp_file = pathlib.Path(f"{bootstrap_prefix}.ckp")
@@ -326,3 +339,17 @@ class Dataset:
 
         return Dataset(bootstrap_prefix, self.pca_populations_file)
 
+    def get_windows(self, window_size: Union[int, float], stride: int) -> List[Dataset]:
+        """
+        Creates new Dataset objects as overlapping sliding windows over self. The resulting datasets have sequences of
+        length window_size or window_size * self.get_sequence_length() and their overlap can be controlled via the
+        stride parameter.
+
+        Args:
+            window_size:
+            stride:
+
+        Returns:
+
+        """
+        raise NotImplementedError

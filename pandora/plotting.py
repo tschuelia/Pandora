@@ -73,11 +73,11 @@ def _check_plot_pcs(pca: PCA, pcx: int, pcy: int):
     """
     if pcx == pcy:
         raise PandoraException(f"pcx and pcy cannot be identical.")
-    pcx = f"PC{pcx}"
-    if pcx not in pca.pca_data.columns:
+    pcx = f"D{pcx}"
+    if pcx not in pca.embedding.columns:
         raise PandoraException(f"Requested plot PC {pcx} for x-axis does not exist.")
-    pcy = f"PC{pcy}"
-    if pcy not in pca.pca_data.columns:
+    pcy = f"D{pcy}"
+    if pcy not in pca.embedding.columns:
         raise PandoraException(f"Requested plot PC {pcy} for x-axis does not exist.")
 
 
@@ -134,20 +134,20 @@ def plot_pca_populations(
     show_variance_in_axes = fig is None
     fig = go.Figure() if fig is None else fig
 
-    if pca.pca_data.population.isna().all():
+    if pca.embedding.population.isna().all():
         raise PandoraException(
             "Cannot plot populations: no populations associated with PCA data."
         )
 
-    populations = pca.pca_data.population.unique()
+    populations = pca.embedding.population.unique()
     colors = get_distinct_colors(len(populations))
 
     for i, population in enumerate(populations):
-        _data = pca.pca_data.loc[pca.pca_data.population == population]
+        _data = pca.embedding.loc[pca.embedding.population == population]
         fig.add_trace(
             go.Scatter(
-                x=_data[f"PC{pcx}"],
-                y=_data[f"PC{pcy}"],
+                x=_data[f"D{pcx}"],
+                y=_data[f"D{pcy}"],
                 mode="markers",
                 marker_color=colors[i],
                 name=population,
@@ -196,23 +196,23 @@ def plot_pca_projections(
             "To plot projections provide a non-empty list of populations with which the PCA was performed!"
         )
 
-    if not all(p in pca.pca_data.population.unique() for p in pca_populations):
+    if not all(p in pca.embedding.population.unique() for p in pca_populations):
         raise PandoraException(
-            "Not all of the passed pca_populations seem to be present in self.pca_data."
+            "Not all of the passed pca_populations seem to be present in self.embedding."
         )
 
-    populations = pca.pca_data.population.unique()
+    populations = pca.embedding.population.unique()
     projection_colors = get_distinct_colors(populations.shape[0])
 
     for i, population in enumerate(populations):
-        _data = pca.pca_data.loc[lambda x: x.population == population]
+        _data = pca.embedding.loc[lambda x: x.population == population]
         marker_color = (
             projection_colors[i] if population not in pca_populations else "lightgray"
         )
         fig.add_trace(
             go.Scatter(
-                x=_data[f"PC{pcx}"],
-                y=_data[f"PC{pcy}"],
+                x=_data[f"D{pcx}"],
+                y=_data[f"D{pcy}"],
                 mode="markers",
                 marker_color=marker_color,
                 name=population,
@@ -256,7 +256,7 @@ def plot_pca_clusters(
 
     cluster_labels = pca.cluster(kmeans_k=kmeans_k).labels_
 
-    _pca_data = pca.pca_data.copy()
+    _pca_data = pca.embedding.copy()
     _pca_data["cluster"] = cluster_labels
 
     colors = get_distinct_colors(kmeans_k)
@@ -265,8 +265,8 @@ def plot_pca_clusters(
         _data = _pca_data.loc[_pca_data.cluster == i]
         fig.add_trace(
             go.Scatter(
-                x=_data[f"PC{pcx}"],
-                y=_data[f"PC{pcy}"],
+                x=_data[f"D{pcx}"],
+                y=_data[f"D{pcy}"],
                 mode="markers",
                 marker_color=colors[i],
                 name=f"Cluster {i + 1}",
@@ -294,9 +294,9 @@ def plot_support_values(
 
     Args:
         pca (PCA): PCA data to plot.
-        sample_support_values (pd.Series): Bootstrap support value for each sample in pca.pca_data.
+        sample_support_values (pd.Series): Bootstrap support value for each sample in pca.embedding.
             Note: The index of the Series is expected to contain the sample IDs and
-            to be identical to the pca.pca_data.sample_id column.
+            to be identical to the pca.embedding.sample_id column.
         support_value_rogue_cutoff (float): Samples with a support value below this threshold are annotated with
             the sample ID and the support value. All other samples are only color-coded.
         pcx (int): Index of the principal component plotted on the x-axis (zero-indexed).
@@ -311,17 +311,17 @@ def plot_support_values(
     """
     _check_plot_pcs(pca, pcx, pcy)
     # check that the number of support values matches the number of samples in the PCA data
-    if len(sample_support_values) != pca.pca_data.shape[0]:
+    if len(sample_support_values) != pca.embedding.shape[0]:
         # TODO: statt striktem check einfach lightgray falls das sample nicht vertreten ist (= support value NaN)?
         raise PandoraException(
             f"Provide exactly one support value for each sample. "
             f"Got {len(sample_support_values)} support values, "
-            f"but {pca.pca_data.shape[0]} samples in the PCA."
+            f"but {pca.embedding.shape[0]} samples in the PCA."
         )
 
     # check that the provided support values match the sample IDs in the PCA data
     if not all(
-        s in pca.pca_data.sample_id.tolist() for s in sample_support_values.index
+        s in pca.embedding.sample_id.tolist() for s in sample_support_values.index
     ):
         raise PandoraException(
             "Sample IDs of provided support values don't match the sample IDs in the PCA data."
@@ -329,9 +329,9 @@ def plot_support_values(
 
     # to make sure we are annotating the correct support values for the correct PC vectors, we explicitly sort
     # the x-, y-, and support value data
-    pca_data = pca.pca_data.sort_values(by="sample_id").reset_index(drop=True)
-    x_data = pca_data[f"PC{pcx}"]
-    y_data = pca_data[f"PC{pcy}"]
+    pca_data = pca.embedding.sort_values(by="sample_id").reset_index(drop=True)
+    x_data = pca_data[f"D{pcx}"]
+    y_data = pca_data[f"D{pcy}"]
 
     if projected_samples is not None:
         marker_colors = []
@@ -414,16 +414,16 @@ def plot_pca_comparison(
     fig = go.Figure(
         [
             go.Scatter(
-                x=pca_comparison.reference.pca_data[f"PC{pcx}"],
-                y=pca_comparison.reference.pca_data[f"PC{pcy}"],
+                x=pca_comparison.reference.embedding[f"D{pcx}"],
+                y=pca_comparison.reference.embedding[f"D{pcy}"],
                 marker_color="darkblue",
                 name="Standardized reference PCA",
                 mode="markers",
                 **kwargs,
             ),
             go.Scatter(
-                x=pca_comparison.comparable.pca_data[f"PC{pcx}"],
-                y=pca_comparison.comparable.pca_data[f"PC{pcy}"],
+                x=pca_comparison.comparable.embedding[f"D{pcx}"],
+                y=pca_comparison.comparable.embedding[f"D{pcy}"],
                 marker_color="orange",
                 marker_symbol="star",
                 name="Transformed comparable PCA",
@@ -474,23 +474,23 @@ def plot_pca_comparison_rogue_samples(
         for sample_id, support in rogue_samples.items()
     ]
 
-    rogue_reference = pca_comparison.reference.pca_data.loc[lambda x: x.sample_id.isin(rogue_samples.index)]
-    rogue_comparable = pca_comparison.comparable.pca_data.loc[lambda x: x.sample_id.isin(rogue_samples.index)]
+    rogue_reference = pca_comparison.reference.embedding.loc[lambda x: x.sample_id.isin(rogue_samples.index)]
+    rogue_comparable = pca_comparison.comparable.embedding.loc[lambda x: x.sample_id.isin(rogue_samples.index)]
 
     fig = go.Figure(
         [
             # all samples
             go.Scatter(
-                x=pca_comparison.reference.pca_data[f"PC{pcx}"],
-                y=pca_comparison.reference.pca_data[f"PC{pcy}"],
+                x=pca_comparison.reference.embedding[f"D{pcx}"],
+                y=pca_comparison.reference.embedding[f"D{pcy}"],
                 marker_color="lightgray",
                 name="Standardized reference PCA",
                 mode="markers",
                 **kwargs,
             ),
             go.Scatter(
-                x=pca_comparison.comparable.pca_data[f"PC{pcx}"],
-                y=pca_comparison.comparable.pca_data[f"PC{pcy}"],
+                x=pca_comparison.comparable.embedding[f"D{pcx}"],
+                y=pca_comparison.comparable.embedding[f"D{pcy}"],
                 marker_color="lightgray",
                 marker_symbol="star",
                 name="Transformed comparable PCA",
@@ -499,8 +499,8 @@ def plot_pca_comparison_rogue_samples(
             ),
             # Rogue samples
             go.Scatter(
-                x=rogue_reference[f"PC{pcx}"],
-                y=rogue_reference[f"PC{pcy}"],
+                x=rogue_reference[f"D{pcx}"],
+                y=rogue_reference[f"D{pcy}"],
                 marker_color=rogue_colors,
                 text=rogue_text,
                 textposition="bottom center",
@@ -508,8 +508,8 @@ def plot_pca_comparison_rogue_samples(
                 showlegend=False,
             ),
             go.Scatter(
-                x=rogue_comparable[f"PC{pcx}"],
-                y=rogue_comparable[f"PC{pcy}"],
+                x=rogue_comparable[f"D{pcx}"],
+                y=rogue_comparable[f"D{pcy}"],
                 marker_color=rogue_colors,
                 marker_symbol="star",
                 text=rogue_text,

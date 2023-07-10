@@ -9,79 +9,79 @@ from pandora.pca import *
 
 class TestPCA:
     def test_init_with_pandas_dataframe(self):
-        n_pcs = 2
+        n_components = 2
 
         explained_variances = np.asarray([0.0, 0.0])
 
         data = pd.DataFrame(
             {
-                "PC0": [0.1, 0.2, 0.3],
-                "PC1": [0.4, 0.5, 0.6],
+                "D0": [0.1, 0.2, 0.3],
+                "D1": [0.4, 0.5, 0.6],
                 "sample_id": ["sample1", "sample2", "sample3"],
                 "population": ["pop1", "pop2", "pop3"]
             }
         )
 
-        pca = PCA(data, explained_variances, n_pcs)
+        pca = PCA(data, n_components, explained_variances)
 
         assert isinstance(pca, PCA)
-        assert isinstance(pca.pca_data, pd.DataFrame)
+        assert isinstance(pca.embedding, pd.DataFrame)
 
         # incorrect dimensions of explained variances
         with pytest.raises(PandoraException, match="1D numpy array"):
-            PCA(data, np.asarray([[0.0, 0.0]]), n_pcs)
+            PCA(data, n_components, np.asarray([[0.0, 0.0]]))
 
         # incorrect number of explained variances
         with pytest.raises(PandoraException, match="Explained variance required for each PC"):
-            PCA(data, np.asarray([0.0, 0.0, 0.0]), n_pcs)
+            PCA(data, n_components, np.asarray([0.0, 0.0, 0.0]))
 
         # missing sample_id column
         with pytest.raises(PandoraException, match="`sample_id`"):
             data = pd.DataFrame(
                 {
-                    "PC0": [0.1, 0.2, 0.3],
-                    "PC1": [0.4, 0.5, 0.6],
+                    "D0": [0.1, 0.2, 0.3],
+                    "D1": [0.4, 0.5, 0.6],
                     "population": ["pop1", "pop2", "pop3"]
                 }
             )
-            PCA(data, explained_variances, n_pcs)
+            PCA(data, n_components, explained_variances)
 
         # missing population column
         with pytest.raises(PandoraException, match="`population`"):
             data = pd.DataFrame(
                 {
-                    "PC0": [0.1, 0.2, 0.3],
-                    "PC1": [0.4, 0.5, 0.6],
+                    "D0": [0.1, 0.2, 0.3],
+                    "D1": [0.4, 0.5, 0.6],
                     "sample_id": ["sample1", "sample2", "sample3"],
                 }
             )
-            PCA(data, explained_variances, n_pcs)
+            PCA(data, n_components, explained_variances)
 
-        # incorrect number of columns compared to n_pcs
+        # incorrect number of columns compared to n_components
         with pytest.raises(PandoraException, match="One data column required for each PC"):
             data = pd.DataFrame(
                 {
-                    "PC0": [0.1, 0.2, 0.3],
-                    "PC1": [0.4, 0.5, 0.6],
-                    "PC2": [0.4, 0.5, 0.6],
+                    "D0": [0.1, 0.2, 0.3],
+                    "D1": [0.4, 0.5, 0.6],
+                    "D2": [0.4, 0.5, 0.6],
                     "sample_id": ["sample1", "sample2", "sample3"],
                     "population": ["pop1", "pop2", "pop3"]
                 }
             )
-            PCA(data, explained_variances, n_pcs)
+            PCA(data, n_components, explained_variances)
 
         # incorrect PC columns
         with pytest.raises(PandoraException, match="Expected all of the following columns"):
             data = pd.DataFrame(
                 {
-                    "PC0": [0.1, 0.2, 0.3],
+                    "D0": [0.1, 0.2, 0.3],
                     "wrong_name": [0.4, 0.5, 0.6],
                     "sample_id": ["sample1", "sample2", "sample3"],
                     "population": ["pop1", "pop2", "pop3"]
                 }
             )
             # column PC1 incorrectly named
-            PCA(data, explained_variances, n_pcs)
+            PCA(data, n_components, explained_variances)
 
 
 def test_check_smartpca_results_passes_for_correct_results(correct_smartpca_result_prefix):

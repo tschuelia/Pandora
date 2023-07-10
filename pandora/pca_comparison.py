@@ -26,12 +26,10 @@ def filter_samples(pca: PCA, samples_to_keep: List[str]) -> PCA:
     Returns: new PCA object containing the data of pca for all samples in samples_to_keep
 
     """
-    pca_data = pca.pca_data
+    pca_data = pca.embedding
     pca_data = pca_data.loc[pca_data.sample_id.isin(samples_to_keep)]
 
-    return PCA(
-        pca_data=pca_data, explained_variances=pca.explained_variances, n_pcs=pca.n_pcs
-    )
+    return PCA(embedding=pca_data, n_components=pca.n_components, explained_variances=pca.explained_variances)
 
 
 def _check_sample_clipping(before_clipping: PCA, after_clipping: PCA) -> None:
@@ -46,8 +44,8 @@ def _check_sample_clipping(before_clipping: PCA, after_clipping: PCA) -> None:
     Returns: None
 
     """
-    n_samples_before = before_clipping.pca_data.shape[0]
-    n_samples_after = after_clipping.pca_data.shape[0]
+    n_samples_before = before_clipping.embedding.shape[0]
+    n_samples_after = after_clipping.embedding.shape[0]
 
     if n_samples_after <= 0.8 * n_samples_before:
         warnings.warn(
@@ -71,8 +69,8 @@ def _clip_missing_samples_for_comparison(
         (PCA, PCA): Comparable and reference PCAs containing only the samples present in both PCAs.
 
     """
-    comp_data = comparable.pca_data
-    ref_data = reference.pca_data
+    comp_data = comparable.embedding
+    ref_data = reference.embedding
 
     comp_ids = set(comp_data.sample_id)
     ref_ids = set(ref_data.sample_id)
@@ -82,7 +80,7 @@ def _clip_missing_samples_for_comparison(
     comparable_clipped = filter_samples(comparable, shared_samples)
     reference_clipped = filter_samples(reference, shared_samples)
 
-    assert comparable_clipped.pc_vectors.shape == reference_clipped.pc_vectors.shape
+    assert comparable_clipped.embedding_vector.shape == reference_clipped.embedding_vector.shape
     # Issue a warning if we clip more than 20% of all samples of either PCA
     # and fail if there are no samples lef
     _check_sample_clipping(comparable, comparable_clipped)
@@ -133,7 +131,7 @@ class PCAComparison:
         self.comparable, self.reference, self.disparity = match_and_transform(
             comparable=comparable, reference=reference
         )
-        self.sample_ids = self.comparable.pca_data.sample_id
+        self.sample_ids = self.comparable.embedding.sample_id
 
     def compare(self) -> float:
         """
@@ -169,8 +167,8 @@ class PCAComparison:
         comp_kmeans = self.comparable.cluster(kmeans_k=kmeans_k)
         ref_kmeans = self.reference.cluster(kmeans_k=kmeans_k)
 
-        comp_cluster_labels = comp_kmeans.predict(self.comparable.pc_vectors)
-        ref_cluster_labels = ref_kmeans.predict(self.reference.pc_vectors)
+        comp_cluster_labels = comp_kmeans.predict(self.comparable.embedding_vector)
+        ref_cluster_labels = ref_kmeans.predict(self.reference.embedding_vector)
 
         return fowlkes_mallows_score(ref_cluster_labels, comp_cluster_labels)
 
@@ -185,11 +183,11 @@ class PCAComparison:
         """
         # make sure we are comparing the correct PC-vectors in the following
         assert np.all(
-            self.comparable.pca_data.sample_id == self.reference.pca_data.sample_id
+            self.comparable.embedding.sample_id == self.reference.embedding.sample_id
         )
 
         sample_distances = euclidean_distances(
-            self.reference.pc_vectors, self.comparable.pc_vectors
+            self.reference.embedding_vector, self.comparable.embedding_vector
         ).diagonal()
         return pd.Series(sample_distances, index=self.sample_ids)
 
@@ -244,7 +242,7 @@ def _numpy_to_pca_dataframe(
 
     Returns:
         pd.DataFrame: Pandas dataframe containing all required columns to initialize a PCA object
-            (sample_id, population, PC{i} for i in range(pc_vectors.shape[1]))
+            (sample_id, population, D{i} for i in range(pc_vectors.shape[1]))
 
     """
     if pc_vectors.ndim != 2:
@@ -253,7 +251,7 @@ def _numpy_to_pca_dataframe(
         )
 
     pca_data = pd.DataFrame(
-        pc_vectors, columns=[f"PC{i}" for i in range(pc_vectors.shape[1])]
+        pc_vectors, columns=[f"D{i}" for i in range(pc_vectors.shape[1])]
     )
 
     if sample_ids.shape[0] != pca_data.shape[0]:
@@ -295,13 +293,13 @@ def match_and_transform(comparable: PCA, reference: PCA) -> Tuple[PCA, PCA, floa
     """
     comparable, reference = _clip_missing_samples_for_comparison(comparable, reference)
 
-    if not all(comparable.pca_data.sample_id == reference.pca_data.sample_id):
+    if not all(comparable.embedding.sample_id == reference.embedding.sample_id):
         raise PandoraException(
             "Sample IDS between reference and comparable don't match but is required for comparing PCA results. "
         )
 
-    comp_data = comparable.pc_vectors
-    ref_data = reference.pc_vectors
+    comp_data = comparable.embedding_vector
+    ref_data = reference.embedding_vector
 
     if comp_data.shape != ref_data.shape:
         raise PandoraException(
@@ -325,31 +323,25 @@ def match_and_transform(comparable: PCA, reference: PCA) -> Tuple[PCA, PCA, floa
 
     standardized_reference = _numpy_to_pca_dataframe(
         standardized_reference,
-        reference.pca_data.sample_id,
-        reference.pca_data.population,
+        reference.embedding.sample_id,
+        reference.embedding.population,
     )
 
-    standardized_reference = PCA(
-        pca_data=standardized_reference,
-        explained_variances=reference.explained_variances,
-        n_pcs=reference.n_pcs,
-    )
+    standardized_reference = PCA(embedding=standardized_reference, n_components=reference.n_components,
+                                 explained_variances=reference.explained_variances)
 
     transformed_comparable = _numpy_to_pca_dataframe(
         transformed_comparable,
-        comparable.pca_data.sample_id,
-        comparable.pca_data.population,
+        comparable.embedding.sample_id,
+        comparable.embedding.population,
     )
 
-    transformed_comparable = PCA(
-        pca_data=transformed_comparable,
-        explained_variances=comparable.explained_variances,
-        n_pcs=comparable.n_pcs,
-    )
+    transformed_comparable = PCA(embedding=transformed_comparable, n_components=comparable.n_components,
+                                 explained_variances=comparable.explained_variances)
 
     if not all(
-        standardized_reference.pca_data.sample_id
-        == transformed_comparable.pca_data.sample_id
+        standardized_reference.embedding.sample_id
+        == transformed_comparable.embedding.sample_id
     ):
         raise PandoraException(
             "Sample IDS between reference and comparable don't match but is required for comparing PCA results. "

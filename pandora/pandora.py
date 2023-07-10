@@ -367,7 +367,6 @@ class Pandora:
         for (i1, bootstrap1), (i2, bootstrap2) in itertools.combinations(
             enumerate(self.bootstrap_datasets), r=2
         ):
-            print("COMPARISON ", i1, i2)
             pca_comparison = PCAComparison(
                 comparable=bootstrap1.pca, reference=bootstrap2.pca
             )

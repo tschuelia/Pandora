@@ -489,7 +489,7 @@ def pandora_config_from_configfile(configfile: pathlib.Path) -> PandoraConfig:
     Creates a new PandoraConfig object using the provided yaml configuration file.
 
     Args:
-        configfile (pathlib.Path): Configuration file in yaml format
+        configfile (pathlib.Path): Configuration file in yaml file_format
 
     Returns:
         PandoraConfig: PandoraConfig object with the settings according to the given yaml file.

@@ -233,7 +233,7 @@ def from_smartpca(evec: pathlib.Path, eval: pathlib.Path) -> PCA:
         PandoraException: If either the evec file or the eval file are incorrect.
 
     """
-    # make sure both files are in correct format
+    # make sure both files are in correct file_format
     check_smartpca_results(evec, eval)
     # First, read the eigenvectors and transform it into the pca_data pandas dataframe
     with open(evec) as f:

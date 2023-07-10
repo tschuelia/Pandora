@@ -13,7 +13,7 @@ from pandora.custom_errors import *
 from pandora.dimensionality_reduction import PCA, from_smartpca, MDS
 
 
-def check_geno_file(geno_file: pathlib.Path):
+def _check_geno_file(geno_file: pathlib.Path):
     # should only contain int values
     allowed_genos = {0, 1, 2, 9}
     seen_genos = set()
@@ -38,7 +38,7 @@ def check_geno_file(geno_file: pathlib.Path):
                                      f"All samples must have the same number of SNPs.")
 
 
-def check_ind_file(ind_file: pathlib.Path):
+def _check_ind_file(ind_file: pathlib.Path):
     # each line should contain three values
     seen_inds = set()
     total_inds = 0
@@ -58,7 +58,7 @@ def check_ind_file(ind_file: pathlib.Path):
         raise PandoraConfigException(f"The .ind file {ind_file} seems to be wrong. Duplicate sample IDs found.")
 
 
-def check_snp_file(snp_file: pathlib.Path):
+def _check_snp_file(snp_file: pathlib.Path):
     seen_snps = set()
     total_snps = 0
 
@@ -154,6 +154,17 @@ class Dataset:
         self.mds: Union[None, MDS] = None
 
     def get_sample_info(self) -> pd.DataFrame:
+        """
+        Extracts meta data for each sample in self.ind_file.
+
+        Returns:
+            (pd.DataFrame): Pandas dataframe with the following columns:
+                * sample_id (str): ID of the sample
+                * sex (str): sex of the sample
+                * population (str): population the sample belongs to
+                * used_for_embedding (bool): whether the sample should be used to compute a dimensionality reduction Embedding
+                    Decided based on self.embedding_populations
+        """
         if not self.ind_file.exists():
             raise PandoraConfigException(f"The .ind file {self.ind_file} does not exist.")
 
@@ -188,17 +199,34 @@ class Dataset:
         """
         return sum(1 for _ in self.snp_file.open())
 
-    def files_exist(self):
+    def files_exist(self) -> bool:
+        """
+        Checks whether all required input files (geno, snp, ind) exist.
+
+        Returns:
+            (bool): True, if all three files are present, False otherwise.
+        """
         return all(
             [self.ind_file.exists(), self.geno_file.exists(), self.snp_file.exists()]
         )
 
-    def check_files(self):
-        check_ind_file(self.ind_file)
-        check_geno_file(self.geno_file)
-        check_snp_file(self.snp_file)
+    def check_files(self) -> None:
+        """
+        Checks whether all input files (geno, snp, ind) are in correct format according to the EIGENSOFT specification.
 
-    def remove_input_files(self):
+        Raises:
+            PandoraException: If any of the three files is malformatted.
+        """
+        _check_ind_file(self.ind_file)
+        _check_geno_file(self.geno_file)
+        _check_snp_file(self.snp_file)
+
+    def remove_input_files(self) -> None:
+        """
+        Removes all three input files (self.ind_file, self.geno_file, self.snp_file).
+        This is useful if you want to save storage space and don't need the input files anymore (e.g. for bootstrap replicates).
+
+        """
         self.ind_file.unlink(missing_ok=True)
         self.geno_file.unlink(missing_ok=True)
         self.snp_file.unlink(missing_ok=True)
@@ -207,10 +235,26 @@ class Dataset:
         self,
         smartpca: Executable,
         n_pcs: int = 20,
-        result_dir: pathlib.Path = None,
+        result_dir: Optional[pathlib.Path] = None,
         redo: bool = False,
-        smartpca_optional_settings: Dict = None,
-    ):
+        smartpca_optional_settings: Optional[Dict] = None,
+    ) -> None:
+        """
+        Runs the EIGENSOFT smartpca on the dataset and assigns its PCA result to self.pca.
+        Additional smartpca options can be passed as dictionary in smartpca_optional_settings, e.g.
+        `smartpca_optional_settings = dict(numoutlieriter=0, shrinkmode=True)`.
+
+        Args:
+            smartpca (Executable):
+            n_pcs (int): Number of principal components to output. Default is 20.
+            result_dir (Optional[pathlib.Path]): File path pointing where to write the results to.
+                Default is the directory where all input files are.
+            redo (bool): Whether to redo the analysis, if all outfiles are already present and correct.
+            smartpca_optional_settings (Optional[Dict]): Additional smartpca settings.
+                Not allowed are the following options: genotypename, snpname, indivname,
+                evecoutname, evaloutname, numoutevec, maxpops.
+
+        """
         if result_dir is None:
             result_dir = self.file_dir
 
@@ -278,6 +322,18 @@ class Dataset:
         raise NotImplementedError
 
     def create_bootstrap(self, bootstrap_prefix: pathlib.Path, seed: int, redo: bool) -> Dataset:
+        """
+        Creates a bootstrap dataset based on the content of self. Bootstraps the dataset by resampling SNPs with replacement.
+
+        Args:
+            bootstrap_prefix (pathlib.Path): Prefix of the file path where to write the bootstrap dataset to.
+                The resulting files will be  `bootstrap_prefix.geno`, `bootstrap_prefix.ind`, and `bootstrap_prefix.snp`.
+            seed (int): Seed to initialize the random number generator before drawing the bootstraps.
+            redo (bool): Whether to redo the bootstrap if all output files are present.
+
+        Returns:
+            (Dataset): A new dataset object containing the bootstrap replicate.
+        """
         bs_ind_file = pathlib.Path(f"{bootstrap_prefix}.ind")
         bs_geno_file = pathlib.Path(f"{bootstrap_prefix}.geno")
         bs_snp_file = pathlib.Path(f"{bootstrap_prefix}.snp")

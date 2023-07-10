@@ -39,7 +39,7 @@ def argument_parser():
         type=pathlib.Path,
         required=True,
         help="Path to the yaml config file to use for the Pandora analyses. "
-        "Needs to be in valid yaml format. See the example file for guidance on how to configure your run.",
+        "Needs to be in valid yaml file_format. See the example file for guidance on how to configure your run.",
     )
 
     return parser.parse_args()
@@ -84,7 +84,7 @@ def main():
     # =======================================
     logger.info("\n--------- STARTING COMPUTATION ---------")
 
-    # if necessary, convert the input data to EIGENSTRAT format required for bootstrapping
+    # if necessary, convert the input data to EIGENSTRAT file_format required for bootstrapping
     if pandora_config.file_format != FileFormat.EIGENSTRAT:
         pandora_config.convert_to_eigenstrat_format()
 

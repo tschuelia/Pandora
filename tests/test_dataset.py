@@ -32,7 +32,7 @@ class TestDatasetBootstrap:
     @pytest.mark.parametrize("seed", [0, 10, 100, 885440])
     def test_bootstrap_files_correct(self, example_dataset, seed):
         """
-        Tests whether the bootstrapped .geno, .ind, and .snp files have the correct file format
+        Tests whether the bootstrapped .geno, .ind, and .snp files have the correct file file_format
         """
         in_ind_count = sum(1 for _ in example_dataset.ind_file.open())
         in_geno_count = sum(1 for _ in example_dataset.geno_file.open())

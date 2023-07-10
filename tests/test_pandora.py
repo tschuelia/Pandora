@@ -54,8 +54,8 @@ class TestPandora:
         pandora = Pandora(pandora_test_config)
 
         # check that everything was initialized correctly
-        # pandora_test_config does not specify pca_populations
-        assert pandora.dataset.pca_populations == []
+        # pandora_test_config does not specify embedding_populations
+        assert pandora.dataset.embedding_populations == []
         # file prefix should be set correctly and files should exist
         assert pandora.dataset.file_prefix == pandora_test_config.dataset_prefix
         assert pandora.dataset.files_exist()
@@ -69,9 +69,9 @@ class TestPandora:
     def test_init_with_pca_populations(self, pandora_test_config_with_pca_populations, example_population_list):
         pandora = Pandora(pandora_test_config_with_pca_populations)
 
-        # check that the pca_populations were initialized correctly
+        # check that the embedding_populations were initialized correctly
         pca_populations_expected = {l.strip() for l in example_population_list.open()}
-        assert set(pandora.dataset.pca_populations) == pca_populations_expected
+        assert set(pandora.dataset.embedding_populations) == pca_populations_expected
 
     def test_do_pca(self, pandora_test_config):
         pandora = Pandora(pandora_test_config)
@@ -89,7 +89,7 @@ class TestPandora:
         pandora = Pandora(pandora_test_config_with_pca_populations)
 
         assert pandora.dataset.pca is None
-        assert len(pandora.dataset.pca_populations) > 0
+        assert len(pandora.dataset.embedding_populations) > 0
 
         pandora.do_pca()
 

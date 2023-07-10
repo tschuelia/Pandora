@@ -10,7 +10,7 @@ import random
 
 from pandora.custom_types import *
 from pandora.custom_errors import *
-from pandora.dimensionality_reduction import PCA, from_smartpca
+from pandora.dimensionality_reduction import PCA, from_smartpca, MDS
 
 
 def check_geno_file(geno_file: pathlib.Path):
@@ -117,10 +117,10 @@ def smartpca_finished(n_pcs: int, result_prefix: pathlib.Path):
     return True
 
 
-def get_pca_populations(pca_populations: Optional[pathlib.Path]):
-    if pca_populations is None:
+def get_embedding_populations(embedding_populations: Optional[pathlib.Path]):
+    if embedding_populations is None:
         return []
-    return [pop.strip() for pop in pca_populations.open()]
+    return [pop.strip() for pop in embedding_populations.open()]
 
 
 def deduplicate_snp_id(snp_id: str, seen_snps: Set[str]):
@@ -136,7 +136,7 @@ def deduplicate_snp_id(snp_id: str, seen_snps: Set[str]):
 
 
 class Dataset:
-    def __init__(self, file_prefix: pathlib.Path, pca_populations: Optional[pathlib.Path] = None, samples: pd.DataFrame = None):
+    def __init__(self, file_prefix: pathlib.Path, embedding_populations: Optional[pathlib.Path] = None, samples: pd.DataFrame = None):
         self.file_prefix: pathlib.Path = file_prefix
         self.file_dir: pathlib.Path = self.file_prefix.parent
         self.name: str = self.file_prefix.name
@@ -145,24 +145,25 @@ class Dataset:
         self.geno_file: pathlib.Path = pathlib.Path(f"{self.file_prefix}.geno")
         self.snp_file: pathlib.Path = pathlib.Path(f"{self.file_prefix}.snp")
 
-        self.pca_populations_file: pathlib.Path = pca_populations
-        self.pca_populations: List[str] = get_pca_populations(self.pca_populations_file)
+        self.embedding_populations_file: pathlib.Path = embedding_populations
+        self.embedding_populations: List[str] = get_embedding_populations(self.embedding_populations_file)
         self.samples: pd.DataFrame = self.get_sample_info() if samples is None else samples
-        self.projected_samples: pd.DataFrame = self.samples.loc[lambda x: ~x.used_for_pca]
+        self.projected_samples: pd.DataFrame = self.samples.loc[lambda x: ~x.used_for_embedding]
 
         self.pca: Union[None, PCA] = None
+        self.mds: Union[None, MDS] = None
 
     def get_sample_info(self) -> pd.DataFrame:
         if not self.ind_file.exists():
             raise PandoraConfigException(f"The .ind file {self.ind_file} does not exist.")
 
-        populations_for_pca = get_pca_populations(self.pca_populations_file)
+        populations_for_embedding = get_embedding_populations(self.embedding_populations_file)
 
         data = {
             "sample_id": [],
             "sex": [],
             "population": [],
-            "used_for_pca": []
+            "used_for_embedding": []
         }
         for sample in self.ind_file.open():
             sample_id, sex, population = sample.split()
@@ -170,11 +171,11 @@ class Dataset:
             data["sex"].append(sex.strip())
             data["population"].append(population.strip())
 
-            if len(populations_for_pca) == 0:
+            if len(populations_for_embedding) == 0:
                 # all samples used for PCA
-                data["used_for_pca"].append(True)
+                data["used_for_embedding"].append(True)
             else:
-                data["used_for_pca"].append(population in populations_for_pca)
+                data["used_for_embedding"].append(population in populations_for_embedding)
 
         return pd.DataFrame(data=data)
 
@@ -252,9 +253,9 @@ class Dataset:
                         v = "YES" if v else "NO"
                     smartpca_params += f"{k}: {v}\n"
 
-            if self.pca_populations_file is not None:
+            if self.embedding_populations_file is not None:
                 smartpca_params += "lsqproject: YES\n"
-                smartpca_params += f"poplistname: {self.pca_populations_file}\n"
+                smartpca_params += f"poplistname: {self.embedding_populations_file}\n"
 
             tmpfile.write(smartpca_params)
             tmpfile.flush()
@@ -273,7 +274,6 @@ class Dataset:
 
         self.pca = from_smartpca(evec_out, eval_out)
 
-
     def mds(self, n_components: int = 20):
         raise NotImplementedError
 
@@ -285,7 +285,7 @@ class Dataset:
         files_exist = all([bs_ind_file.exists(), bs_geno_file.exists(), bs_snp_file.exists()])
 
         if files_exist and not redo:
-            return Dataset(bootstrap_prefix, self.pca_populations_file)
+            return Dataset(bootstrap_prefix, self.embedding_populations_file)
 
         bs_ind_file.unlink(missing_ok=True)
         bs_geno_file.unlink(missing_ok=True)
@@ -337,7 +337,7 @@ class Dataset:
         # when bootstrapping on SNP level, the .ind file does not change
         shutil.copy(self.ind_file, bs_ind_file)
 
-        return Dataset(bootstrap_prefix, self.pca_populations_file)
+        return Dataset(bootstrap_prefix, self.embedding_populations_file)
 
     def get_windows(self, window_size: Union[int, float], stride: int) -> List[Dataset]:
         """

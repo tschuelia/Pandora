@@ -9,7 +9,7 @@ from pandora.dimensionality_reduction import PCA
 
 class TestDataset:
     def test_get_pca_populations(self, example_population_list):
-        populations = get_pca_populations(example_population_list)
+        populations = get_embedding_populations(example_population_list)
         assert len(populations) == 4
 
     def test_sample_dataframe_correct(self, example_dataset_with_poplist):
@@ -17,12 +17,12 @@ class TestDataset:
 
         # example.ind has 5 samples
         assert samples.shape[0] == 5
-        # samples should have 4 columns: sample_id, sex, population, used_for_pca
+        # samples should have 4 columns: sample_id, sex, population, used_for_embedding
         assert samples.shape[1] == 4
-        assert set(samples.columns) == {"sample_id", "sex", "population", "used_for_pca"}
+        assert set(samples.columns) == {"sample_id", "sex", "population", "used_for_embedding"}
 
-        # this dataset has a population list, so some samples should not be used_for_pca
-        assert not samples.used_for_pca.all()
+        # this dataset has a population list, so some samples should not be used_for_embedding
+        assert not samples.used_for_embedding.all()
 
         # each sample in this example dataset has a unique population
         assert samples.population.unique().shape[0] == samples.shape[0]

@@ -6,7 +6,7 @@ from pandora.dimensionality_reduction_comparison import _clip_missing_samples_fo
 
 
 def test_match_and_transform_identical_pcas(pca_reference):
-    pca1, pca2, disparity = match_and_transform_pcas(pca_reference, pca_reference)
+    pca1, pca2, disparity = match_and_transform(pca_reference, pca_reference)
 
     # identical PCAs should have difference 0.0
     assert disparity == pytest.approx(0.0, abs=1e-6)
@@ -46,21 +46,21 @@ def test_match_and_transform_fails_for_different_sample_ids(
     with pytest.warns(UserWarning, match="More than 20% of samples"), pytest.raises(
         PandoraException, match="No samples left for comparison after clipping."
     ):
-        match_and_transform_pcas(pca_comparable_with_different_sample_ids, pca_reference)
+        match_and_transform(pca_comparable_with_different_sample_ids, pca_reference)
 
 
-class TestDimRedComparison:
+class TestEmbeddingComparison:
     def test_compare_fails_for_incorrect_type(self):
-        with pytest.raises(PandoraException, match="DimRedBase objects"):
-            DimRedComparison(None, None)
+        with pytest.raises(PandoraException, match="Embedding objects"):
+            EmbeddingComparison(None, None)
 
     def test_compare_for_identical_pcas(self, pca_reference):
-        comparison = DimRedComparison(pca_reference, pca_reference)
+        comparison = EmbeddingComparison(pca_reference, pca_reference)
 
         assert comparison.compare() == pytest.approx(1.0, abs=1e-6)
 
     def test_get_sample_support_values_for_identical_pcas(self, pca_reference):
-        comparison = DimRedComparison(pca_reference, pca_reference)
+        comparison = EmbeddingComparison(pca_reference, pca_reference)
         support_values = comparison.get_sample_support_values()
 
         assert all(sv == pytest.approx(1.0, abs=1e-6) for sv in support_values)
@@ -77,7 +77,7 @@ class TestDimRedComparison:
         pca_reflected = PCA(embedding=reflected_pca_data, n_components=pca_reference.n_components,
                             explained_variances=pca_reference.explained_variances)
 
-        comparison = DimRedComparison(pca_reflected, pca_reference)
+        comparison = EmbeddingComparison(pca_reflected, pca_reference)
 
         assert comparison.compare() == pytest.approx(1.0, abs=1e-6)
 
@@ -92,7 +92,7 @@ class TestDimRedComparison:
         pca_shifted = PCA(embedding=shifted_pca_data, n_components=pca_reference.n_components,
                           explained_variances=pca_reference.explained_variances)
 
-        comparison = DimRedComparison(pca_shifted, pca_reference)
+        comparison = EmbeddingComparison(pca_shifted, pca_reference)
 
         assert comparison.compare() == pytest.approx(1.0, abs=1e-6)
 
@@ -112,12 +112,12 @@ class TestDimRedComparison:
         pca_rotated = PCA(embedding=pca_data_rotated, n_components=pca_reference.n_components,
                           explained_variances=pca_reference.explained_variances)
 
-        comparison = DimRedComparison(pca_rotated, pca_reference)
+        comparison = EmbeddingComparison(pca_rotated, pca_reference)
         assert comparison.compare() == pytest.approx(1.0, abs=1e-6)
 
     def test_compare_with_manually_computed_score(self, pca_reference_and_comparable_with_score_lower_than_one):
         pca1, pca2 = pca_reference_and_comparable_with_score_lower_than_one
 
-        comparison = DimRedComparison(pca1, pca2)
+        comparison = EmbeddingComparison(pca1, pca2)
 
         assert 0 < comparison.compare() < 1

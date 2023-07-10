@@ -1,5 +1,5 @@
 dataset_prefix: tests/data/example
-pca_populations: tests/data/example_populations.txt
+embedding_populations: tests/data/example_populations.txt
 file_format: EIGENSTRAT
 result_dir: tests/data/results/
 n_bootstraps: 3

@@ -16,16 +16,16 @@ def test_get_distinct_colors():
 
 
 def test_plot_pca_populations(pca_reference):
-    plot_pca_populations(pca_reference)
+    plot_populations(pca_reference)
 
 
 def test_plot_pca_projections(pca_reference):
     pca_populations = pca_reference.embedding.population.unique()[:1]
-    plot_pca_projections(pca_reference, pca_populations)
+    plot_projections(pca_reference, pca_populations)
 
 
 def test_plot_pca_clusters(pca_reference):
-    plot_pca_clusters(pca_reference, kmeans_k=2)
+    plot_clusters(pca_reference, kmeans_k=2)
 
 
 def test_plot_support_values(pca_reference):
@@ -34,10 +34,10 @@ def test_plot_support_values(pca_reference):
 
 
 def test_plot_pca_comparison(pca_reference):
-    comparison = DimRedComparison(pca_reference, pca_reference)
-    plot_pca_comparison(comparison)
+    comparison = EmbeddingComparison(pca_reference, pca_reference)
+    plot_embedding_comparison(comparison)
 
 
 def test_plot_pca_comparison_rogue_samples(pca_reference):
-    comparison = DimRedComparison(pca_reference, pca_reference)
-    plot_pca_comparison_rogue_samples(comparison, support_value_rogue_cutoff=1.0)
+    comparison = EmbeddingComparison(pca_reference, pca_reference)
+    plot_embedding_comparison_rogue_samples(comparison, support_value_rogue_cutoff=1.0)

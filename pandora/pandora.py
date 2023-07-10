@@ -34,9 +34,9 @@ class PandoraConfig:
 
     # sample support values
     support_value_rogue_cutoff: float
-    pca_populations: Union[
+    embedding_populations: Union[
         pathlib.Path, None
-    ]  # list of populations to use for PCA and later project the remaining the populations on the PCA
+    ]  # list of populations to use for Embedding and later project the remaining the populations on the Embedding
 
     # Cluster settings
     kmeans_k: Union[int, None]
@@ -170,7 +170,7 @@ class PandoraConfig:
                 f"> Sample Support values: {self.sample_support_values_file.absolute()}"
             )
 
-            if self.pca_populations is not None:
+            if self.embedding_populations is not None:
                 logger.info(
                     f"> Projected Sample Support values: {self.sample_support_values_projected_samples_file.absolute()}"
                 )
@@ -183,7 +183,7 @@ class Pandora:
         self.pandora_config: PandoraConfig = pandora_config
         self.dataset: Dataset = Dataset(
             file_prefix=pandora_config.dataset_prefix,
-            pca_populations=pandora_config.pca_populations,
+            embedding_populations=pandora_config.embedding_populations,
         )
         self.bootstrap_datasets: List[Dataset] = []
         self.bootstrap_similarities: Dict[Tuple[int, int], float] = {}
@@ -211,28 +211,28 @@ class Pandora:
         pcy = self.pandora_config.plot_pcy
 
         # plot with annotated populations
-        fig = plot_pca_populations(dataset.pca, pcx, pcy)
+        fig = plot_populations(dataset.pca, pcx, pcy)
         fig.write_image(
             self.pandora_config.plot_dir / f"{plot_prefix}_with_populations.pdf"
         )
 
         # plot with annotated clusters
-        fig = plot_pca_clusters(
+        fig = plot_clusters(
             dataset.pca,
-            pcx=pcx,
-            pcy=pcy,
+            dim_x=pcx,
+            dim_y=pcy,
             kmeans_k=self.pandora_config.kmeans_k,
         )
         fig.write_image(
             self.pandora_config.plot_dir / f"{plot_prefix}_with_clusters.pdf"
         )
 
-        if len(self.dataset.pca_populations) > 0:
-            fig = plot_pca_projections(
+        if len(self.dataset.embedding_populations) > 0:
+            fig = plot_projections(
                 dataset.pca,
-                pca_populations=list(self.dataset.pca_populations),
-                pcx=pcx,
-                pcy=pcy,
+                embedding_populations=list(self.dataset.embedding_populations),
+                dim_x=pcx,
+                dim_y=pcy,
             )
             fig.write_image(
                 self.pandora_config.plot_dir / f"{plot_prefix}_projections.pdf"
@@ -277,7 +277,7 @@ class Pandora:
             self._plot_bootstraps()
             self._plot_sample_support_values()
 
-            if self.pandora_config.pca_populations is not None:
+            if self.pandora_config.embedding_populations is not None:
                 self._plot_sample_support_values(projected_samples_only=True)
 
     def _run_pca(self, bootstrap: Dataset):
@@ -294,10 +294,10 @@ class Pandora:
         if smartpca_finished(self.pandora_config.n_pcs, bootstrap_prefix):
             # SmartPCA results are present and correct
             # Thus we initialize a bootstrap dataset manually using the correct prefix
-            # We still need to call .smartpca later on to make sure bootstrap_dataset.pca is set properly
+            # We still need to call .smartpca later on to make sure bootstrap_dataset.embedding is set properly
             bootstrap_dataset = Dataset(
                 bootstrap_prefix,
-                self.dataset.pca_populations_file,
+                self.dataset.embedding_populations_file,
                 self.dataset.samples,
             )
         else:
@@ -326,7 +326,7 @@ class Pandora:
     def _plot_sample_support_values(self, projected_samples_only: bool = False):
         if self.dataset.pca is None:
             raise PandoraException(
-                "Support values are plotted using self.dataset.pca, but PCA was not performed for self.dataset. "
+                "Support values are plotted using self.dataset.embedding, but PCA was not performed for self.dataset. "
                 "Make sure to run self.do_pca prior to plotting."
             )
         pcx = self.pandora_config.plot_pcx
@@ -367,7 +367,7 @@ class Pandora:
         for (i1, bootstrap1), (i2, bootstrap2) in itertools.combinations(
             enumerate(self.bootstrap_datasets), r=2
         ):
-            pca_comparison = DimRedComparison(
+            pca_comparison = EmbeddingComparison(
                 comparable=bootstrap1.pca, reference=bootstrap2.pca
             )
             self.bootstrap_similarities[(i1, i2)] = pca_comparison.compare()
@@ -506,9 +506,9 @@ def pandora_config_from_configfile(configfile: pathlib.Path) -> PandoraConfig:
     if result_dir is None:
         raise PandoraConfigException("No result_dir set.")
 
-    pca_populations = config_data.get("pca_populations")
-    if pca_populations is not None:
-        pca_populations = pathlib.Path(pca_populations)
+    embedding_populations = config_data.get("embedding_populations")
+    if embedding_populations is not None:
+        embedding_populations = pathlib.Path(embedding_populations)
 
     # fmt: off
     return PandoraConfig(
@@ -528,7 +528,7 @@ def pandora_config_from_configfile(configfile: pathlib.Path) -> PandoraConfig:
 
         # sample support values
         support_value_rogue_cutoff = config_data.get("support_value_rogue_cutoff", 0.5),
-        pca_populations = pca_populations,
+        embedding_populations= embedding_populations,
 
         # Cluster settings
         kmeans_k = config_data.get("kmeans_k", None),

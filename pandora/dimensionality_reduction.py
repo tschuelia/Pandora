@@ -12,7 +12,7 @@ from pandora.custom_types import *
 from pandora.custom_errors import *
 
 
-class DimRedBase:
+class Embedding:
     def __init__(self, embedding: pd.DataFrame, n_components: int):
         if "sample_id" not in embedding.columns:
             raise PandoraException("Column `sample_id` required.")
@@ -39,7 +39,7 @@ class DimRedBase:
 
     def _get_embedding_numpy_array(self) -> np.ndarray:
         """
-        Converts the PCA data to a numpy array.
+        Converts the embedding data to a numpy array.
 
         Returns:
              np.ndarray: Array of shape (n_samples, self.n_components).
@@ -84,7 +84,7 @@ class DimRedBase:
 
     def cluster(self, kmeans_k: int = None) -> KMeans:
         """
-        Fits a K-Means cluster to the pca data and returns a scikit-learn fitted KMeans object.
+        Fits a K-Means cluster to the embedding data and returns a scikit-learn fitted KMeans object.
 
         Args:
             kmeans_k (int): Number of clusters. If not set, the optimal number of clusters is determined automatically.
@@ -100,7 +100,7 @@ class DimRedBase:
         return kmeans
 
 
-class PCA(DimRedBase):
+class PCA(Embedding):
     """Class structure encapsulating PCA results.
 
     This class provides a wrapper for PCA results.
@@ -153,7 +153,7 @@ class PCA(DimRedBase):
         super().__init__(embedding, n_components)
 
 
-class MDS(DimRedBase):
+class MDS(Embedding):
     def __init__(self, embedding: pd.DataFrame, n_components: int, stress: float):
         self.stress = stress
         super().__init__(embedding, n_components)

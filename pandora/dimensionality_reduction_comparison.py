@@ -251,12 +251,12 @@ def _numpy_to_dataframe(
 
     Args:
         embedding_matrix (npt.NDArray[float]): Numpy ndarray containing the Embedding results (PC vectors) for all samples.
-        sample_ids (pd.Series[str]): Pandas Series containing the sample IDs corresponding to the pc_vectors.
+        sample_ids (pd.Series[str]): Pandas Series containing the sample IDs corresponding to the embedding_matrix.
         populations (pd.Series[str]): Pandas Series containing the populations corresponding to the sample_ids.
 
     Returns:
         pd.DataFrame: Pandas dataframe containing all required columns to initialize a Embedding object
-            (sample_id, population, D{i} for i in range(pc_vectors.shape[1]))
+            (sample_id, population, D{i} for i in range(embedding_matrix.shape[1]))
 
     """
     if embedding_matrix.ndim != 2:

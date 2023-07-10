@@ -26,10 +26,10 @@ class Embedding:
                 f"One data column required for each PC. Got {n_components} but {embedding.shape[1] - 2} PC columns."
             )
 
-        pc_columns = [f"D{i}" for i in range(n_components)]
-        if not all(c in embedding.columns for c in pc_columns):
+        embedding_columns = [f"D{i}" for i in range(n_components)]
+        if not all(c in embedding.columns for c in embedding_columns):
             raise PandoraException(
-                f"Expected all of the following columns to be present in pca_data: {pc_columns}."
+                f"Expected all of the following columns to be present in embedding: {embedding_columns}."
                 f"Instead got {[c for c in embedding.columns if c not in ['sample_id', 'population']]}"
             )
 
@@ -54,7 +54,7 @@ class Embedding:
         Args:
             k_boundaries (Tuple[int, int]): Minimum and maximum number of clusters. If None is given,
                 determine the boundaries automatically.
-                If self.pca_data.populations is not identical for all samples, use the number of distinct populations,
+                If self.embedding.populations is not identical for all samples, use the number of distinct populations,
                 otherwise use the square root of the number of samples as maximum max_k.
                 The minimum min_k is min(max_k, 3).
 
@@ -90,13 +90,12 @@ class Embedding:
             kmeans_k (int): Number of clusters. If not set, the optimal number of clusters is determined automatically.
 
         Returns:
-            KMeans: Scikit-learn KMeans object that is fitted to self.pca_data.
+            KMeans: Scikit-learn KMeans object that is fitted to self.embedding.
         """
-        pca_data_np = self.embedding_matrix
         if kmeans_k is None:
             kmeans_k = self.get_optimal_kmeans_k()
         kmeans = KMeans(random_state=42, n_clusters=kmeans_k, n_init=10)
-        kmeans.fit(pca_data_np)
+        kmeans.fit(self.embedding_matrix)
         return kmeans
 
 
@@ -106,7 +105,7 @@ class PCA(Embedding):
     This class provides a wrapper for PCA results.
 
     Attributes:
-        pca_data (pd.DataFrame): Pandas dataframe with shape (n_samples, n_pcs + 2) that contains the PCA results.
+        embedding (pd.DataFrame): Pandas dataframe with shape (n_samples, n_pcs + 2) that contains the PCA results.
             The dataframe contains one row per sample and has the following columns:
                 - sample_id (str): ID of the respective sample.
                 - population (str): Name of the respective population.

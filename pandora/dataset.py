@@ -10,7 +10,7 @@ import random
 
 from pandora.custom_types import *
 from pandora.custom_errors import *
-from pandora.pca import PCA, from_smartpca
+from pandora.dimensionality_reduction import PCA, from_smartpca
 
 
 def check_geno_file(geno_file: pathlib.Path):

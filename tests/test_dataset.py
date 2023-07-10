@@ -4,7 +4,7 @@ import pytest
 import shutil
 
 from pandora.dataset import *
-from pandora.pca import PCA
+from pandora.dimensionality_reduction import PCA
 
 
 class TestDataset:

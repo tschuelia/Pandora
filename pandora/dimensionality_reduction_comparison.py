@@ -1,6 +1,6 @@
 from __future__ import (
     annotations,
-)  # allows type hint PCAComparison inside PCAComparison class
+)  # allows type hint DimRedComparison inside DimRedComparison class
 
 import warnings
 
@@ -12,27 +12,32 @@ from sklearn.preprocessing import normalize
 
 from pandora.custom_types import *
 from pandora.custom_errors import *
-from pandora.pca import PCA
+from pandora.dimensionality_reduction import PCA, MDS, DimRedBase
 
 
-def filter_samples(pca: PCA, samples_to_keep: List[str]) -> PCA:
+def filter_samples(dimred: DimRedBase, samples_to_keep: List[str]) -> DimRedBase:
     """
-    Filters the given PCA by removing all samples not contained in samples_to_keep
+    Filters the given DimRedBase object by removing all samples not contained in samples_to_keep
 
     Args:
-        pca (PCA): PCA object to filter.
+        dimred (DimRedBase): DimRedBase object to filter.
         samples_to_keep (List[str]): List of sample IDs to keep.
 
-    Returns: new PCA object containing the data of pca for all samples in samples_to_keep
+    Returns: new DimRedBase object containing the data of pca for all samples in samples_to_keep
 
     """
-    pca_data = pca.embedding
-    pca_data = pca_data.loc[pca_data.sample_id.isin(samples_to_keep)]
+    embedding = dimred.embedding
+    embedding = embedding.loc[embedding.sample_id.isin(samples_to_keep)]
 
-    return PCA(embedding=pca_data, n_components=pca.n_components, explained_variances=pca.explained_variances)
+    if isinstance(dimred, PCA):
+        return PCA(embedding=embedding, n_components=dimred.n_components, explained_variances=dimred.explained_variances)
+    elif isinstance(dimred, MDS):
+        return MDS(embedding=embedding, n_components=dimred.n_components, stress=dimred.stress)
+    else:
+        raise PandoraException(f"Unrecognized dimred type: {type(dimred)}.")
 
 
-def _check_sample_clipping(before_clipping: PCA, after_clipping: PCA) -> None:
+def _check_sample_clipping(before_clipping: DimRedBase, after_clipping: DimRedBase) -> None:
     """
     Compares the number of samples prior to and after clipping. Will show a warning message in case more
     than 20% of samples were removed, indicating a potential major mismatch between the two PCAs.
@@ -56,17 +61,17 @@ def _check_sample_clipping(before_clipping: PCA, after_clipping: PCA) -> None:
 
 
 def _clip_missing_samples_for_comparison(
-    comparable: PCA, reference: PCA
-) -> Tuple[PCA, PCA]:
+    comparable: DimRedBase, reference: DimRedBase
+) -> Tuple[DimRedBase, DimRedBase]:
     """
     Reduces comparable and reference to similar sample IDs to make sure we compare projections for identical samples.
 
     Args:
-        comparable (PCA): first PCA object to compare
-        reference (PCA): second PCA object to compare
+        comparable (DimRedBase): first DimRedBase object to compare
+        reference (DimRedBase): second DimRedBase object to compare
 
     Returns:
-        (PCA, PCA): Comparable and reference PCAs containing only the samples present in both PCAs.
+        (DimRedBase, DimRedBase): Comparable and reference DimRedBases containing only the samples present in both DimRedBases.
 
     """
     comp_data = comparable.embedding
@@ -80,8 +85,8 @@ def _clip_missing_samples_for_comparison(
     comparable_clipped = filter_samples(comparable, shared_samples)
     reference_clipped = filter_samples(reference, shared_samples)
 
-    assert comparable_clipped.embedding_vector.shape == reference_clipped.embedding_vector.shape
-    # Issue a warning if we clip more than 20% of all samples of either PCA
+    assert comparable_clipped.embedding_matrix.shape == reference_clipped.embedding_matrix.shape
+    # Issue a warning if we clip more than 20% of all samples of either DimRedBase
     # and fail if there are no samples lef
     _check_sample_clipping(comparable, comparable_clipped)
     _check_sample_clipping(reference, reference_clipped)
@@ -89,48 +94,62 @@ def _clip_missing_samples_for_comparison(
     return comparable_clipped, reference_clipped
 
 
-class PCAComparison:
-    """Class structure for comparing two PCA results.
+class DimRedComparison:
+    """Class structure for comparing two DimRedBase results.
 
-    This class provides methods for comparing both PCAs based on all samples,
+    This class provides methods for comparing both DimRedBases based on all samples,
     for comparing the K-Means clustering results, and for computing sample support values.
 
-    Prior to comparing the results, both PCAs are filtered such that they only contain samples present in both PCAs.
+    Prior to comparing the results, both DimRedBases are filtered such that they only contain samples present in both DimRedBases.
 
-    Note that for comparing PCA results, the sample IDs are used to ensure the correct comparison of projections.
+    Note that for comparing DimRedBase results, the sample IDs are used to ensure the correct comparison of projections.
     If an error occurs during initialization, this is most likely due to incorrect sample IDs.
 
     Attributes:
-        comparable (PCA): comparable PCA object after sample filtering and Procrustes Transformation.
-        reference (PCA): reference PCA object after sample filtering and Procrustes Transformation.
-        sample_ids (pd.Series[str]): pd.Series containing the sample IDs present in both PCA objects
+        comparable (DimRedBase): comparable DimRedBase object after sample filtering and Procrustes Transformation.
+        reference (DimRedBase): reference DimRedBase object after sample filtering and Procrustes Transformation.
+        sample_ids (pd.Series[str]): pd.Series containing the sample IDs present in both DimRedBase objects
     """
 
-    def __init__(self, comparable: PCA, reference: PCA):
+    def __init__(self, comparable: DimRedBase, reference: DimRedBase):
         """
-        Initializes a new PCAComparison object using comparable and reference.
-        On initialization, comparable and reference are both reduced to contain only samples present in both PCAs.
-        In order to compare the two PCAs, on initialization Procrustes Analysis is applied transforming
+        Initializes a new DimRedComparison object using comparable and reference.
+        On initialization, comparable and reference are both reduced to contain only samples present in both DimRed Objects.
+        In order to compare the two DimReds, on initialization Procrustes Analysis is applied transforming
         comparable towards reference. Procrustes Analysis transforms comparable by applying scaling, translation,
         rotation and reflection aiming to match all sample projections as close as possible to the projections in
         reference.
 
         Args:
-            comparable: PCA object to compare.
-            reference: PCA object to transform comparable towards.
+            comparable: DimRedBase object to compare.
+            reference: DimRedBase object to transform comparable towards.
 
         Raises
-            PandoraException: if either comparable of reference is not a PCA object
+            PandoraException:
+                - if either comparable of reference is not a DimRedBase object
+                - if comparable and reference are not of the same type (e.g. one is PCA and the other MDS)
+
         """
-        if not isinstance(comparable, PCA) or not isinstance(reference, PCA):
+        if not isinstance(comparable, DimRedBase) or not isinstance(reference, DimRedBase):
             raise PandoraException(
-                f"comparable and reference need to be PCA objects. "
+                f"comparable and reference need to be DimRedBase objects. "
                 f"Instead got {type(comparable)} and {type(reference)}."
             )
 
-        self.comparable, self.reference, self.disparity = match_and_transform(
-            comparable=comparable, reference=reference
-        )
+        if type(comparable) != type(reference):
+            raise PandoraException(
+                f"comparable and reference need to be of the same DimRedBase type. "
+                f"Instead got {type(comparable)} and {type(reference)}."
+            )
+
+        if isinstance(comparable, PCA):
+            self.comparable, self.reference, self.disparity = match_and_transform_pcas(
+                comparable=comparable, reference=reference
+            )
+        elif isinstance(comparable, MDS):
+            match_and_transform_mds(
+                comparable=comparable, reference=reference
+            )
         self.sample_ids = self.comparable.embedding.sample_id
 
     def compare(self) -> float:
@@ -167,8 +186,8 @@ class PCAComparison:
         comp_kmeans = self.comparable.cluster(kmeans_k=kmeans_k)
         ref_kmeans = self.reference.cluster(kmeans_k=kmeans_k)
 
-        comp_cluster_labels = comp_kmeans.predict(self.comparable.embedding_vector)
-        ref_cluster_labels = ref_kmeans.predict(self.reference.embedding_vector)
+        comp_cluster_labels = comp_kmeans.predict(self.comparable.embedding_matrix)
+        ref_cluster_labels = ref_kmeans.predict(self.reference.embedding_matrix)
 
         return fowlkes_mallows_score(ref_cluster_labels, comp_cluster_labels)
 
@@ -187,7 +206,7 @@ class PCAComparison:
         )
 
         sample_distances = euclidean_distances(
-            self.reference.embedding_vector, self.comparable.embedding_vector
+            self.reference.embedding_matrix, self.comparable.embedding_matrix
         ).diagonal()
         return pd.Series(sample_distances, index=self.sample_ids)
 
@@ -227,31 +246,31 @@ class PCAComparison:
         return rogue
 
 
-def _numpy_to_pca_dataframe(
-    pc_vectors: npt.NDArray[float],
+def _numpy_to_dataframe(
+    embedding_matrix: npt.NDArray[float],
     sample_ids: pd.Series[str],
     populations: pd.Series[str],
 ):
     """
-    Transforms a numpy ndarray to a pandas Dataframe as required for initializing a PCA object.
+    Transforms a numpy ndarray to a pandas Dataframe as required for initializing a DimRedBase object.
 
     Args:
-        pc_vectors (npt.NDArray[float]): Numpy ndarray containing the PCA results (PC vectors) for all samples.
+        embedding_matrix (npt.NDArray[float]): Numpy ndarray containing the DimRedBase results (PC vectors) for all samples.
         sample_ids (pd.Series[str]): Pandas Series containing the sample IDs corresponding to the pc_vectors.
         populations (pd.Series[str]): Pandas Series containing the populations corresponding to the sample_ids.
 
     Returns:
-        pd.DataFrame: Pandas dataframe containing all required columns to initialize a PCA object
+        pd.DataFrame: Pandas dataframe containing all required columns to initialize a DimRedBase object
             (sample_id, population, D{i} for i in range(pc_vectors.shape[1]))
 
     """
-    if pc_vectors.ndim != 2:
+    if embedding_matrix.ndim != 2:
         raise PandoraException(
-            f"Numpy PCA data must be two dimensional. Passed data has {pc_vectors.ndim} dimensions."
+            f"Numpy embedding matrix must be two dimensional. Passed data has {embedding_matrix.ndim} dimensions."
         )
 
     pca_data = pd.DataFrame(
-        pc_vectors, columns=[f"D{i}" for i in range(pc_vectors.shape[1])]
+        embedding_matrix, columns=[f"D{i}" for i in range(embedding_matrix.shape[1])]
     )
 
     if sample_ids.shape[0] != pca_data.shape[0]:
@@ -272,7 +291,7 @@ def _numpy_to_pca_dataframe(
     return pca_data
 
 
-def match_and_transform(comparable: PCA, reference: PCA) -> Tuple[PCA, PCA, float]:
+def match_and_transform_pcas(comparable: PCA, reference: PCA) -> Tuple[PCA, PCA, float]:
     """
     Uses Procrustes Analysis to find a transformation matrix that most closely matches comparable to reference.
     and transforms comparable.
@@ -298,8 +317,8 @@ def match_and_transform(comparable: PCA, reference: PCA) -> Tuple[PCA, PCA, floa
             "Sample IDS between reference and comparable don't match but is required for comparing PCA results. "
         )
 
-    comp_data = comparable.embedding_vector
-    ref_data = reference.embedding_vector
+    comp_data = comparable.embedding_matrix
+    ref_data = reference.embedding_matrix
 
     if comp_data.shape != ref_data.shape:
         raise PandoraException(
@@ -321,7 +340,7 @@ def match_and_transform(comparable: PCA, reference: PCA) -> Tuple[PCA, PCA, floa
     standardized_reference = normalize(standardized_reference)
     transformed_comparable = normalize(transformed_comparable)
 
-    standardized_reference = _numpy_to_pca_dataframe(
+    standardized_reference = _numpy_to_dataframe(
         standardized_reference,
         reference.embedding.sample_id,
         reference.embedding.population,
@@ -330,7 +349,7 @@ def match_and_transform(comparable: PCA, reference: PCA) -> Tuple[PCA, PCA, floa
     standardized_reference = PCA(embedding=standardized_reference, n_components=reference.n_components,
                                  explained_variances=reference.explained_variances)
 
-    transformed_comparable = _numpy_to_pca_dataframe(
+    transformed_comparable = _numpy_to_dataframe(
         transformed_comparable,
         comparable.embedding.sample_id,
         comparable.embedding.population,
@@ -348,3 +367,83 @@ def match_and_transform(comparable: PCA, reference: PCA) -> Tuple[PCA, PCA, floa
         )
 
     return standardized_reference, transformed_comparable, disparity
+
+
+def match_and_transform_mds(comparable: MDS, reference: MDS) -> Tuple[MDS, MDS, float]:
+    """
+    Uses Procrustes Analysis to find a transformation matrix that most closely matches comparable to reference.
+    and transforms comparable.
+
+    Args:
+        comparable (MDS): The MDS that should be transformed
+        reference (MDS): The MDS that comparable should be transformed towards
+
+    Returns:
+        Tuple[MDS, MDS, float]: Two new MDS objects and the disparity. The first new MDS is the transformed comparable
+            and the second one is the standardized reference. The disparity is the sum of squared distances between the
+            transformed comparable and transformed reference MDSs.
+
+    Raises:
+        PandoraException:
+            - Mismatch in sample IDs between comparable and reference (identical sample IDs required for comparison)
+            - No samples left after clipping. This is most likely caused by incorrect annotations of sample IDs.
+    """
+    comparable, reference = _clip_missing_samples_for_comparison(comparable, reference)
+
+    if not all(comparable.embedding.sample_id == reference.embedding.sample_id):
+        raise PandoraException(
+            "Sample IDS between reference and comparable don't match but is required for comparing MDS results. "
+        )
+
+    comp_data = comparable.embedding_matrix
+    ref_data = reference.embedding_matrix
+
+    if comp_data.shape != ref_data.shape:
+        raise PandoraException(
+            f"Number of samples or dimensions in comparable and reference do not match. "
+            f"Got {comp_data.shape} and {ref_data.shape} respectively."
+        )
+
+    if comp_data.shape[0] == 0:
+        raise PandoraException(
+            "No samples left for comparison after clipping. "
+            "Make sure all sample IDs are correctly annotated"
+        )
+
+    standardized_reference, transformed_comparable, disparity = procrustes(
+        ref_data, comp_data
+    )
+
+    # normalize the data prior to comparison
+    standardized_reference = normalize(standardized_reference)
+    transformed_comparable = normalize(transformed_comparable)
+
+    standardized_reference = _numpy_to_dataframe(
+        standardized_reference,
+        reference.embedding.sample_id,
+        reference.embedding.population,
+    )
+
+    standardized_reference = MDS(embedding=standardized_reference, n_components=reference.n_components,
+                                 stress=reference.stress)
+
+    transformed_comparable = _numpy_to_dataframe(
+        transformed_comparable,
+        comparable.embedding.sample_id,
+        comparable.embedding.population,
+    )
+
+    transformed_comparable = MDS(embedding=transformed_comparable, n_components=comparable.n_components,
+                                 stress=comparable.stress)
+
+    if not all(
+        standardized_reference.embedding.sample_id
+        == transformed_comparable.embedding.sample_id
+    ):
+        raise PandoraException(
+            "Sample IDS between reference and comparable don't match but is required for comparing MDS results. "
+        )
+
+    return standardized_reference, transformed_comparable, disparity
+
+

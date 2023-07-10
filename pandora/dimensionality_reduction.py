@@ -35,7 +35,7 @@ class DimRedBase:
 
         self.embedding = embedding.sort_values(by="sample_id").reset_index(drop=True)
         self.n_components = n_components
-        self.embedding_vector = self._get_embedding_numpy_array()
+        self.embedding_matrix = self._get_embedding_numpy_array()
 
     def _get_embedding_numpy_array(self) -> np.ndarray:
         """
@@ -79,7 +79,7 @@ class DimRedBase:
             scoring=lambda estimator, X: -estimator.bic(X),
         )
 
-        grid_search.fit(self.embedding_vector)
+        grid_search.fit(self.embedding_matrix)
         return grid_search.best_params_["n_components"]
 
     def cluster(self, kmeans_k: int = None) -> KMeans:
@@ -92,7 +92,7 @@ class DimRedBase:
         Returns:
             KMeans: Scikit-learn KMeans object that is fitted to self.pca_data.
         """
-        pca_data_np = self.embedding_vector
+        pca_data_np = self.embedding_matrix
         if kmeans_k is None:
             kmeans_k = self.get_optimal_kmeans_k()
         kmeans = KMeans(random_state=42, n_clusters=kmeans_k, n_init=10)
@@ -114,7 +114,7 @@ class PCA(DimRedBase):
                   0-indexed, so the first PC corresponds to column PC0
         explained_variances (npt.NDArray[float]): Numpy ndarray containing the explained variances for each PC (shape=(n_pcs,))
         n_pcs (int): number of principal components
-        embedding_vector: Numpy ndarray of shape (n_samples, n_pcs) containing the PCA result matrix.
+        embedding_matrix: Numpy ndarray of shape (n_samples, n_pcs) containing the PCA result matrix.
     """
 
     def __init__(self, embedding: pd.DataFrame, n_components: int, explained_variances: npt.NDArray[float]):
@@ -150,6 +150,12 @@ class PCA(DimRedBase):
             )
 
         self.explained_variances = explained_variances
+        super().__init__(embedding, n_components)
+
+
+class MDS(DimRedBase):
+    def __init__(self, embedding: pd.DataFrame, n_components: int, stress: float):
+        self.stress = stress
         super().__init__(embedding, n_components)
 
 

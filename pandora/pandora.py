@@ -367,7 +367,7 @@ class Pandora:
         for (i1, bootstrap1), (i2, bootstrap2) in itertools.combinations(
             enumerate(self.bootstrap_datasets), r=2
         ):
-            pca_comparison = PCAComparison(
+            pca_comparison = DimRedComparison(
                 comparable=bootstrap1.pca, reference=bootstrap2.pca
             )
             self.bootstrap_similarities[(i1, i2)] = pca_comparison.compare()

@@ -1,18 +1,18 @@
 import pytest
 from numpy import testing
 
-from pandora.pca_comparison import *
-from pandora.pca_comparison import _clip_missing_samples_for_comparison
+from pandora.dimensionality_reduction_comparison import *
+from pandora.dimensionality_reduction_comparison import _clip_missing_samples_for_comparison
 
 
 def test_match_and_transform_identical_pcas(pca_reference):
-    pca1, pca2, disparity = match_and_transform(pca_reference, pca_reference)
+    pca1, pca2, disparity = match_and_transform_pcas(pca_reference, pca_reference)
 
     # identical PCAs should have difference 0.0
     assert disparity == pytest.approx(0.0, abs=1e-6)
 
     # pca1 and pca2 should have identical data
-    testing.assert_allclose(pca1.embedding_vector, pca2.embedding_vector)
+    testing.assert_allclose(pca1.embedding_matrix, pca2.embedding_matrix)
 
     # pca1 and pca2 should have identical sample IDs
     assert all(pca1.embedding.sample_id == pca2.embedding.sample_id)
@@ -46,21 +46,21 @@ def test_match_and_transform_fails_for_different_sample_ids(
     with pytest.warns(UserWarning, match="More than 20% of samples"), pytest.raises(
         PandoraException, match="No samples left for comparison after clipping."
     ):
-        match_and_transform(pca_comparable_with_different_sample_ids, pca_reference)
+        match_and_transform_pcas(pca_comparable_with_different_sample_ids, pca_reference)
 
 
-class TestPCAComparison:
+class TestDimRedComparison:
     def test_compare_fails_for_incorrect_type(self):
-        with pytest.raises(PandoraException, match="PCA objects"):
-            PCAComparison(None, None)
+        with pytest.raises(PandoraException, match="DimRedBase objects"):
+            DimRedComparison(None, None)
 
     def test_compare_for_identical_pcas(self, pca_reference):
-        comparison = PCAComparison(pca_reference, pca_reference)
+        comparison = DimRedComparison(pca_reference, pca_reference)
 
         assert comparison.compare() == pytest.approx(1.0, abs=1e-6)
 
     def test_get_sample_support_values_for_identical_pcas(self, pca_reference):
-        comparison = PCAComparison(pca_reference, pca_reference)
+        comparison = DimRedComparison(pca_reference, pca_reference)
         support_values = comparison.get_sample_support_values()
 
         assert all(sv == pytest.approx(1.0, abs=1e-6) for sv in support_values)
@@ -77,7 +77,7 @@ class TestPCAComparison:
         pca_reflected = PCA(embedding=reflected_pca_data, n_components=pca_reference.n_components,
                             explained_variances=pca_reference.explained_variances)
 
-        comparison = PCAComparison(pca_reflected, pca_reference)
+        comparison = DimRedComparison(pca_reflected, pca_reference)
 
         assert comparison.compare() == pytest.approx(1.0, abs=1e-6)
 
@@ -92,13 +92,13 @@ class TestPCAComparison:
         pca_shifted = PCA(embedding=shifted_pca_data, n_components=pca_reference.n_components,
                           explained_variances=pca_reference.explained_variances)
 
-        comparison = PCAComparison(pca_shifted, pca_reference)
+        comparison = DimRedComparison(pca_shifted, pca_reference)
 
         assert comparison.compare() == pytest.approx(1.0, abs=1e-6)
 
         # ROTATION
         # when rotating pca_reference by 180 degrees we should still get a similarity of 1.0
-        embedding_vector = pca_reference.embedding_vector
+        embedding_vector = pca_reference.embedding_matrix
         rotated_embedding_vector = np.fliplr(embedding_vector)
 
         pca_data_rotated = pd.DataFrame(
@@ -112,12 +112,12 @@ class TestPCAComparison:
         pca_rotated = PCA(embedding=pca_data_rotated, n_components=pca_reference.n_components,
                           explained_variances=pca_reference.explained_variances)
 
-        comparison = PCAComparison(pca_rotated, pca_reference)
+        comparison = DimRedComparison(pca_rotated, pca_reference)
         assert comparison.compare() == pytest.approx(1.0, abs=1e-6)
 
     def test_compare_with_manually_computed_score(self, pca_reference_and_comparable_with_score_lower_than_one):
         pca1, pca2 = pca_reference_and_comparable_with_score_lower_than_one
 
-        comparison = PCAComparison(pca1, pca2)
+        comparison = DimRedComparison(pca1, pca2)
 
         assert 0 < comparison.compare() < 1

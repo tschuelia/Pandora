@@ -2,8 +2,8 @@ from plotly import graph_objects as go
 
 from pandora.custom_types import *
 from pandora.custom_errors import *
-from pandora.pca import PCA
-from pandora.pca_comparison import PCAComparison
+from pandora.dimensionality_reduction import PCA
+from pandora.dimensionality_reduction_comparison import DimRedComparison
 
 
 def get_distinct_colors(n_colors: int) -> List[str]:
@@ -393,20 +393,20 @@ def plot_support_values(
 
 
 def plot_pca_comparison(
-    pca_comparison: PCAComparison, pcx: int = 0, pcy: int = 1, **kwargs
+    pca_comparison: DimRedComparison, pcx: int = 0, pcy: int = 1, **kwargs
 ) -> go.Figure:
     """
-    Method to plot the closest match between two PCAs. Plots the transformed PCAs based on the PCAComparison object.
+    Method to plot the closest match between two PCAs. Plots the transformed PCAs based on the DimRedComparison object.
 
     Args:
-        pca_comparison (PCAComparison): PCAComparison object containing the two PCAs to plot.
+        pca_comparison (DimRedComparison): DimRedComparison object containing the two PCAs to plot.
         pcx (int): Index of the principal component plotted on the x-axis (zero-indexed).
         pcy (int): Index of the principal component plotted on the y-axis (zero-indexed).
         **kwargs: Optional plot arguments passed to go.Scatter. Refer to the plotly documentation for options.
             The following settings are not allowed: [x, y, mode, marker, marker_color, name, marker_symbol]
 
     Returns:
-        go.Figure: Plotly figure depicting both PCAs in PCAComparison.
+        go.Figure: Plotly figure depicting both PCAs in DimRedComparison.
     """
     _check_plot_pcs(pca_comparison.reference, pcx, pcy)
     _check_plot_pcs(pca_comparison.comparable, pcx, pcy)
@@ -442,17 +442,17 @@ def plot_pca_comparison(
 
 
 def plot_pca_comparison_rogue_samples(
-    pca_comparison: PCAComparison,
+    pca_comparison: DimRedComparison,
     support_value_rogue_cutoff: float = 0.5,
     pcx: int = 0,
     pcy: int = 1,
     **kwargs,
 ) -> go.Figure:
     """
-    Method to plot the closest match between two PCAs. Plots the transformed PCAs based on the PCAComparison object.
+    Method to plot the closest match between two PCAs. Plots the transformed PCAs based on the DimRedComparison object.
 
     Args:
-        pca_comparison (PCAComparison): PCAComparison object containing the two PCAs to plot.
+        pca_comparison (DimRedComparison): DimRedComparison object containing the two PCAs to plot.
         support_value_rogue_cutoff (float): Samples with a support value below this threshold are considered rogue and
             are highlighted by color, their sample ID and support value.
         pcx (int): Index of the principal component plotted on the x-axis (zero-indexed).
@@ -460,7 +460,7 @@ def plot_pca_comparison_rogue_samples(
         **kwargs: Optional plot arguments passed to go.Scatter. Refer to the plotly documentation for options.
             The following settings are not allowed: [x, y, mode, marker, marker_color, name, text, textposition, marker_symbol]
     Returns:
-        go.Figure: Plotly figure depicting both PCAs in PCAComparison.
+        go.Figure: Plotly figure depicting both PCAs in DimRedComparison.
     """
     _check_plot_pcs(pca_comparison.reference, pcx, pcy)
     _check_plot_pcs(pca_comparison.comparable, pcx, pcy)

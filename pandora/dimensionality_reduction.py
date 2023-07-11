@@ -7,6 +7,7 @@ import pandas as pd
 from sklearn.cluster import KMeans
 from sklearn.mixture import GaussianMixture
 from sklearn.model_selection import GridSearchCV
+from sklearn.manifold import MDS as sklearnMDS
 
 from pandora.custom_types import *
 from pandora.custom_errors import *
@@ -105,15 +106,15 @@ class PCA(Embedding):
     This class provides a wrapper for PCA results.
 
     Attributes:
-        embedding (pd.DataFrame): Pandas dataframe with shape (n_samples, n_pcs + 2) that contains the PCA results.
+        embedding (pd.DataFrame): Pandas dataframe with shape (n_samples, n_components + 2) that contains the PCA results.
             The dataframe contains one row per sample and has the following columns:
                 - sample_id (str): ID of the respective sample.
                 - population (str): Name of the respective population.
-                - D{i} for i in range(n_pcs) (float): data for the i-th PC for each sample,
+                - D{i} for i in range(n_components) (float): data for the i-th PC for each sample,
                   0-indexed, so the first PC corresponds to column PC0
-        explained_variances (npt.NDArray[float]): Numpy ndarray containing the explained variances for each PC (shape=(n_pcs,))
-        n_pcs (int): number of principal components
-        embedding_matrix: Numpy ndarray of shape (n_samples, n_pcs) containing the PCA result matrix.
+        explained_variances (npt.NDArray[float]): Numpy ndarray containing the explained variances for each PC (shape=(n_components,))
+        n_components (int): number of principal components
+        embedding_matrix: Numpy ndarray of shape (n_samples, n_components) containing the PCA result matrix.
     """
 
     def __init__(self, embedding: pd.DataFrame, n_components: int, explained_variances: npt.NDArray[float]):
@@ -126,14 +127,14 @@ class PCA(Embedding):
                 Pandora expects the following columns:
                     - sample_id (str): ID of the respective sample.
                     - population (str): Name of the respective population.
-                    - D{i} for i in range(n_pcs) (float): data for the i-th PC for each sample,
-                      0-indexed, so the first PC corresponds to column PC0
+                    - D{i} for i in range(n_components) (float): data for the i-th PC for each sample,
+                      0-indexed, so the first PC corresponds to column D0
             n_components (int): number of principal components
-            explained_variances (npt.NDArray[float]): Numpy ndarray containing the explained variances for each PC (shape=(n_pcs,))
+            explained_variances (npt.NDArray[float]): Numpy ndarray containing the explained variances for each PC (shape=(n_components,))
 
         Raises:
             PandoraException:
-                - explained_variances is not a 1D numpy array or contains more/fewer values than n_pcs
+                - explained_variances is not a 1D numpy array or contains more/fewer values than n_components
                 - embedding does not contain a "sample_id" column
                 - embedding does not contain a "population" column
                 - embedding does not contain (the correct amount of) D{i} columns
@@ -153,6 +154,26 @@ class PCA(Embedding):
 
 
 class MDS(Embedding):
+    """
+    Initializes a new MDS object.
+
+    Args:
+        embedding (pd.DataFrame): Pandas dataframe containing the sample ID, population and embedding vector of all samples.
+            The dataframe should contain one row per sample.
+            Pandora expects the following columns:
+                - sample_id (str): ID of the respective sample.
+                - population (str): Name of the respective population.
+                - D{i} for i in range(n_components) (float): data for the i-th embedding dimension for each sample,
+                  0-indexed, so the first dimension corresponds to column D0
+        n_components (int): number of principal components
+        stress (float): Stress of the fitted MDS.
+
+    Raises:
+        PandoraException:
+            - embedding does not contain a "sample_id" column
+            - embedding does not contain a "population" column
+            - embedding does not contain (the correct amount of) D{i} columns
+    """
     def __init__(self, embedding: pd.DataFrame, n_components: int, stress: float):
         self.stress = stress
         super().__init__(embedding, n_components)
@@ -247,11 +268,26 @@ def from_smartpca(evec: pathlib.Path, eval: pathlib.Path) -> PCA:
     pca_data = pca_data.rename(columns=dict(zip(pca_data.columns, cols)))
     pca_data = pca_data.sort_values(by="sample_id").reset_index(drop=True)
 
-    # next, read the eigenvalues and compute the explained variances for all n_pcs principal components
+    # next, read the eigenvalues and compute the explained variances for all n_components principal components
     eigenvalues = open(eval).readlines()
     eigenvalues = [float(ev) for ev in eigenvalues]
     explained_variances = [ev / sum(eigenvalues) for ev in eigenvalues]
-    # keep only the first n_pcs explained variances
+    # keep only the first n_components explained variances
     explained_variances = np.asarray(explained_variances[:n_pcs])
 
     return PCA(embedding=pca_data, n_components=n_pcs, explained_variances=explained_variances)
+
+
+def from_sklearn_mds(embedding: pd.DataFrame, sample_metadata: pd.DataFrame, stress: float) -> MDS:
+    mds_data = []
+    n_components = embedding.shape[1] - 1  # one column is 'populations'
+
+    for idx, row in sample_metadata.iterrows():
+        embedding_vector = embedding.loc[lambda x: x.population.str.strip() == row.population.strip()]
+        assert embedding_vector.shape[0] == 1, f"Multiple/No MDS embeddings for population {row.population}. " \
+                                               f"Got {embedding_vector.shape[0]} rows but expected 1."
+        embedding_vector = embedding_vector.squeeze().to_list()
+        mds_data.append([row.sample_id, *embedding_vector])
+
+    mds_data = pd.DataFrame(data=mds_data, columns=["sample_id", *[f"D{i}" for i in range(n_components)], "population"])
+    return MDS(mds_data, n_components, stress)

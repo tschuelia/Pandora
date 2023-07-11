@@ -517,7 +517,7 @@ def pandora_config_from_configfile(configfile: pathlib.Path) -> PandoraConfig:
         result_dir      = pathlib.Path(result_dir),
 
         # Bootstrap related settings
-        n_pcs           = config_data.get("n_pcs", 0.95),
+        n_pcs           = config_data.get("n_pcs", 20),
         n_bootstraps    = config_data.get("n_bootstraps", 100),
         keep_bootstraps = config_data.get("keep_bootstraps", False),
 

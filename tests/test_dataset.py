@@ -4,6 +4,7 @@ import pytest
 import shutil
 
 from pandora.dataset import *
+from pandora.dataset import _deduplicate_snp_id
 from pandora.dimensionality_reduction import PCA
 
 
@@ -144,7 +145,7 @@ class TestDatasetBootstrap:
         n_ids = 5
         seen_ids = set()
         for i, snp_id in enumerate(n_ids * ["snp_id"]):
-            deduplicate = deduplicate_snp_id(snp_id, seen_ids)
+            deduplicate = _deduplicate_snp_id(snp_id, seen_ids)
             seen_ids.add(deduplicate)
 
             if i > 0:

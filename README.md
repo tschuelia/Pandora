@@ -7,6 +7,10 @@ As the name suggests: there might be results surfacing that you don't like :-)
 Pandora estimates the uncertainty of PCA dimensionality reduction using bootstrap resampling on two levels: SNP level and individual level.
 Pandora then reports the uncertainty on two levels:
 
+**IMPORTANT** this readme is outdated, it will soon be updated, some info is already in the wiki
+
+<hr>
+
 **PCA level:** 
 On a scale of 0 – 1, how closely do the resampled PCAs match the PCA on the original data. 
 0 is the worst possible score and 1 the best possible score where all bootstrapped PCAs are exactly identical to the original PCA.
@@ -37,17 +41,17 @@ The number of PCs in both PCs must be identical. The number of samples can vary,
 from pandora.pca import from_smartpca
 from pandora.pca_comparison import PCAComparison
 
-pca1 = from_smartpca("path/to/smart.pca1.evec", "path/to/smart.pca1.eval")  # this is a PCA object, see pandora.pca::PCA for more details
-pca2 = from_smartpca("path/to/smart.pca2.evec", "path/to/smart.pca2.eval")  # this is a PCA object, see pandora.pca::PCA for more details
+pca1 = from_smartpca("path/to/smart.pca1.evec", "path/to/smart.pca1.eval")  # this is a PCA object, see pandora.embedding::PCA for more details
+pca2 = from_smartpca("path/to/smart.pca2.evec", "path/to/smart.pca2.eval")  # this is a PCA object, see pandora.embedding::PCA for more details
 
-comparison = PCAComparison(pca1, pca2)  # this is a PCAComparison object, see pandora.pca_comparison::PCA for more details
+comparison = PCAComparison(pca1, pca2)  # this is a PCAComparison object, see pandora.embedding_comparison::PCA for more details
 similarity = comparison.compare()
 print("PCA1 and PCA2 similarity: ", similarity)
 
 kmeans_cluster_similarity = comparison.compare_clustering()
 print("PCA1 and PCA2 similarity of K-Means clustering: ", kmeans_cluster_similarity)
 
-# plot each PCA individually using pca.plot:
+# plot each PCA individually using embedding.plot:
 # outfile is a path where to write the figure to
 pca1.plot(outfile="path/to/pca1_fig.pdf")
 pca2.plot(outfile="path/to/pca2_fig.pdf")

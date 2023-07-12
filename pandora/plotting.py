@@ -1,3 +1,5 @@
+import warnings
+
 from plotly import graph_objects as go
 
 from pandora.custom_types import *
@@ -82,7 +84,11 @@ def _check_plot_dimensions(embedding: Embedding, dim_x: int, dim_y: int):
 
 
 def _update_fig(
-    embedding: Embedding, fig: go.Figure, dim_x: int, dim_y: int, show_variance_in_axes: bool
+    embedding: Embedding,
+    fig: go.Figure,
+    dim_x: int,
+    dim_y: int,
+    show_variance_in_axes: bool,
 ) -> go.Figure:
     """
     Updates a figure depicting an Embedding plot (x-axis, y-axis, layout).
@@ -138,9 +144,7 @@ def _update_pca_fig(
     return fig
 
 
-def _update_mds_fig(
-    fig: go.Figure, dim_x: int, dim_y: int
-) -> go.Figure:
+def _update_mds_fig(fig: go.Figure, dim_x: int, dim_y: int) -> go.Figure:
     """
     Updates a figure depicting an MDS plot (x-axis, y-axis, layout).
 
@@ -164,7 +168,11 @@ def _update_mds_fig(
 
 
 def plot_populations(
-    embedding: Embedding, dim_x: int = 0, dim_y: int = 1, fig: Optional[go.Figure] = None, **kwargs
+    embedding: Embedding,
+    dim_x: int = 0,
+    dim_y: int = 1,
+    fig: Optional[go.Figure] = None,
+    **kwargs,
 ) -> go.Figure:
     """
     Plots the data for the provided Embedding data using the given dimension indices
@@ -247,7 +255,9 @@ def plot_projections(
             "To plot projections provide a non-empty list of populations with which the PCA was performed!"
         )
 
-    if not all(p in embedding.embedding.population.unique() for p in embedding_populations):
+    if not all(
+        p in embedding.embedding.population.unique() for p in embedding_populations
+    ):
         raise PandoraException(
             "Not all of the passed embedding_populations seem to be present in self.embedding."
         )
@@ -258,7 +268,9 @@ def plot_projections(
     for i, population in enumerate(populations):
         _data = embedding.embedding.loc[lambda x: x.population == population]
         marker_color = (
-            projection_colors[i] if population not in embedding_populations else "lightgray"
+            projection_colors[i]
+            if population not in embedding_populations
+            else "lightgray"
         )
         fig.add_trace(
             go.Scatter(
@@ -361,26 +373,45 @@ def plot_support_values(
         go.Figure: Plotly figure depicting the PCA data.
     """
     _check_plot_dimensions(embedding, dim_x, dim_y)
-    # check that the number of support values matches the number of samples in the PCA data
-    if len(sample_support_values) != embedding.embedding.shape[0]:
-        # TODO: statt striktem check einfach lightgray falls das sample nicht vertreten ist (= support value NaN)?
-        raise PandoraException(
-            f"Provide exactly one support value for each sample. "
-            f"Got {len(sample_support_values)} support values, "
-            f"but {embedding.embedding.shape[0]} samples in the PCA."
+
+    # next,we have to filter out samples that are either not present in embedding.embedding (detected as outlier)
+    # or not present in sample_support_values (detected as outlier in all bootstraps)
+    # if there are such samples, we issue a warning containing the affected IDs and continue to plot only samples
+    # present in both embedding.embedding and sample_support_values
+    embedding_ids = set(embedding.embedding.sample_id)
+    support_ids = set(sample_support_values.index)
+
+    not_in_embedding = support_ids - embedding_ids
+    not_in_support = embedding_ids - support_ids
+    present_in_both = support_ids & embedding_ids
+
+    if len(not_in_embedding) > 0:
+        warnings.warn(
+            "Some of the provided sample_support_values sample IDs are not present in the embedding.embedding data. "
+            "This is most likely due to outlier detecting during the computation of embedding.embedding. "
+            f"Affected samples are: {not_in_embedding}. Note that these samples will not show up in the plot."
         )
 
-    # check that the provided support values match the sample IDs in the PCA data
-    if not all(
-            s in embedding.embedding.sample_id.tolist() for s in sample_support_values.index
-    ):
-        raise PandoraException(
-            "Sample IDs of provided support values don't match the sample IDs in the PCA data."
+    if len(not_in_support) > 0:
+        warnings.warn(
+            "Not all samples in embedding.embedding data have a support value in sample_support_values. "
+            "This is most likely due to outlier detecting during the computation of support_values. "
+            f"Affected samples are: {not_in_support}. Note that these samples will not show up in the plot."
         )
 
-    # to make sure we are annotating the correct support values for the correct PC vectors, we explicitly sort
-    # the x-, y-, and support value data
-    embedding = embedding.embedding.sort_values(by="sample_id").reset_index(drop=True)
+    if len(present_in_both) == 0:
+        raise PandoraException(
+            "No samples left to plot after filtering. "
+            "Make sure the provided sample IDs in sample_support_values match the sample IDs in embedding.embedding."
+        )
+
+    embedding = embedding.embedding.loc[lambda x: x.sample_id.isin(present_in_both)]
+    sample_support_values = sample_support_values.loc[lambda x: x.index.isin(present_in_both)]
+
+    # to make sure we are annotating the correct support values for the correct embedding vectors, we explicitly sort
+    # the embedding and support value data
+    embedding = embedding.sort_values(by="sample_id").reset_index(drop=True)
+    sample_support_values = sample_support_values.sort_index()
     x_data = embedding[f"D{dim_x}"]
     y_data = embedding[f"D{dim_y}"]
 
@@ -527,8 +558,12 @@ def plot_embedding_comparison_rogue_samples(
         for sample_id, support in rogue_samples.items()
     ]
 
-    rogue_reference = embedding_comparison.reference.embedding.loc[lambda x: x.sample_id.isin(rogue_samples.index)]
-    rogue_comparable = embedding_comparison.comparable.embedding.loc[lambda x: x.sample_id.isin(rogue_samples.index)]
+    rogue_reference = embedding_comparison.reference.embedding.loc[
+        lambda x: x.sample_id.isin(rogue_samples.index)
+    ]
+    rogue_comparable = embedding_comparison.comparable.embedding.loc[
+        lambda x: x.sample_id.isin(rogue_samples.index)
+    ]
 
     fig = go.Figure(
         [

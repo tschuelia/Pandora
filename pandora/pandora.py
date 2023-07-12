@@ -25,7 +25,8 @@ class PandoraConfig:
 
     Attributes:
         dataset_prefix (pathlib.Path): File path prefix pointing to the dataset to use for the Pandora analyses.
-        result_dir (pathlib.Path): File path where to store all (intermediate) results to.
+            Pandora will look for files called <input>.* so make sure all files have the same prefix.
+        result_dir (pathlib.Path): Directory where to store all (intermediate) results to.
         file_format (FileFormat): Format of the input dataset.
             Can be ANCESTRYMAP, EIGENSTRAT, PED, PACKEDPED, PACKEDANCESTRYMAP. Default is EIGENSTRAT.
         convertf (Executable): File path pointing to an executable of Eigensoft's convertf tool. Convertf is used
@@ -55,11 +56,12 @@ class PandoraConfig:
             Bayesian Information Criterion (BIC).
         do_bootstrapping (bool): Whether to do the stability analysis using bootstrapping. Default is True.
         redo (bool): Whether to rerun all analyses in case the results files from a previous run are already present.
-            Default is False.
+            Careful: this will overwrite existing results! Default is False.
         seed (int): Seed to initialize the random number generator. This setting is recommended for reproducible
             analyses. Default is the current unix timestamp.
         threads (int): Number of threads to use for the analysis. Default is the number of CPUs available.
         result_decimals (int): Number of decimals to round the stability scores and support values in the output.
+            Default is two decimals.
         verbosity (int): Verbosity of the output logging of Pandora.
             0 = quiet, prints only errors and the results (loglevel = ERROR)
             1 = verbose, prints all intermediate infos (loglevel = INFO)
@@ -67,9 +69,9 @@ class PandoraConfig:
         plot_results (bool): Whether to plot all dimensionality reduction results and sample support values.
             Default is False.
         plot_dim_x (int): Dimension to plot on the x-axis. Note that the dimensions are zero-indexed. To plot the first
-            dimension set plot_dim_x = 0.
+            dimension set plot_dim_x = 0. Default is 0.
         plot_dim_y (int): Dimension to plot on the y-axis. Note that the dimensions are zero-indexed. To plot the second
-            dimension set plot_dim_y = 1.
+            dimension set plot_dim_y = 1. Default is 1.
     """
 
     # Dataset related
@@ -102,7 +104,7 @@ class PandoraConfig:
     seed: int = int(datetime.datetime.now().timestamp())
     threads: int = multiprocessing.cpu_count()
     result_decimals: int = 2
-    verbosity: int = 2
+    verbosity: int = 1
 
     # Plot settings
     plot_results: bool = False

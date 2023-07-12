@@ -11,7 +11,6 @@ os.environ["OMP_NUM_THREADS"] = "1"
 os.environ["OPENBLAS_NUM_THREADS"] = "1"
 
 import argparse
-import datetime
 import sys
 import math
 
@@ -57,8 +56,6 @@ def main():
     # =======================================
     pandora_config = pandora_config_from_configfile(args.config)
 
-    # TODO: compare pandora_config with potentially existing config file and warn user if settings changed but redo was not set
-
     # set the log verbosity according to the pandora config
     logger.setLevel(pandora_config.loglevel)
 
@@ -91,7 +88,6 @@ def main():
     # initialize empty Pandora object that keeps track of all results
     pandora_results = Pandora(pandora_config)
 
-    # TODO: implement alternative MDS analysis
     # Run PCA on the input dataset without any bootstrapping
     pandora_results.do_pca()
 

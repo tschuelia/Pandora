@@ -1,7 +1,9 @@
 import dataclasses
+import datetime
 import itertools
 import logging
 import multiprocessing
+import pathlib
 import random
 import textwrap
 import statistics
@@ -18,50 +20,97 @@ from pandora.plotting import *
 
 @dataclasses.dataclass
 class PandoraConfig:
+    """
+    Dataclass encapsulating the settings required to run Pandora.
+
+    Attributes:
+        dataset_prefix (pathlib.Path): File path prefix pointing to the dataset to use for the Pandora analyses.
+        result_dir (pathlib.Path): File path where to store all (intermediate) results to.
+        file_format (FileFormat): Format of the input dataset.
+            Can be ANCESTRYMAP, EIGENSTRAT, PED, PACKEDPED, PACKEDANCESTRYMAP. Default is EIGENSTRAT.
+        convertf (Executable): File path pointing to an executable of Eigensoft's convertf tool. Convertf is used
+            if the provided dataset is not in EIGENSTRAT format. Default is 'convertf'. This will only work if
+            convertf is installed systemwide.
+        n_bootstraps (int): Number of bootstrap replicates to compute. Default is 100,
+        keep_bootstraps (bool): Whether to store all bootstrap datasets files (.geno, .snp, .ind). Note that this will
+            result in a substantial storage consumption. Default is False. Note that the bootstrapped indicies are
+            stored as checkpoints for full reproducibility in any case.
+        n_pcs (int): Number of Principal Components to output and compare for PCA analyses. Default is 20.
+        smartpca (Executable): File path pointing to an executable of Eigensoft's smartpca tool. Smartpca is used
+            for PCA analyses on the provided dataset. Default is 'smartpca'. This will only work if smartpca is
+            installed systemwide.
+        smartpca_optional_settings (Dict[str, str]): Optional additional settings to use when performing PCA with
+            smartpca. Pandora has full support for all smartpca options. Not allowed are the following options:
+            genotypename, snpname, indivname, evecoutname, evaloutname, numoutevec, maxpops.
+            Use the following schema to set the options: dict(shrinkmode=True, numoutlieriter=1)
+        embedding_populations (pathlib.Path): File containing a new-line separated list of population names.
+            Only these populations will be used for the dimensionality reduction. In case of PCA analyses, all remaining
+            samples in the dataset will be projected onto the PCA results.
+        support_value_rogue_cutoff (float): When plotting the support values, only samples with a support value lower
+            than the support_value_rogue_cutoff  will be annotated with their sample IDs.
+            Note that all samples in the respective plot are color-coded according to their support value in any case.
+            Default is 0.5.
+        kmeans_k (int): Number of clusters k to use for K-Means clustering of the dimensionality reduction embeddings.
+            If not set, the optimal number of clusters will be automatically determined according to the
+            Bayesian Information Criterion (BIC).
+        do_bootstrapping (bool): Whether to do the stability analysis using bootstrapping. Default is True.
+        redo (bool): Whether to rerun all analyses in case the results files from a previous run are already present.
+            Default is False.
+        seed (int): Seed to initialize the random number generator. This setting is recommended for reproducible
+            analyses. Default is the current unix timestamp.
+        threads (int): Number of threads to use for the analysis. Default is the number of CPUs available.
+        result_decimals (int): Number of decimals to round the stability scores and support values in the output.
+        verbosity (int): Verbosity of the output logging of Pandora.
+            0 = quiet, prints only errors and the results (loglevel = ERROR)
+            1 = verbose, prints all intermediate infos (loglevel = INFO)
+            2 = debug, prints intermediate infos and debug messages (loglevel = DEBUG)
+        plot_results (bool): Whether to plot all dimensionality reduction results and sample support values.
+            Default is False.
+        plot_dim_x (int): Dimension to plot on the x-axis. Note that the dimensions are zero-indexed. To plot the first
+            dimension set plot_dim_x = 0.
+        plot_dim_y (int): Dimension to plot on the y-axis. Note that the dimensions are zero-indexed. To plot the second
+            dimension set plot_dim_y = 1.
+    """
+
+    # Dataset related
     dataset_prefix: pathlib.Path
-    file_format: FileFormat
     result_dir: pathlib.Path
+    file_format: FileFormat = FileFormat.EIGENSTRAT
+    convertf: Executable = "convertf"
 
     # Bootstrap related settings
-    n_pcs: int
-    n_bootstraps: int
-    keep_bootstraps: bool
+    n_bootstraps: int = 100
+    keep_bootstraps: bool = False
 
     # PCA related
-    smartpca: Executable
-    convertf: Executable
-    smartpca_optional_settings: Dict[str, str]
+    n_pcs: int = 20
+    smartpca: Executable = "smartpca"
+    smartpca_optional_settings: Optional[Dict[str, str]] = None
+    embedding_populations: Optional[
+        pathlib.Path
+    ] = None  # list of populations to use for Embedding and later project the remaining populations on the Embedding
 
     # sample support values
-    support_value_rogue_cutoff: float
-    embedding_populations: Union[
-        pathlib.Path, None
-    ]  # list of populations to use for Embedding and later project the remaining the populations on the Embedding
+    support_value_rogue_cutoff: float = 0.5
 
     # Cluster settings
-    kmeans_k: Union[int, None]
+    kmeans_k: Optional[int] = None
 
     # Pandora execution mode settings
-    do_bootstrapping: bool
-    plot_results: bool
-    redo: bool
-    seed: int
-    threads: int
-    result_decimals: int
-    verbosity: int
+    do_bootstrapping: bool = True
+    redo: bool = False
+    seed: int = int(datetime.datetime.now().timestamp())
+    threads: int = multiprocessing.cpu_count()
+    result_decimals: int = 2
+    verbosity: int = 2
 
     # Plot settings
-    plot_pcx: int
-    plot_pcy: int
+    plot_results: bool = False
+    plot_dim_x: int = 0
+    plot_dim_y: int = 1
 
     def __post_init__(self):
-        # Create all required result directories
-        if self.do_bootstrapping:
-            self.bootstrap_result_dir.mkdir(exist_ok=True, parents=True)
-        if self.plot_results:
-            self.plot_dir.mkdir(exist_ok=True, parents=True)
-
-        self.result_file.unlink(missing_ok=True)
+        self.result_dir.mkdir(exist_ok=True, parents=True)
 
     @property
     def pandora_logfile(self) -> pathlib.Path:
@@ -191,6 +240,7 @@ class Pandora:
         self.sample_support_values: pd.DataFrame = pd.DataFrame()
 
     def do_pca(self):
+        self.pandora_config.result_dir.mkdir(exist_ok=True, parents=True)
         logger.info(fmt_message("Running SmartPCA on the input dataset."))
         self.dataset.smartpca(
             result_dir=self.pandora_config.result_dir,
@@ -201,14 +251,15 @@ class Pandora:
         )
 
         if self.pandora_config.plot_results:
+            self.pandora_config.plot_dir.mkdir(exist_ok=True, parents=True)
             logger.info(fmt_message("Plotting SmartPCA results for the input dataset."))
             self._plot_dataset()
 
     def _plot_pca(self, dataset: Dataset, plot_prefix: str):
         if dataset.pca is None:
             raise PandoraException("No PCA run for dataset yet. Nothing to plot.")
-        pcx = self.pandora_config.plot_pcx
-        pcy = self.pandora_config.plot_pcy
+        pcx = self.pandora_config.plot_dim_x
+        pcy = self.pandora_config.plot_dim_y
 
         # plot with annotated populations
         fig = plot_populations(dataset.pca, pcx, pcy)
@@ -253,6 +304,7 @@ class Pandora:
                 f"Drawing {self.pandora_config.n_bootstraps} bootstrapped datasets and running SmartPCA."
             )
         )
+        self.pandora_config.bootstrap_result_dir.mkdir(exist_ok=True, parents=True)
         random.seed(self.pandora_config.seed)
         args = [
             (
@@ -273,21 +325,13 @@ class Pandora:
         self._compare_bootstrap_similarity()
 
         if self.pandora_config.plot_results:
+            self.pandora_config.plot_dir.mkdir(exist_ok=True, parents=True)
             logger.info(fmt_message(f"Plotting bootstrap PCA results."))
             self._plot_bootstraps()
             self._plot_sample_support_values()
 
             if self.pandora_config.embedding_populations is not None:
                 self._plot_sample_support_values(projected_samples_only=True)
-
-    def _run_pca(self, bootstrap: Dataset):
-        bootstrap.smartpca(
-            smartpca=self.pandora_config.smartpca,
-            n_pcs=self.pandora_config.n_pcs,
-            redo=self.pandora_config.redo,
-            smartpca_optional_settings=self.pandora_config.smartpca_optional_settings,
-        )
-        return bootstrap
 
     def _bootstrap_pca(self, args):
         bootstrap_prefix, seed, redo = args
@@ -329,8 +373,8 @@ class Pandora:
                 "Support values are plotted using self.dataset.embedding, but PCA was not performed for self.dataset. "
                 "Make sure to run self.do_pca prior to plotting."
             )
-        pcx = self.pandora_config.plot_pcx
-        pcy = self.pandora_config.plot_pcy
+        pcx = self.pandora_config.plot_dim_x
+        pcy = self.pandora_config.plot_dim_y
 
         projected_samples = (
             self.dataset.projected_samples.sample_id.unique()
@@ -422,7 +466,7 @@ class Pandora:
             K-Means clustering: {_mean_kmeans} ± {_std_kmeans}"""
         )
 
-        self.pandora_config.result_file.open(mode="a").write(bootstrap_results_string)
+        self.pandora_config.result_file.open(mode="w").write(bootstrap_results_string)
         logger.info(bootstrap_results_string)
 
     def _log_support_values(self, title: str, support_values: pd.Series):
@@ -499,51 +543,23 @@ def pandora_config_from_configfile(configfile: pathlib.Path) -> PandoraConfig:
     config_data = yaml.safe_load(configfile.open())
 
     dataset_prefix = config_data.get("dataset_prefix")
-    result_dir = config_data.get("result_dir")
-
     if dataset_prefix is None:
         raise PandoraConfigException("No dataset_prefix set.")
+    else:
+        config_data["dataset_prefix"] = pathlib.Path(dataset_prefix)
+
+    result_dir = config_data.get("result_dir")
     if result_dir is None:
         raise PandoraConfigException("No result_dir set.")
+    else:
+        config_data["result_dir"] = pathlib.Path(result_dir)
 
     embedding_populations = config_data.get("embedding_populations")
     if embedding_populations is not None:
-        embedding_populations = pathlib.Path(embedding_populations)
+        config_data["embedding_populations"] = pathlib.Path(embedding_populations)
 
-    # fmt: off
-    return PandoraConfig(
-        dataset_prefix  = pathlib.Path(dataset_prefix),
-        file_format     = FileFormat(config_data.get("file_format", "EIGENSTRAT")),
-        result_dir      = pathlib.Path(result_dir),
+    file_format = config_data.get("file_format")
+    if file_format is not None:
+        config_data["file_format"] = FileFormat(file_format)
 
-        # Bootstrap related settings
-        n_pcs           = config_data.get("n_pcs", 20),
-        n_bootstraps    = config_data.get("n_bootstraps", 100),
-        keep_bootstraps = config_data.get("keep_bootstraps", False),
-
-        # PCA related
-        smartpca = config_data.get("smartpca", "smartpca"),
-        convertf = config_data.get("convertf", "convertf"),
-        smartpca_optional_settings = config_data.get("smartpca_optional_settings", {}),
-
-        # sample support values
-        support_value_rogue_cutoff = config_data.get("support_value_rogue_cutoff", 0.5),
-        embedding_populations= embedding_populations,
-
-        # Cluster settings
-        kmeans_k = config_data.get("kmeans_k", None),
-
-        # Pandora execution mode settings
-        do_bootstrapping    = config_data.get("bootstrap", True),
-        plot_results        = config_data.get("plot_results", False),
-        redo                = config_data.get("redo", False),
-        seed                = config_data.get("seed", 0),
-        threads             = config_data.get("threads", multiprocessing.cpu_count()),
-        result_decimals     = config_data.get("result_decimals", 2),
-        verbosity           = config_data.get("verbosity", 2),
-
-        # Plot settings
-        plot_pcx = config_data.get("plot_pcx", 0),
-        plot_pcy = config_data.get("plot_pcy", 1),
-    )
-    # fmt: on
+    return PandoraConfig(**config_data)

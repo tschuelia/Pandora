@@ -1,11 +1,13 @@
-import pytest
 import shutil
+
+import pytest
 import yaml
 
 from pandora.dataset import Dataset
 from pandora.embedding import *
 from pandora.pandora import PandoraConfig, pandora_config_from_configfile
-from .test_config import SMARTPCA, CONVERTF
+
+from .test_config import CONVERTF, SMARTPCA
 
 
 @pytest.fixture

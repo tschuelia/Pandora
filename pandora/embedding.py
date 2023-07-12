@@ -5,12 +5,12 @@ import math
 import numpy as np
 import pandas as pd
 from sklearn.cluster import KMeans
+from sklearn.manifold import MDS as sklearnMDS
 from sklearn.mixture import GaussianMixture
 from sklearn.model_selection import GridSearchCV
-from sklearn.manifold import MDS as sklearnMDS
 
-from pandora.custom_types import *
 from pandora.custom_errors import *
+from pandora.custom_types import *
 
 
 class Embedding:

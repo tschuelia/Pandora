@@ -1,20 +1,18 @@
-from __future__ import (
-    annotations,
-)  # allows type hint Dataset inside Dataset class
+from __future__ import annotations  # allows type hint Dataset inside Dataset class
 
 import pathlib
+import random
 import shutil
+import subprocess
 import tempfile
 import textwrap
-import subprocess
-import random
 
 import pandas as pd
 from sklearn.manifold import MDS as sklearnMDS
 
-from pandora.custom_types import *
 from pandora.custom_errors import *
-from pandora.embedding import PCA, from_smartpca, MDS, from_sklearn_mds
+from pandora.custom_types import *
+from pandora.embedding import MDS, PCA, from_sklearn_mds, from_smartpca
 
 
 def _check_geno_file(geno_file: pathlib.Path):

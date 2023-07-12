@@ -2,9 +2,9 @@ import warnings
 
 from plotly import graph_objects as go
 
-from pandora.custom_types import *
 from pandora.custom_errors import *
-from pandora.embedding import PCA, MDS, Embedding
+from pandora.custom_types import *
+from pandora.embedding import MDS, PCA, Embedding
 from pandora.embedding_comparison import EmbeddingComparison
 
 

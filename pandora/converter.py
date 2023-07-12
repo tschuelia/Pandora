@@ -1,9 +1,8 @@
-import textwrap
 import subprocess
+import textwrap
 
-from pandora.custom_types import *
 from pandora.custom_errors import *
-
+from pandora.custom_types import *
 
 FILE_SUFFIXES = {
     # Format: (geno, snp, ind)

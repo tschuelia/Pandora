@@ -1,6 +1,6 @@
-from __future__ import (
+from __future__ import (  # allows type hint EmbeddingComparison inside EmbeddingComparison class
     annotations,
-)  # allows type hint EmbeddingComparison inside EmbeddingComparison class
+)
 
 import warnings
 
@@ -10,9 +10,9 @@ from sklearn.metrics import fowlkes_mallows_score
 from sklearn.metrics.pairwise import euclidean_distances
 from sklearn.preprocessing import normalize
 
-from pandora.custom_types import *
 from pandora.custom_errors import *
-from pandora.embedding import PCA, MDS, Embedding
+from pandora.custom_types import *
+from pandora.embedding import MDS, PCA, Embedding
 
 
 def filter_samples(embedding: Embedding, samples_to_keep: List[str]) -> Embedding:

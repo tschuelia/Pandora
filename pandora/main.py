@@ -11,12 +11,12 @@ os.environ["OMP_NUM_THREADS"] = "1"
 os.environ["OPENBLAS_NUM_THREADS"] = "1"
 
 import argparse
-import sys
 import math
+import sys
 
 from pandora import __version__
-from pandora.pandora import *
 from pandora.logger import *
+from pandora.pandora import *
 
 
 def get_header():

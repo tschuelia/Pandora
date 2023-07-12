@@ -1,6 +1,7 @@
+import pathlib
+
 import numpy as np
 import pandas as pd
-import pathlib
 import pytest
 
 from pandora.custom_errors import PandoraException

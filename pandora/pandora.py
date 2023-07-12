@@ -5,8 +5,8 @@ import logging
 import multiprocessing
 import pathlib
 import random
-import textwrap
 import statistics
+import textwrap
 from multiprocessing import Pool
 
 import yaml
@@ -14,7 +14,7 @@ import yaml
 from pandora import __version__
 from pandora.converter import run_convertf
 from pandora.dataset import Dataset, smartpca_finished
-from pandora.logger import logger, fmt_message
+from pandora.logger import fmt_message, logger
 from pandora.plotting import *
 
 

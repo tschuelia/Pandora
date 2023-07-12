@@ -6,4 +6,4 @@ seed: 42
 plot_results: True
 kmeans_k: 2
 smartpca_optional_settings:
-  numoutlieriter: 0g
+  numoutlieriter: 0

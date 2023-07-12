@@ -75,16 +75,13 @@ def test_plot_support_values_with_different_sample_sets_issues_warnings():
         2,
         np.asarray([0.0, 0.0]),
     )
-    support_values = pd.Series(
-        [0.0, 0.3], index=["sample1", "sample2"]
-    )
+    support_values = pd.Series([0.0, 0.3], index=["sample1", "sample2"])
 
     with pytest.warns(
         UserWarning,
         match=r"Not all samples in embedding.embedding data have a support value in sample_support_values.[\s\w{:'.]+sample3",
     ):
         plot_support_values(pca, support_values)
-
 
 
 def test_plot_support_values_with_disjoint_sample_ids_raises_pandora_exception():

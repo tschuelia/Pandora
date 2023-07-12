@@ -5,7 +5,7 @@ import shutil
 
 from pandora.dataset import *
 from pandora.dataset import _deduplicate_snp_id
-from pandora.dimensionality_reduction import PCA
+from pandora.embedding import PCA
 
 
 class TestDataset:

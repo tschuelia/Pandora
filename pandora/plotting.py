@@ -4,8 +4,8 @@ from plotly import graph_objects as go
 
 from pandora.custom_types import *
 from pandora.custom_errors import *
-from pandora.dimensionality_reduction import PCA, MDS, Embedding
-from pandora.dimensionality_reduction_comparison import EmbeddingComparison
+from pandora.embedding import PCA, MDS, Embedding
+from pandora.embedding_comparison import EmbeddingComparison
 
 
 def get_distinct_colors(n_colors: int) -> List[str]:

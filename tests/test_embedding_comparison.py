@@ -1,8 +1,8 @@
 import pytest
 from numpy import testing
 
-from pandora.dimensionality_reduction_comparison import *
-from pandora.dimensionality_reduction_comparison import _clip_missing_samples_for_comparison
+from pandora.embedding_comparison import *
+from pandora.embedding_comparison import _clip_missing_samples_for_comparison
 
 
 def test_match_and_transform_identical_pcas(pca_reference):

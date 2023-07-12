@@ -12,7 +12,7 @@ from sklearn.preprocessing import normalize
 
 from pandora.custom_types import *
 from pandora.custom_errors import *
-from pandora.dimensionality_reduction import PCA, MDS, Embedding
+from pandora.embedding import PCA, MDS, Embedding
 
 
 def filter_samples(embedding: Embedding, samples_to_keep: List[str]) -> Embedding:

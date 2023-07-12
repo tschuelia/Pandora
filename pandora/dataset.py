@@ -14,7 +14,7 @@ from sklearn.manifold import MDS as sklearnMDS
 
 from pandora.custom_types import *
 from pandora.custom_errors import *
-from pandora.dimensionality_reduction import PCA, from_smartpca, MDS, from_sklearn_mds
+from pandora.embedding import PCA, from_smartpca, MDS, from_sklearn_mds
 
 
 def _check_geno_file(geno_file: pathlib.Path):

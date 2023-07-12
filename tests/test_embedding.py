@@ -4,7 +4,7 @@ import pathlib
 import pytest
 
 from pandora.custom_errors import PandoraException
-from pandora.dimensionality_reduction import *
+from pandora.embedding import *
 
 
 class TestPCA:

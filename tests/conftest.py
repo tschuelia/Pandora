@@ -3,7 +3,7 @@ import shutil
 import yaml
 
 from pandora.dataset import Dataset
-from pandora.dimensionality_reduction import *
+from pandora.embedding import *
 from pandora.pandora import PandoraConfig, pandora_config_from_configfile
 from .test_config import SMARTPCA, CONVERTF
 

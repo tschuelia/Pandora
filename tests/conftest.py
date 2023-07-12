@@ -93,23 +93,31 @@ def pca_comparable_with_different_sample_ids(pca_reference) -> PCA:
 
 @pytest.fixture
 def pca_reference_and_comparable_with_score_lower_than_one() -> Tuple[PCA, PCA]:
-    pca1 = PCA(pd.DataFrame(
-        data={
-            "sample_id": ["sample1", "sample2", "sample3"],
-            "population": ["population1", "population2", "population3"],
-            "D0": [1, 2, 3],
-            "D1": [1, 2, 3],
-        }
-    ), 2, np.asarray([0.0, 0.0]))
+    pca1 = PCA(
+        pd.DataFrame(
+            data={
+                "sample_id": ["sample1", "sample2", "sample3"],
+                "population": ["population1", "population2", "population3"],
+                "D0": [1, 2, 3],
+                "D1": [1, 2, 3],
+            }
+        ),
+        2,
+        np.asarray([0.0, 0.0]),
+    )
 
-    pca2 = PCA(pd.DataFrame(
-        data={
-            "sample_id": ["sample1", "sample2", "sample3"],
-            "population": ["population1", "population2", "population3  "],
-            "D0": [1, 1, 2],
-            "D1": [1, 2, 1],
-        }
-    ), 2, np.asarray([0.0, 0.0]))
+    pca2 = PCA(
+        pd.DataFrame(
+            data={
+                "sample_id": ["sample1", "sample2", "sample3"],
+                "population": ["population1", "population2", "population3  "],
+                "D0": [1, 1, 2],
+                "D1": [1, 2, 1],
+            }
+        ),
+        2,
+        np.asarray([0.0, 0.0]),
+    )
 
     return pca1, pca2
 

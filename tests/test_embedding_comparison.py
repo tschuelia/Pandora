@@ -74,8 +74,11 @@ class TestEmbeddingComparison:
                 continue
             reflected_pca_data[col] *= -1
 
-        pca_reflected = PCA(embedding=reflected_pca_data, n_components=pca_reference.n_components,
-                            explained_variances=pca_reference.explained_variances)
+        pca_reflected = PCA(
+            embedding=reflected_pca_data,
+            n_components=pca_reference.n_components,
+            explained_variances=pca_reference.explained_variances,
+        )
 
         comparison = EmbeddingComparison(pca_reflected, pca_reference)
 
@@ -89,8 +92,11 @@ class TestEmbeddingComparison:
                 continue
             reflected_pca_data[col] += 1
 
-        pca_shifted = PCA(embedding=shifted_pca_data, n_components=pca_reference.n_components,
-                          explained_variances=pca_reference.explained_variances)
+        pca_shifted = PCA(
+            embedding=shifted_pca_data,
+            n_components=pca_reference.n_components,
+            explained_variances=pca_reference.explained_variances,
+        )
 
         comparison = EmbeddingComparison(pca_shifted, pca_reference)
 
@@ -109,13 +115,18 @@ class TestEmbeddingComparison:
                 "D1": rotated_embedding_vector[:, 1],
             }
         )
-        pca_rotated = PCA(embedding=pca_data_rotated, n_components=pca_reference.n_components,
-                          explained_variances=pca_reference.explained_variances)
+        pca_rotated = PCA(
+            embedding=pca_data_rotated,
+            n_components=pca_reference.n_components,
+            explained_variances=pca_reference.explained_variances,
+        )
 
         comparison = EmbeddingComparison(pca_rotated, pca_reference)
         assert comparison.compare() == pytest.approx(1.0, abs=1e-6)
 
-    def test_compare_with_manually_computed_score(self, pca_reference_and_comparable_with_score_lower_than_one):
+    def test_compare_with_manually_computed_score(
+        self, pca_reference_and_comparable_with_score_lower_than_one
+    ):
         pca1, pca2 = pca_reference_and_comparable_with_score_lower_than_one
 
         comparison = EmbeddingComparison(pca1, pca2)

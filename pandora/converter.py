@@ -15,7 +15,9 @@ FILE_SUFFIXES = {
 }
 
 
-def get_filenames(prefix: pathlib.Path, file_format: FileFormat) -> Tuple[pathlib.Path, pathlib.Path, pathlib.Path]:
+def get_filenames(
+    prefix: pathlib.Path, file_format: FileFormat
+) -> Tuple[pathlib.Path, pathlib.Path, pathlib.Path]:
     """
     Constructs the triple of file names for the geno, snp, and ind files for the given data format.
     For a list of expected file endings see the Pandora wiki on GitHub.
@@ -74,9 +76,9 @@ def run_convertf(
                    snpname: {snp_in}
                    indivname: {ind_in}
                    outputformat: {out_format.value}
-                   genotypeoutname: {geno_out} 
-                   snpoutname: {snp_out} 
-                   indivoutname: {ind_out} 
+                   genotypeoutname: {geno_out}
+                   snpoutname: {snp_out}
+                   indivoutname: {ind_out}
                    """
     convertf_par.open(mode="w").write(textwrap.dedent(conversion_content))
 

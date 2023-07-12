@@ -20,7 +20,12 @@ class TestDataset:
         assert samples.shape[0] == 5
         # samples should have 4 columns: sample_id, sex, population, used_for_embedding
         assert samples.shape[1] == 4
-        assert set(samples.columns) == {"sample_id", "sex", "population", "used_for_embedding"}
+        assert set(samples.columns) == {
+            "sample_id",
+            "sex",
+            "population",
+            "used_for_embedding",
+        }
 
         # this dataset has a population list, so some samples should not be used_for_embedding
         assert not samples.used_for_embedding.all()
@@ -42,7 +47,9 @@ class TestDatasetBootstrap:
         with tempfile.TemporaryDirectory() as tmpdir:
             tmpdir = pathlib.Path(tmpdir)
             bootstrap_prefix = tmpdir / "bootstrap"
-            bootstrap = example_dataset.create_bootstrap(bootstrap_prefix, seed=seed, redo=True)
+            bootstrap = example_dataset.create_bootstrap(
+                bootstrap_prefix, seed=seed, redo=True
+            )
 
             # check that the number of lines is correct
             bs_ind_count = sum(1 for _ in bootstrap.ind_file.open())
@@ -66,7 +73,9 @@ class TestDatasetBootstrap:
             bootstrap_prefix = tmpdir / "bootstrap"
             _ = example_dataset.create_bootstrap(bootstrap_prefix, seed=42, redo=True)
             # do bootstrap again and check if the files are correctly redone
-            bootstrap = example_dataset.create_bootstrap(bootstrap_prefix, seed=42, redo=True)
+            bootstrap = example_dataset.create_bootstrap(
+                bootstrap_prefix, seed=42, redo=True
+            )
 
             # check that the number of lines is correct
             bs_ind_count = sum(1 for _ in bootstrap.ind_file.open())
@@ -94,12 +103,23 @@ class TestDatasetBootstrap:
             shutil.copy(example_dataset.geno_file, f"{bootstrap_prefix}.geno")
             shutil.copy(example_dataset.snp_file, f"{bootstrap_prefix}.snp")
 
-            bootstrap = example_dataset.create_bootstrap(bootstrap_prefix, seed=0, redo=False)
+            bootstrap = example_dataset.create_bootstrap(
+                bootstrap_prefix, seed=0, redo=False
+            )
 
             # compare example_dataset and bootstrap contents
-            assert example_dataset.ind_file.open().read() == bootstrap.ind_file.open().read()
-            assert example_dataset.geno_file.open().read() == bootstrap.geno_file.open().read()
-            assert example_dataset.snp_file.open().read() == bootstrap.snp_file.open().read()
+            assert (
+                example_dataset.ind_file.open().read()
+                == bootstrap.ind_file.open().read()
+            )
+            assert (
+                example_dataset.geno_file.open().read()
+                == bootstrap.geno_file.open().read()
+            )
+            assert (
+                example_dataset.snp_file.open().read()
+                == bootstrap.snp_file.open().read()
+            )
 
             # check that all files are correctly formatted
             bootstrap.check_files()
@@ -113,7 +133,9 @@ class TestDatasetBootstrap:
         with tempfile.TemporaryDirectory() as tmpdir:
             tmpdir = pathlib.Path(tmpdir)
             bootstrap_prefix = tmpdir / "bootstrap"
-            bootstrap = example_dataset.create_bootstrap(bootstrap_prefix, seed=seed, redo=True)
+            bootstrap = example_dataset.create_bootstrap(
+                bootstrap_prefix, seed=seed, redo=True
+            )
 
             bootstrap_backup_prefix = tmpdir / "backup"
             backup_ind = pathlib.Path(f"{bootstrap_backup_prefix}.ind")
@@ -134,7 +156,9 @@ class TestDatasetBootstrap:
 
             # rerun the bootstrap, this time use a different seed to reduce the chance of creating identical
             # files randomly
-            bootstrap = example_dataset.create_bootstrap(bootstrap_prefix, seed=seed + 1, redo=False)
+            bootstrap = example_dataset.create_bootstrap(
+                bootstrap_prefix, seed=seed + 1, redo=False
+            )
 
             # compare the file contents to make sure the checkpoint was actually used
             assert backup_ind.open().read() == bootstrap.ind_file.open().read()
@@ -181,14 +205,16 @@ class TestDatasetSmartPCA:
 
     def test_smartpca_with_additional_settings(self, smartpca, example_dataset):
         n_pcs = 2
-        smartpca_settings = {
-            "numoutlieriter": 0,
-            "shrinkmode": True
-        }
+        smartpca_settings = {"numoutlieriter": 0, "shrinkmode": True}
         with tempfile.TemporaryDirectory() as result_dir:
             assert example_dataset.pca is None
             result_dir = pathlib.Path(result_dir)
-            example_dataset.smartpca(smartpca, n_pcs, result_dir, smartpca_optional_settings=smartpca_settings)
+            example_dataset.smartpca(
+                smartpca,
+                n_pcs,
+                result_dir,
+                smartpca_optional_settings=smartpca_settings,
+            )
             assert isinstance(example_dataset.pca, PCA)
 
     def test_smartpca_from_existing(self, smartpca, example_dataset):
@@ -218,5 +244,10 @@ class TestDatasetSmartPCA:
         with tempfile.TemporaryDirectory() as result_dir:
             assert example_dataset.pca is None
             result_dir = pathlib.Path(result_dir)
-            example_dataset.smartpca(smartpca, n_pcs, result_dir, smartpca_optional_settings=smartpca_settings)
+            example_dataset.smartpca(
+                smartpca,
+                n_pcs,
+                result_dir,
+                smartpca_optional_settings=smartpca_settings,
+            )
             assert isinstance(example_dataset.pca, PCA)

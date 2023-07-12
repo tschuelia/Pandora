@@ -30,14 +30,24 @@ def filter_samples(embedding: Embedding, samples_to_keep: List[str]) -> Embeddin
     embedding_data = embedding_data.loc[embedding_data.sample_id.isin(samples_to_keep)]
 
     if isinstance(embedding, PCA):
-        return PCA(embedding=embedding_data, n_components=embedding.n_components, explained_variances=embedding.explained_variances)
+        return PCA(
+            embedding=embedding_data,
+            n_components=embedding.n_components,
+            explained_variances=embedding.explained_variances,
+        )
     elif isinstance(embedding, MDS):
-        return MDS(embedding=embedding_data, n_components=embedding.n_components, stress=embedding.stress)
+        return MDS(
+            embedding=embedding_data,
+            n_components=embedding.n_components,
+            stress=embedding.stress,
+        )
     else:
         raise PandoraException(f"Unrecognized embedding type: {type(embedding)}.")
 
 
-def _check_sample_clipping(before_clipping: Embedding, after_clipping: Embedding) -> None:
+def _check_sample_clipping(
+    before_clipping: Embedding, after_clipping: Embedding
+) -> None:
     """
     Compares the number of samples prior to and after clipping. Will show a warning message in case more
     than 20% of samples were removed, indicating a potential major mismatch between the two PCAs.
@@ -85,7 +95,10 @@ def _clip_missing_samples_for_comparison(
     comparable_clipped = filter_samples(comparable, shared_samples)
     reference_clipped = filter_samples(reference, shared_samples)
 
-    assert comparable_clipped.embedding_matrix.shape == reference_clipped.embedding_matrix.shape
+    assert (
+        comparable_clipped.embedding_matrix.shape
+        == reference_clipped.embedding_matrix.shape
+    )
     # Issue a warning if we clip more than 20% of all samples of either Embedding
     # and fail if there are no samples lef
     _check_sample_clipping(comparable, comparable_clipped)
@@ -130,7 +143,9 @@ class EmbeddingComparison:
                 - if comparable and reference are not of the same type (e.g. one is PCA and the other MDS)
 
         """
-        if not isinstance(comparable, Embedding) or not isinstance(reference, Embedding):
+        if not isinstance(comparable, Embedding) or not isinstance(
+            reference, Embedding
+        ):
             raise PandoraException(
                 f"comparable and reference need to be Embedding objects. "
                 f"Instead got {type(comparable)} and {type(reference)}."
@@ -286,7 +301,9 @@ def _numpy_to_dataframe(
     return embedding_data
 
 
-def match_and_transform(comparable: Embedding, reference: Embedding) -> Tuple[Embedding, Embedding, float]:
+def match_and_transform(
+    comparable: Embedding, reference: Embedding
+) -> Tuple[Embedding, Embedding, float]:
     """
     Uses Procrustes Analysis to find a transformation matrix that most closely matches comparable to reference.
     and transforms comparable.
@@ -349,21 +366,35 @@ def match_and_transform(comparable: Embedding, reference: Embedding) -> Tuple[Em
     )
 
     if isinstance(reference, PCA) and isinstance(comparable, PCA):
-        standardized_reference = PCA(embedding=standardized_reference, n_components=reference.n_components,
-                                     explained_variances=reference.explained_variances)
+        standardized_reference = PCA(
+            embedding=standardized_reference,
+            n_components=reference.n_components,
+            explained_variances=reference.explained_variances,
+        )
 
-        transformed_comparable = PCA(embedding=transformed_comparable, n_components=comparable.n_components,
-                                     explained_variances=comparable.explained_variances)
+        transformed_comparable = PCA(
+            embedding=transformed_comparable,
+            n_components=comparable.n_components,
+            explained_variances=comparable.explained_variances,
+        )
 
     elif isinstance(reference, MDS) and isinstance(comparable, MDS):
-        standardized_reference = MDS(embedding=standardized_reference, n_components=reference.n_components,
-                                     stress=reference.stress)
+        standardized_reference = MDS(
+            embedding=standardized_reference,
+            n_components=reference.n_components,
+            stress=reference.stress,
+        )
 
-        transformed_comparable = MDS(embedding=transformed_comparable, n_components=comparable.n_components,
-                                     stress=comparable.stress)
+        transformed_comparable = MDS(
+            embedding=transformed_comparable,
+            n_components=comparable.n_components,
+            stress=comparable.stress,
+        )
 
     else:
-        raise PandoraException("comparable and reference need to be of type PCA or MDS.")
+        raise PandoraException(
+            "comparable and reference need to be of type PCA or MDS."
+        )
 
     if not all(
         standardized_reference.embedding.sample_id
@@ -374,5 +405,3 @@ def match_and_transform(comparable: Embedding, reference: Embedding) -> Tuple[Em
         )
 
     return standardized_reference, transformed_comparable, disparity
-
-

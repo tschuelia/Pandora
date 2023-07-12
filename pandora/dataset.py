@@ -380,7 +380,9 @@ class Dataset:
 
         self.pca = from_smartpca(evec_out, eval_out)
 
-    def _compute_fst_matrix(self, smartpca: Executable, fst_file: pathlib.Path, smartpca_log: pathlib.Path):
+    def _compute_fst_matrix(
+        self, smartpca: Executable, fst_file: pathlib.Path, smartpca_log: pathlib.Path
+    ):
         with tempfile.NamedTemporaryFile(mode="w") as tmpfile:
             smartpca_fst_params = f"""
                 genotypename: {self.geno_file}
@@ -409,7 +411,13 @@ class Dataset:
                         f"Check the smartPCA logfile {smartpca_log.absolute()} for details."
                     )
 
-    def run_mds(self, smartpca: Executable, n_components: int = 20, result_dir: Optional[pathlib.Path] = None, redo: bool = False) -> None:
+    def run_mds(
+        self,
+        smartpca: Executable,
+        n_components: int = 20,
+        result_dir: Optional[pathlib.Path] = None,
+        redo: bool = False,
+    ) -> None:
         if result_dir is None:
             result_dir = self.file_dir
 
@@ -424,7 +432,9 @@ class Dataset:
         with fst_file.open() as f:
             shape = int(f.readline())
             cols = [f"dist{i}" for i in range(shape)]
-            fst_results = pd.read_table(f, delimiter=" ", skipinitialspace=True, names=["_"] + cols)
+            fst_results = pd.read_table(
+                f, delimiter=" ", skipinitialspace=True, names=["_"] + cols
+            )
 
         # extract correct population names as smartpca truncates them in the output if they are too long
         populations = []
@@ -523,7 +533,9 @@ class Dataset:
 
         return Dataset(bootstrap_prefix, self.embedding_populations_file)
 
-    def _generate_windowed_dataset(self, window_start: int, window_end: int, result_prefix: pathlib.Path) -> Dataset:
+    def _generate_windowed_dataset(
+        self, window_start: int, window_end: int, result_prefix: pathlib.Path
+    ) -> Dataset:
         ind_file = pathlib.Path(f"{result_prefix}.ind")
         geno_file = pathlib.Path(f"{result_prefix}.geno")
         snp_file = pathlib.Path(f"{result_prefix}.snp")
@@ -545,7 +557,9 @@ class Dataset:
 
         return Dataset(result_prefix)
 
-    def get_windows(self, result_dir: pathlib.Path, n_windows: int = 100) -> List[Dataset]:
+    def get_windows(
+        self, result_dir: pathlib.Path, n_windows: int = 100
+    ) -> List[Dataset]:
         """
         Creates n_windows new Dataset objects as overlapping sliding windows over self.
         Let M = number of SNPs in self and N = n_windows.
@@ -574,6 +588,8 @@ class Dataset:
             window_prefix = pathlib.Path(f"{result_dir}/window_{i}")
             window_start = i * stride
             window_end = i * stride + window_size
-            windows.append(self._generate_windowed_dataset(window_start, window_end, window_prefix))
+            windows.append(
+                self._generate_windowed_dataset(window_start, window_end, window_prefix)
+            )
 
         return windows

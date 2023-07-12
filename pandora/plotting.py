@@ -406,7 +406,9 @@ def plot_support_values(
         )
 
     embedding = embedding.embedding.loc[lambda x: x.sample_id.isin(present_in_both)]
-    sample_support_values = sample_support_values.loc[lambda x: x.index.isin(present_in_both)]
+    sample_support_values = sample_support_values.loc[
+        lambda x: x.index.isin(present_in_both)
+    ]
 
     # to make sure we are annotating the correct support values for the correct embedding vectors, we explicitly sort
     # the embedding and support value data

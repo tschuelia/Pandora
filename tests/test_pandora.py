@@ -4,17 +4,23 @@ import pytest
 from pandora.pandora import *
 
 
-def test_pandora_config_from_configfile(pandora_test_config_file, pandora_test_config_yaml):
+def test_pandora_config_from_configfile(
+    pandora_test_config_file, pandora_test_config_yaml
+):
     pandora_config = pandora_config_from_configfile(pandora_test_config_file)
 
     # manually check some settings to make sure the yaml is correctly parsed into the PandoraConfig
-    assert str(pandora_config.dataset_prefix) == str(pandora_test_config_yaml.get("dataset_prefix"))
+    assert str(pandora_config.dataset_prefix) == str(
+        pandora_test_config_yaml.get("dataset_prefix")
+    )
     assert pandora_config.n_bootstraps == pandora_test_config_yaml.get("n_bootstraps")
     assert pandora_config.threads == pandora_test_config_yaml.get("threads")
 
 
 class TestPandoraConfig:
-    def test_get_configuration(self, pandora_test_config_file, pandora_test_config_yaml):
+    def test_get_configuration(
+        self, pandora_test_config_file, pandora_test_config_yaml
+    ):
         pandora_config = pandora_config_from_configfile(pandora_test_config_file)
 
         # make sure all settings in pandora_test_config_yaml are identical when exporting
@@ -39,7 +45,9 @@ class TestPandoraConfig:
             assert pandora_config.configfile.exists()
 
             # loading the data again should lead to identical settings
-            pandora_config_reload = pandora_config_from_configfile(pandora_config.configfile)
+            pandora_config_reload = pandora_config_from_configfile(
+                pandora_config.configfile
+            )
 
             for key, expected in pandora_config.get_configuration().items():
                 actual = pandora_config_reload.get_configuration().get(key)
@@ -66,7 +74,9 @@ class TestPandora:
         assert len(pandora.bootstrap_cluster_similarities) == 0
         assert pandora.sample_support_values.empty
 
-    def test_init_with_pca_populations(self, pandora_test_config_with_pca_populations, example_population_list):
+    def test_init_with_pca_populations(
+        self, pandora_test_config_with_pca_populations, example_population_list
+    ):
         pandora = Pandora(pandora_test_config_with_pca_populations)
 
         # check that the embedding_populations were initialized correctly
@@ -85,7 +95,9 @@ class TestPandora:
         # plot directory should contain two plots
         assert len(list(pandora.pandora_config.plot_dir.iterdir())) == 2
 
-    def test_do_pca_with_pca_populations(self, pandora_test_config_with_pca_populations):
+    def test_do_pca_with_pca_populations(
+        self, pandora_test_config_with_pca_populations
+    ):
         pandora = Pandora(pandora_test_config_with_pca_populations)
 
         assert pandora.dataset.pca is None

@@ -117,7 +117,12 @@ class PCA(Embedding):
         embedding_matrix: Numpy ndarray of shape (n_samples, n_components) containing the PCA result matrix.
     """
 
-    def __init__(self, embedding: pd.DataFrame, n_components: int, explained_variances: npt.NDArray[float]):
+    def __init__(
+        self,
+        embedding: pd.DataFrame,
+        n_components: int,
+        explained_variances: npt.NDArray[float],
+    ):
         """
         Initializes a new PCA object.
 
@@ -174,6 +179,7 @@ class MDS(Embedding):
             - embedding does not contain a "population" column
             - embedding does not contain (the correct amount of) D{i} columns
     """
+
     def __init__(self, embedding: pd.DataFrame, n_components: int, stress: float):
         self.stress = stress
         super().__init__(embedding, n_components)
@@ -275,19 +281,30 @@ def from_smartpca(evec: pathlib.Path, eval: pathlib.Path) -> PCA:
     # keep only the first n_components explained variances
     explained_variances = np.asarray(explained_variances[:n_pcs])
 
-    return PCA(embedding=pca_data, n_components=n_pcs, explained_variances=explained_variances)
+    return PCA(
+        embedding=pca_data, n_components=n_pcs, explained_variances=explained_variances
+    )
 
 
-def from_sklearn_mds(embedding: pd.DataFrame, sample_metadata: pd.DataFrame, stress: float) -> MDS:
+def from_sklearn_mds(
+    embedding: pd.DataFrame, sample_metadata: pd.DataFrame, stress: float
+) -> MDS:
     mds_data = []
     n_components = embedding.shape[1] - 1  # one column is 'populations'
 
     for idx, row in sample_metadata.iterrows():
-        embedding_vector = embedding.loc[lambda x: x.population.str.strip() == row.population.strip()]
-        assert embedding_vector.shape[0] == 1, f"Multiple/No MDS embeddings for population {row.population}. " \
-                                               f"Got {embedding_vector.shape[0]} rows but expected 1."
+        embedding_vector = embedding.loc[
+            lambda x: x.population.str.strip() == row.population.strip()
+        ]
+        assert embedding_vector.shape[0] == 1, (
+            f"Multiple/No MDS embeddings for population {row.population}. "
+            f"Got {embedding_vector.shape[0]} rows but expected 1."
+        )
         embedding_vector = embedding_vector.squeeze().to_list()
         mds_data.append([row.sample_id, *embedding_vector])
 
-    mds_data = pd.DataFrame(data=mds_data, columns=["sample_id", *[f"D{i}" for i in range(n_components)], "population"])
+    mds_data = pd.DataFrame(
+        data=mds_data,
+        columns=["sample_id", *[f"D{i}" for i in range(n_components)], "population"],
+    )
     return MDS(mds_data, n_components, stress)

@@ -48,7 +48,7 @@ class TestDatasetBootstrap:
         with tempfile.TemporaryDirectory() as tmpdir:
             tmpdir = pathlib.Path(tmpdir)
             bootstrap_prefix = tmpdir / "bootstrap"
-            bootstrap = example_dataset.create_bootstrap(
+            bootstrap = example_dataset.bootstrap(
                 bootstrap_prefix, seed=seed, redo=True
             )
 
@@ -72,11 +72,9 @@ class TestDatasetBootstrap:
         with tempfile.TemporaryDirectory() as tmpdir:
             tmpdir = pathlib.Path(tmpdir)
             bootstrap_prefix = tmpdir / "bootstrap"
-            _ = example_dataset.create_bootstrap(bootstrap_prefix, seed=42, redo=True)
+            _ = example_dataset.bootstrap(bootstrap_prefix, seed=42, redo=True)
             # do bootstrap again and check if the files are correctly redone
-            bootstrap = example_dataset.create_bootstrap(
-                bootstrap_prefix, seed=42, redo=True
-            )
+            bootstrap = example_dataset.bootstrap(bootstrap_prefix, seed=42, redo=True)
 
             # check that the number of lines is correct
             bs_ind_count = sum(1 for _ in bootstrap.ind_file.open())
@@ -104,9 +102,7 @@ class TestDatasetBootstrap:
             shutil.copy(example_dataset.geno_file, f"{bootstrap_prefix}.geno")
             shutil.copy(example_dataset.snp_file, f"{bootstrap_prefix}.snp")
 
-            bootstrap = example_dataset.create_bootstrap(
-                bootstrap_prefix, seed=0, redo=False
-            )
+            bootstrap = example_dataset.bootstrap(bootstrap_prefix, seed=0, redo=False)
 
             # compare example_dataset and bootstrap contents
             assert (
@@ -134,7 +130,7 @@ class TestDatasetBootstrap:
         with tempfile.TemporaryDirectory() as tmpdir:
             tmpdir = pathlib.Path(tmpdir)
             bootstrap_prefix = tmpdir / "bootstrap"
-            bootstrap = example_dataset.create_bootstrap(
+            bootstrap = example_dataset.bootstrap(
                 bootstrap_prefix, seed=seed, redo=True
             )
 
@@ -157,7 +153,7 @@ class TestDatasetBootstrap:
 
             # rerun the bootstrap, this time use a different seed to reduce the chance of creating identical
             # files randomly
-            bootstrap = example_dataset.create_bootstrap(
+            bootstrap = example_dataset.bootstrap(
                 bootstrap_prefix, seed=seed + 1, redo=False
             )
 
@@ -201,7 +197,7 @@ class TestDatasetSmartPCA:
         with tempfile.TemporaryDirectory() as result_dir:
             assert example_dataset.pca is None
             result_dir = pathlib.Path(result_dir)
-            example_dataset.smartpca(smartpca, n_pcs, result_dir)
+            example_dataset.run_pca(smartpca, n_pcs, result_dir)
             assert isinstance(example_dataset.pca, PCA)
 
     def test_smartpca_with_additional_settings(self, smartpca, example_dataset):
@@ -210,7 +206,7 @@ class TestDatasetSmartPCA:
         with tempfile.TemporaryDirectory() as result_dir:
             assert example_dataset.pca is None
             result_dir = pathlib.Path(result_dir)
-            example_dataset.smartpca(
+            example_dataset.run_pca(
                 smartpca,
                 n_pcs,
                 result_dir,
@@ -223,18 +219,18 @@ class TestDatasetSmartPCA:
         with tempfile.TemporaryDirectory() as result_dir:
             assert example_dataset.pca is None
             result_dir = pathlib.Path(result_dir)
-            example_dataset.smartpca(smartpca, n_pcs, result_dir)
+            example_dataset.run_pca(smartpca, n_pcs, result_dir)
             assert isinstance(example_dataset.pca, PCA)
 
             # rerun with redo=False to make sure loading from previous finished runs works
-            example_dataset.smartpca(smartpca, n_pcs, result_dir, redo=False)
+            example_dataset.run_pca(smartpca, n_pcs, result_dir, redo=False)
 
     def test_smartpca_with_poplist(self, smartpca, example_dataset_with_poplist):
         n_pcs = 2
         with tempfile.TemporaryDirectory() as result_dir:
             assert example_dataset_with_poplist.pca is None
             result_dir = pathlib.Path(result_dir)
-            example_dataset_with_poplist.smartpca(smartpca, n_pcs, result_dir)
+            example_dataset_with_poplist.run_pca(smartpca, n_pcs, result_dir)
             assert isinstance(example_dataset_with_poplist.pca, PCA)
 
     def test_smartpca_ignores_nonsense_setting(self, smartpca, example_dataset):
@@ -245,7 +241,7 @@ class TestDatasetSmartPCA:
         with tempfile.TemporaryDirectory() as result_dir:
             assert example_dataset.pca is None
             result_dir = pathlib.Path(result_dir)
-            example_dataset.smartpca(
+            example_dataset.run_pca(
                 smartpca,
                 n_pcs,
                 result_dir,

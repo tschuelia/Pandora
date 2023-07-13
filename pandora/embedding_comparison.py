@@ -2,6 +2,8 @@ from __future__ import (  # allows type hint EmbeddingComparison inside Embeddin
     annotations,
 )
 
+import itertools
+import statistics
 import warnings
 
 import pandas as pd
@@ -254,6 +256,61 @@ class EmbeddingComparison:
         rogue = support_values.loc[lambda x: (x < support_value_rogue_cutoff)]
 
         return rogue
+
+
+class BatchEmbeddingComparison:
+    def __init__(self, embeddings: List[Embedding]):
+        # TODO: check that all embeddings are of the same type
+        # TODO: check that there are at least three embeddings otherwise batch comparison does not make sense
+        self.embeddings = embeddings
+
+    def get_pairwise_stabilities(self) -> pd.DataFrame:
+        pairwise_stabilities = []
+        for (i1, embedding1), (i2, embedding2) in itertools.combinations(
+            enumerate(self.embeddings), r=2
+        ):
+            comparison = EmbeddingComparison(embedding1, embedding2)
+            pairwise_stabilities.append(
+                pd.Series([comparison.compare()], index=[(i1, i2)])
+            )
+
+        pairwise_stabilities = pd.concat(pairwise_stabilities)
+        pairwise_stabilities.name = "bootstrap_stability"
+        return pairwise_stabilities
+
+    def compare(self) -> Tuple[float, float]:
+        pairwise_stabilities = self.get_pairwise_stabilities()
+        return pairwise_stabilities.mean(), pairwise_stabilities.std()
+
+    def get_pairwise_cluster_stabilities(self, kmeans_k: int) -> pd.DataFrame:
+        pairwise_cluster_stabilities = []
+        for (i1, embedding1), (i2, embedding2) in itertools.combinations(
+            enumerate(self.embeddings), r=2
+        ):
+            comparison = EmbeddingComparison(embedding1, embedding2)
+            pairwise_cluster_stabilities.append(
+                pd.Series([comparison.compare_clustering(kmeans_k)], index=[(i1, i2)])
+            )
+
+        pairwise_cluster_stabilities = pd.concat(pairwise_cluster_stabilities)
+        pairwise_cluster_stabilities.name = "bootstrap_cluster_stability"
+        return pairwise_cluster_stabilities
+
+    def compare_clustering(self, kmeans_k: int) -> Tuple[float, float]:
+        pairwise_cluster_stabilities = self.get_pairwise_cluster_stabilities(kmeans_k)
+        return pairwise_cluster_stabilities.mean(), pairwise_cluster_stabilities.std()
+
+    def get_sample_support_values(self) -> pd.DataFrame:
+        sample_supports = []
+        for (i1, embedding1), (i2, embedding2) in itertools.combinations(
+            enumerate(self.embeddings), r=2
+        ):
+            comparison = EmbeddingComparison(embedding1, embedding2)
+            support_values = comparison.get_sample_support_values()
+            support_values.name = f"({i1}, {i2})"
+            sample_supports.append(support_values)
+
+        return pd.concat(sample_supports, axis=1)
 
 
 def _numpy_to_dataframe(

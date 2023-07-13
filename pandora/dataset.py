@@ -7,6 +7,7 @@ import subprocess
 import tempfile
 import textwrap
 
+import numpy as np
 import pandas as pd
 from sklearn.manifold import MDS as sklearnMDS
 
@@ -289,7 +290,7 @@ class Dataset:
         self.geno_file.unlink(missing_ok=True)
         self.snp_file.unlink(missing_ok=True)
 
-    def smartpca(
+    def run_pca(
         self,
         smartpca: Executable,
         n_pcs: int = 20,
@@ -451,7 +452,7 @@ class Dataset:
 
         self.mds = from_sklearn_mds(embedding, self.samples, mds.stress_)
 
-    def create_bootstrap(
+    def bootstrap(
         self, bootstrap_prefix: pathlib.Path, seed: int, redo: bool = False
     ) -> Dataset:
         """

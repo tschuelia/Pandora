@@ -9,11 +9,13 @@ import statistics
 import textwrap
 from multiprocessing import Pool
 
+import pandas as pd
 import yaml
 
 from pandora import __version__
 from pandora.converter import run_convertf
 from pandora.dataset import Dataset, smartpca_finished
+from pandora.embedding_comparison import BatchEmbeddingComparison
 from pandora.logger import fmt_message, logger
 from pandora.plotting import *
 
@@ -132,11 +134,7 @@ class PandoraConfig:
 
     @property
     def pairwise_bootstrap_result_file(self) -> pathlib.Path:
-        return self.result_dir / "pandora.bootstrap.txt"
-
-    @property
-    def sample_support_values_file(self) -> pathlib.Path:
-        return self.result_dir / "pandora.supportValues.txt"
+        return self.result_dir / "pandora.bootstrap.csv"
 
     @property
     def sample_support_values_csv(self) -> pathlib.Path:
@@ -218,7 +216,7 @@ class PandoraConfig:
                 f"> Pairwise bootstrap similarities: {self.pairwise_bootstrap_result_file.absolute()}"
             )
             logger.info(
-                f"> Sample Support values: {self.sample_support_values_file.absolute()}"
+                f"> Sample Support values: {self.sample_support_values_csv.absolute()}"
             )
 
             if self.embedding_populations is not None:
@@ -236,15 +234,20 @@ class Pandora:
             file_prefix=pandora_config.dataset_prefix,
             embedding_populations=pandora_config.embedding_populations,
         )
-        self.bootstrap_datasets: List[Dataset] = []
-        self.bootstrap_similarities: Dict[Tuple[int, int], float] = {}
-        self.bootstrap_cluster_similarities: Dict[Tuple[int, int], float] = {}
+        self.bootstraps: List[Dataset] = []
+
+        self.bootstrap_stabilities: pd.DataFrame = pd.DataFrame()
+        self.bootstrap_stability: Tuple[float, float] = None
+
+        self.bootstrap_cluster_stabilities: pd.DataFrame = pd.DataFrame()
+        self.bootstrap_cluster_stability: Tuple[float, float] = None
+
         self.sample_support_values: pd.DataFrame = pd.DataFrame()
 
     def do_pca(self):
         self.pandora_config.result_dir.mkdir(exist_ok=True, parents=True)
         logger.info(fmt_message("Running SmartPCA on the input dataset."))
-        self.dataset.smartpca(
+        self.dataset.run_pca(
             result_dir=self.pandora_config.result_dir,
             smartpca=self.pandora_config.smartpca,
             n_pcs=self.pandora_config.n_pcs,
@@ -317,7 +320,7 @@ class Pandora:
             for i in range(self.pandora_config.n_bootstraps)
         ]
         with Pool(self.pandora_config.threads) as p:
-            self.bootstrap_datasets = list(p.map(self._bootstrap_pca, args))
+            self.bootstraps = list(p.map(self._bootstrap_pca, args))
 
         # =======================================
         # Compare results
@@ -348,12 +351,10 @@ class Pandora:
             )
         else:
             # draw bootstrap dataset
-            bootstrap_dataset = self.dataset.create_bootstrap(
-                bootstrap_prefix, seed, redo
-            )
+            bootstrap_dataset = self.dataset.bootstrap(bootstrap_prefix, seed, redo)
 
         # run smartpca
-        bootstrap_dataset.smartpca(
+        bootstrap_dataset.run_pca(
             smartpca=self.pandora_config.smartpca,
             n_pcs=self.pandora_config.n_pcs,
             redo=self.pandora_config.redo,
@@ -366,7 +367,7 @@ class Pandora:
         return bootstrap_dataset
 
     def _plot_bootstraps(self):
-        for i, bootstrap in enumerate(self.bootstrap_datasets):
+        for i, bootstrap in enumerate(self.bootstraps):
             self._plot_pca(bootstrap, f"bootstrap_{i}")
 
     def _plot_sample_support_values(self, projected_samples_only: bool = False):
@@ -408,54 +409,31 @@ class Pandora:
         else:
             kmeans_k = self.dataset.pca.get_optimal_kmeans_k()
 
-        sample_supports = []
+        batch_comparison = BatchEmbeddingComparison([b.pca for b in self.bootstraps])
 
-        for (i1, bootstrap1), (i2, bootstrap2) in itertools.combinations(
-            enumerate(self.bootstrap_datasets), r=2
-        ):
-            pca_comparison = EmbeddingComparison(
-                comparable=bootstrap1.pca, reference=bootstrap2.pca
-            )
-            self.bootstrap_similarities[(i1, i2)] = pca_comparison.compare()
-            self.bootstrap_cluster_similarities[
-                (i1, i2)
-            ] = pca_comparison.compare_clustering(kmeans_k)
-
-            support_values = pca_comparison.get_sample_support_values()
-            support_values.name = f"({i1}, {i2})"
-            sample_supports.append(support_values)
-
-        self.sample_support_values = pd.concat(sample_supports, axis=1)
+        self.bootstrap_stability = batch_comparison.compare()
+        self.bootstrap_stabilities = batch_comparison.get_pairwise_stabilities()
+        self.bootstrap_cluster_stability = batch_comparison.compare_clustering(kmeans_k)
+        self.bootstrap_cluster_stabilities = (
+            batch_comparison.get_pairwise_cluster_stabilities(kmeans_k)
+        )
+        self.sample_support_values = batch_comparison.get_sample_support_values()
 
     def log_and_save_bootstrap_results(self):
-        if (
-            len(self.bootstrap_similarities) == 0
-            or len(self.bootstrap_cluster_similarities) == 0
-        ):
+        if self.bootstrap_stability is None or self.bootstrap_cluster_stability is None:
             raise PandoraException("No bootstrap results to log!")
 
         # store the pairwise results in a file
         _rd = self.pandora_config.result_decimals
 
-        with self.pandora_config.pairwise_bootstrap_result_file.open(mode="a") as f:
-            for (i1, i2), similarity in self.bootstrap_similarities.items():
-                cluster_similarity = self.bootstrap_cluster_similarities[(i1, i2)]
-
-                f.write(
-                    f"{i1}\t{i2}\t{round(similarity, _rd)}\t{round(cluster_similarity, _rd)}\n"
-                )
+        pairwise_stability_results = pd.concat(
+            [self.bootstrap_stabilities, self.bootstrap_cluster_stabilities], axis=1
+        )
+        pairwise_stability_results.to_csv(
+            self.pandora_config.pairwise_bootstrap_result_file
+        )
 
         # log the summary and save it in a file
-        _mean_pca = round(statistics.mean(self.bootstrap_similarities.values()), _rd)
-        _std_pca = round(statistics.stdev(self.bootstrap_similarities.values()), _rd)
-
-        _mean_kmeans = round(
-            statistics.mean(self.bootstrap_cluster_similarities.values()), _rd
-        )
-        _std_kmeans = round(
-            statistics.stdev(self.bootstrap_cluster_similarities.values()), _rd
-        )
-
         bootstrap_results_string = textwrap.dedent(
             f"""
             > Number of Bootstrap replicates computed: {self.pandora_config.n_bootstraps}
@@ -464,8 +442,8 @@ class Pandora:
             ------------------
             Bootstrapping Similarity
             ------------------
-            PCA: {_mean_pca} ± {_std_pca}
-            K-Means clustering: {_mean_kmeans} ± {_std_kmeans}"""
+            PCA: {round(self.bootstrap_stability[0], _rd)} ± {round(self.bootstrap_stability[1], _rd)}
+            K-Means clustering: {round(self.bootstrap_cluster_stability[0], _rd)} ± {round(self.bootstrap_cluster_stability[1], _rd)}"""
         )
 
         self.pandora_config.result_file.open(mode="w").write(bootstrap_results_string)
@@ -496,35 +474,20 @@ class Pandora:
         if len(self.sample_support_values) == 0:
             raise PandoraException("No bootstrap results to log!")
 
-        _rd = self.pandora_config.result_decimals
+        support_values = self.sample_support_values.copy()
+        support_values["mean"] = support_values.mean(axis=1)
+        support_values["stdev"] = support_values.std(axis=1)
 
-        all_samples_file = self.pandora_config.sample_support_values_file
-
-        with all_samples_file.open("w") as _all:
-            for sample_id, support in self.sample_support_values.mean(axis=1).items():
-                _all.write(f"{sample_id}\t{round(support, _rd)}\n")
+        support_values.to_csv(self.pandora_config.sample_support_values_csv)
 
         self._log_support_values("All Samples", self.sample_support_values.mean(axis=1))
-
-        # store all pairwise support values in a csv file in case someone want to explore it further
-        self.sample_support_values.to_csv(self.pandora_config.sample_support_values_csv)
 
         if self.dataset.projected_samples.empty:
             return
 
-        projected_samples_file = (
-            self.pandora_config.sample_support_values_projected_samples_file
-        )
-
-        projected_sample_support_values = self.sample_support_values.loc[
+        projected_support_values = self.sample_support_values.loc[
             lambda x: x.index.isin(self.dataset.projected_samples.sample_id.tolist())
         ]
-        with projected_samples_file.open("w") as _projected:
-            for sample_id, support in projected_sample_support_values.mean(
-                axis=1
-            ).items():
-                _projected.write(f"{sample_id}\t{round(support, _rd)}\n")
-
         self._log_support_values(
             "Projected Samples", projected_sample_support_values.mean(axis=1)
         )

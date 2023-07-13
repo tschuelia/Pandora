@@ -70,9 +70,9 @@ class TestPandora:
         assert pandora.dataset.files_exist()
 
         # bootstraps and similarities should be empty
-        assert len(pandora.bootstrap_datasets) == 0
-        assert len(pandora.bootstrap_similarities) == 0
-        assert len(pandora.bootstrap_cluster_similarities) == 0
+        assert len(pandora.bootstraps) == 0
+        assert len(pandora.bootstrap_stabilities) == 0
+        assert len(pandora.bootstrap_cluster_stabilities) == 0
         assert pandora.sample_support_values.empty
 
     def test_init_with_pca_populations(
@@ -122,11 +122,11 @@ class TestPandora:
         pandora.pandora_config.keep_bootstraps = True
         n_bootstraps_expected = pandora.pandora_config.n_bootstraps
 
-        assert len(pandora.bootstrap_datasets) == 0
+        assert len(pandora.bootstraps) == 0
 
         # for plotting we need the empirical PCA data
         pandora.do_pca()
         pandora.bootstrap_pcas()
 
-        assert len(pandora.bootstrap_datasets) == n_bootstraps_expected
-        assert all(isinstance(bs, Dataset) for bs in pandora.bootstrap_datasets)
+        assert len(pandora.bootstraps) == n_bootstraps_expected
+        assert all(isinstance(bs, Dataset) for bs in pandora.bootstraps)

@@ -1,3 +1,4 @@
+import pathlib
 import tempfile
 
 import pytest
@@ -29,10 +30,20 @@ class TestPandoraConfig:
 
         for key, expected in pandora_test_config_yaml.items():
             if isinstance(expected, str) and "/" in expected:
-                # File path, manually convert in order to compare
+                # file path, manually convert in order to compare
                 expected = str(pathlib.Path(expected).absolute())
             actual = pandora_config_export.get(key)
-            assert actual == expected, (key, (expected, actual))
+
+            if isinstance(expected, dict):
+                for k, v in expected.items():
+                    assert str(actual.get(k)) == str(v), (
+                        key,
+                        k,
+                        (str(actual.get(k)), str(v)),
+                    )
+                continue
+
+            assert actual == expected, (key, (actual, expected))
 
     def test_save_config(self, pandora_test_config_file):
         # make sure the export is valid yaml

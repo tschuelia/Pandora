@@ -7,23 +7,24 @@ import pathlib
 import random
 import statistics
 import textwrap
-from multiprocessing import Pool
 
 import pandas as pd
 import yaml
+from pydantic import NonNegativeInt, PositiveInt, ValidationError
+from pydantic.dataclasses import dataclass
 
 from pandora import __version__
 from pandora.converter import run_convertf
-from pandora.dataset import Dataset, smartpca_finished
+from pandora.dataset import Dataset, bootstrap_and_embed_multiple, smartpca_finished
 from pandora.embedding_comparison import BatchEmbeddingComparison
 from pandora.logger import fmt_message, logger
 from pandora.plotting import *
 
 
-@dataclasses.dataclass
+@dataclass
 class PandoraConfig:
     """
-    Dataclass encapsulating the settings required to run Pandora.
+    Pydantic dataclass encapsulating the settings required to run Pandora.
 
     Attributes:
         dataset_prefix (pathlib.Path): File path prefix pointing to the dataset to use for the Pandora analyses.
@@ -34,11 +35,11 @@ class PandoraConfig:
         convertf (Executable): File path pointing to an executable of Eigensoft's convertf tool. Convertf is used
             if the provided dataset is not in EIGENSTRAT format. Default is 'convertf'. This will only work if
             convertf is installed systemwide.
-        n_bootstraps (int): Number of bootstrap replicates to compute. Default is 100,
+        n_bootstraps (PositiveInt): Number of bootstrap replicates to compute. Default is 100,
         keep_bootstraps (bool): Whether to store all bootstrap datasets files (.geno, .snp, .ind). Note that this will
             result in a substantial storage consumption. Default is False. Note that the bootstrapped indicies are
             stored as checkpoints for full reproducibility in any case.
-        n_pcs (int): Number of Principal Components to output and compare for PCA analyses. Default is 20.
+        n_components (PositiveInt): Number of Principal Components to output and compare for PCA analyses. Default is 20.
         smartpca (Executable): File path pointing to an executable of Eigensoft's smartpca tool. Smartpca is used
             for PCA analyses on the provided dataset. Default is 'smartpca'. This will only work if smartpca is
             installed systemwide.
@@ -53,7 +54,7 @@ class PandoraConfig:
             than the support_value_rogue_cutoff  will be annotated with their sample IDs.
             Note that all samples in the respective plot are color-coded according to their support value in any case.
             Default is 0.5.
-        kmeans_k (int): Number of clusters k to use for K-Means clustering of the dimensionality reduction embeddings.
+        kmeans_k (PositiveInt): Number of clusters k to use for K-Means clustering of the dimensionality reduction embeddings.
             If not set, the optimal number of clusters will be automatically determined according to the
             Bayesian Information Criterion (BIC).
         do_bootstrapping (bool): Whether to do the stability analysis using bootstrapping. Default is True.
@@ -61,8 +62,8 @@ class PandoraConfig:
             Careful: this will overwrite existing results! Default is False.
         seed (int): Seed to initialize the random number generator. This setting is recommended for reproducible
             analyses. Default is the current unix timestamp.
-        threads (int): Number of threads to use for the analysis. Default is the number of CPUs available.
-        result_decimals (int): Number of decimals to round the stability scores and support values in the output.
+        threads (NonNegativeInt): Number of threads to use for the analysis. Default is the number of CPUs available.
+        result_decimals (NonNegativeInt): Number of decimals to round the stability scores and support values in the output.
             Default is two decimals.
         verbosity (int): Verbosity of the output logging of Pandora.
             0 = quiet, prints only errors and the results (loglevel = ERROR)
@@ -70,9 +71,9 @@ class PandoraConfig:
             2 = debug, prints intermediate infos and debug messages (loglevel = DEBUG)
         plot_results (bool): Whether to plot all dimensionality reduction results and sample support values.
             Default is False.
-        plot_dim_x (int): Dimension to plot on the x-axis. Note that the dimensions are zero-indexed. To plot the first
+        plot_dim_x (NonNegativeInt): Dimension to plot on the x-axis. Note that the dimensions are zero-indexed. To plot the first
             dimension set plot_dim_x = 0. Default is 0.
-        plot_dim_y (int): Dimension to plot on the y-axis. Note that the dimensions are zero-indexed. To plot the second
+        plot_dim_y (NonNegativeInt): Dimension to plot on the y-axis. Note that the dimensions are zero-indexed. To plot the second
             dimension set plot_dim_y = 1. Default is 1.
     """
 
@@ -83,11 +84,11 @@ class PandoraConfig:
     convertf: Executable = "convertf"
 
     # Bootstrap related settings
-    n_bootstraps: int = 100
+    n_bootstraps: NonNegativeInt = 100
     keep_bootstraps: bool = False
 
-    # PCA related
-    n_pcs: int = 20
+    # Embedding related
+    n_components: NonNegativeInt = 20
     smartpca: Executable = "smartpca"
     smartpca_optional_settings: Optional[Dict[str, str]] = None
     embedding_populations: Optional[
@@ -104,14 +105,14 @@ class PandoraConfig:
     do_bootstrapping: bool = True
     redo: bool = False
     seed: int = int(datetime.datetime.now().timestamp())
-    threads: int = multiprocessing.cpu_count()
-    result_decimals: int = 2
+    threads: PositiveInt = multiprocessing.cpu_count()
+    result_decimals: NonNegativeInt = 2
     verbosity: int = 1
 
     # Plot settings
     plot_results: bool = False
-    plot_dim_x: int = 0
-    plot_dim_y: int = 1
+    plot_dim_x: NonNegativeInt = 0
+    plot_dim_y: NonNegativeInt = 1
 
     def __post_init__(self):
         self.result_dir.mkdir(exist_ok=True, parents=True)
@@ -250,7 +251,7 @@ class Pandora:
         self.dataset.run_pca(
             result_dir=self.pandora_config.result_dir,
             smartpca=self.pandora_config.smartpca,
-            n_pcs=self.pandora_config.n_pcs,
+            n_components=self.pandora_config.n_components,
             redo=self.pandora_config.redo,
             smartpca_optional_settings=self.pandora_config.smartpca_optional_settings,
         )
@@ -309,18 +310,19 @@ class Pandora:
                 f"Drawing {self.pandora_config.n_bootstraps} bootstrapped datasets and running SmartPCA."
             )
         )
-        self.pandora_config.bootstrap_result_dir.mkdir(exist_ok=True, parents=True)
-        random.seed(self.pandora_config.seed)
-        args = [
-            (
-                self.pandora_config.bootstrap_result_dir / f"bootstrap_{i}",
-                random.randint(0, 1_000_000),
-                self.pandora_config.redo,
-            )
-            for i in range(self.pandora_config.n_bootstraps)
-        ]
-        with Pool(self.pandora_config.threads) as p:
-            self.bootstraps = list(p.map(self._bootstrap_pca, args))
+        self.bootstraps = bootstrap_and_embed_multiple(
+            self.dataset,
+            self.pandora_config.n_bootstraps,
+            self.pandora_config.bootstrap_result_dir,
+            self.pandora_config.smartpca,
+            self.pandora_config.seed,
+            "pca",  # TODO: config param mit pca oder mds
+            self.pandora_config.threads,
+            self.pandora_config.n_components,
+            self.pandora_config.redo,
+            self.pandora_config.keep_bootstraps,
+            self.pandora_config.smartpca_optional_settings,
+        )
 
         # =======================================
         # Compare results
@@ -337,34 +339,6 @@ class Pandora:
 
             if self.pandora_config.embedding_populations is not None:
                 self._plot_sample_support_values(projected_samples_only=True)
-
-    def _bootstrap_pca(self, args):
-        bootstrap_prefix, seed, redo = args
-        if smartpca_finished(self.pandora_config.n_pcs, bootstrap_prefix):
-            # SmartPCA results are present and correct
-            # Thus we initialize a bootstrap dataset manually using the correct prefix
-            # We still need to call .smartpca later on to make sure bootstrap_dataset.embedding is set properly
-            bootstrap_dataset = Dataset(
-                bootstrap_prefix,
-                self.dataset.embedding_populations_file,
-                self.dataset.samples,
-            )
-        else:
-            # draw bootstrap dataset
-            bootstrap_dataset = self.dataset.bootstrap(bootstrap_prefix, seed, redo)
-
-        # run smartpca
-        bootstrap_dataset.run_pca(
-            smartpca=self.pandora_config.smartpca,
-            n_pcs=self.pandora_config.n_pcs,
-            redo=self.pandora_config.redo,
-            smartpca_optional_settings=self.pandora_config.smartpca_optional_settings,
-        )
-
-        if not self.pandora_config.keep_bootstraps:
-            bootstrap_dataset.remove_input_files()
-
-        return bootstrap_dataset
 
     def _plot_bootstraps(self):
         for i, bootstrap in enumerate(self.bootstraps):
@@ -408,6 +382,9 @@ class Pandora:
             kmeans_k = self.pandora_config.kmeans_k
         else:
             kmeans_k = self.dataset.pca.get_optimal_kmeans_k()
+
+        if len(self.bootstraps) == 0:
+            raise PandoraException("No bootstrap replicates to compare!")
 
         batch_comparison = BatchEmbeddingComparison([b.pca for b in self.bootstraps])
 
@@ -527,4 +504,19 @@ def pandora_config_from_configfile(configfile: pathlib.Path) -> PandoraConfig:
     if file_format is not None:
         config_data["file_format"] = FileFormat(file_format)
 
-    return PandoraConfig(**config_data)
+    try:
+        return PandoraConfig(**config_data)
+    except TypeError as e:
+        raise PandoraConfigException(
+            "Got an unrecognized init argument for PandoraConfig. Make sure you are only passing "
+            "parameters specified in the Pandora wiki and don't have any spelling errors!",
+            e.args,
+        )
+    except ValidationError as e:
+        error_msg = ""
+        for error in e.errors():
+            error_msg += f"{error['loc']}: {error['msg']}; "
+        raise PandoraConfigException(
+            "Initialzing Pandora from your config file failed! Got the following error(s): ",
+            error_msg,
+        )

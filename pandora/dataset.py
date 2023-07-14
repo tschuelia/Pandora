@@ -6,9 +6,11 @@ import shutil
 import subprocess
 import tempfile
 import textwrap
+from multiprocessing import Pool
 
 import numpy as np
 import pandas as pd
+from sklearn.decomposition import PCA as sklearnPCA
 from sklearn.manifold import MDS as sklearnMDS
 
 from pandora.custom_errors import *
@@ -293,7 +295,7 @@ class Dataset:
     def run_pca(
         self,
         smartpca: Executable,
-        n_pcs: int = 20,
+        n_components: int = 20,
         result_dir: Optional[pathlib.Path] = None,
         redo: bool = False,
         smartpca_optional_settings: Optional[Dict] = None,
@@ -305,7 +307,7 @@ class Dataset:
 
         Args:
             smartpca (Executable):
-            n_pcs (int): Number of principal components to output. Default is 20.
+            n_components (int): Number of principal components to output. Default is 20.
             result_dir (Optional[pathlib.Path]): File path pointing where to write the results to.
                 Default is the directory where all input files are.
             redo (bool): Whether to redo the analysis, if all outfiles are already present and correct.
@@ -324,7 +326,7 @@ class Dataset:
         # check whether the all required output files are already present
         # and whether the smartPCA run finished properly and the number of PCs matches the requested number of PCs
 
-        if smartpca_finished(n_pcs, result_dir / self.name) and not redo:
+        if smartpca_finished(n_components, result_dir / self.name) and not redo:
             self.pca = from_smartpca(evec_out, eval_out)
             return
 
@@ -344,7 +346,7 @@ class Dataset:
                 indivname: {self.ind_file}
                 evecoutname: {evec_out}
                 evaloutname: {eval_out}
-                numoutevec: {n_pcs}
+                numoutevec: {n_components}
                 maxpops: {self.samples.population.unique().shape[0]}
                 """
 
@@ -494,7 +496,7 @@ class Dataset:
             bootstrap_snp_indices = [int(v) for v in indices.split(",")]
         else:
             random.seed(seed)
-            bootstrap_snp_indices = sorted(random.choices(range(num_snps), k=num_snps))
+            bootstrap_snp_indices = random.choices(range(num_snps), k=num_snps)
 
             # store random seed and selected SNP indices as checkpoint for reproducibility
             with ckp_file.open("w") as f:
@@ -592,3 +594,155 @@ class Dataset:
             )
 
         return windows
+
+
+def _bootstrap_and_embed(args):
+    (
+        dataset,
+        bootstrap_prefix,
+        smartpca,
+        seed,
+        embedding,
+        n_components,
+        redo,
+        keep_bootstraps,
+        smartpca_optional_settings,
+    ) = args
+    if embedding == "pca":
+        if smartpca_finished(n_components, bootstrap_prefix):
+            bootstrap = Dataset(
+                bootstrap_prefix, dataset.embedding_populations_file, dataset.samples
+            )
+        else:
+            bootstrap = dataset.bootstrap(bootstrap_prefix, seed, redo)
+        bootstrap.run_pca(
+            smartpca=smartpca,
+            n_components=n_components,
+            redo=redo,
+            smartpca_optional_settings=smartpca_optional_settings,
+        )
+    elif embedding == "mds":
+        bootstrap = dataset.bootstrap(bootstrap_prefix, seed, redo)
+        bootstrap.run_mds(smartpca=smartpca, n_components=n_components, redo=redo)
+    else:
+        raise PandoraException(
+            f"Unrecognized embedding option {embedding}. Supported are 'pca' and 'mds'."
+        )
+    if not keep_bootstraps:
+        bootstrap.remove_input_files()
+    return bootstrap
+
+
+def bootstrap_and_embed_multiple(
+    dataset: Dataset,
+    n_bootstraps: int,
+    result_dir: pathlib.Path,
+    smartpca: Executable,
+    seed: int,
+    embedding: str,
+    threads: int,
+    n_components: int = 20,
+    redo: bool = False,
+    keep_bootstraps: bool = False,
+    smartpca_optional_settings: Optional[Dict] = None,
+) -> List[Dataset]:
+    result_dir.mkdir(exist_ok=True, parents=True)
+    random.seed(seed)
+    args = [
+        (
+            dataset,
+            result_dir / f"bootstrap_{i}",
+            smartpca,
+            random.randint(0, 1_000_000),
+            embedding,
+            n_components,
+            redo,
+            keep_bootstraps,
+            smartpca_optional_settings,
+        )
+        for i in range(n_bootstraps)
+    ]
+    with Pool(threads) as p:
+        bootstraps = list(p.map(_bootstrap_and_embed, args))
+
+    return bootstraps
+
+
+class NumpyDataset:
+    def __init__(
+        self, input_data: npt.NDArray, sample_ids: pd.Series, populations: pd.Series
+    ):
+        if sample_ids.shape[0] != populations.shape[0]:
+            raise PandoraException(
+                f"Provide a population for each sample. Got {sample_ids.shape[0]} samples but {populations.shape[0]} populations."
+            )
+        self.input_data = input_data
+        self.sample_ids = sample_ids
+        self.populations = populations
+
+        self.pca: Union[None, PCA] = None
+        self.mds: Union[None, MDS] = None
+
+    def run_pca(self, n_components: int = 20) -> None:
+        pca = sklearnPCA(n_components)
+        embedding = pca.fit_transform(self.input_data)
+        embedding = pd.DataFrame(
+            data=embedding, columns=[f"D{i}" for i in range(n_components)]
+        )
+        embedding["sample_id"] = self.sample_ids
+        embedding["population"] = self.populations
+        self.pca = PCA(embedding, n_components, pca.explained_variance_ratio_)
+
+    def run_mds(
+        self,
+        n_components: int = 20,
+    ) -> None:
+        mds = sklearnMDS(n_components, dissimilarity="precomputed")
+        embedding = mds.fit_transform(self.input_data)
+        embedding = pd.DataFrame(
+            data=embedding, columns=[f"D{i}" for i in range(n_components)]
+        )
+        embedding["sample_id"] = self.sample_ids
+        embedding["population"] = self.populations
+        self.mds = MDS(embedding, n_components, mds.stress_)
+
+    def bootstrap(self, seed: int) -> NumpyDataset:
+        random.seed(seed)
+        num_snps = self.input_data.shape[1]
+        bootstrap_data = self.input_data[
+            :, np.random.choice(range(num_snps), size=num_snps)
+        ]
+        return NumpyDataset(bootstrap_data, self.sample_ids, self.populations)
+
+    def get_windows(self):
+        ...
+
+
+def _bootstrap_and_embed_numpy(args):
+    dataset, seed, embedding, n_components = args
+    bootstrap = dataset.bootstrap(seed)
+    if embedding == "pca":
+        bootstrap.run_pca(n_components)
+    elif embedding == "mds":
+        bootstrap.run_mds(n_components)
+
+    return bootstrap
+
+
+def bootstrap_and_embed_multiple_numpy(
+    dataset: NumpyDataset,
+    n_bootstraps: int,
+    seed: int,
+    embedding: str,
+    threads: int,
+    n_components: int = 20,
+):
+    random.seed(seed)
+    args = [
+        (dataset, random.randint(0, 1_000_000), embedding, n_components)
+        for _ in range(n_bootstraps)
+    ]
+    with Pool(threads) as p:
+        bootstraps = list(p.map(_bootstrap_and_embed_numpy, args))
+
+    return bootstraps

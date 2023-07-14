@@ -15,7 +15,11 @@ from pydantic.dataclasses import dataclass
 
 from pandora import __version__
 from pandora.converter import run_convertf
-from pandora.dataset import Dataset, bootstrap_and_embed_multiple, smartpca_finished
+from pandora.dataset import (
+    EigenDataset,
+    bootstrap_and_embed_multiple,
+    smartpca_finished,
+)
 from pandora.embedding_comparison import BatchEmbeddingComparison
 from pandora.logger import fmt_message, logger
 from pandora.plotting import *
@@ -77,7 +81,7 @@ class PandoraConfig:
             dimension set plot_dim_y = 1. Default is 1.
     """
 
-    # Dataset related
+    # EigenDataset related
     dataset_prefix: pathlib.Path
     result_dir: pathlib.Path
     file_format: FileFormat = FileFormat.EIGENSTRAT
@@ -231,11 +235,11 @@ class PandoraConfig:
 class Pandora:
     def __init__(self, pandora_config: PandoraConfig):
         self.pandora_config: PandoraConfig = pandora_config
-        self.dataset: Dataset = Dataset(
+        self.dataset: EigenDataset = EigenDataset(
             file_prefix=pandora_config.dataset_prefix,
             embedding_populations=pandora_config.embedding_populations,
         )
-        self.bootstraps: List[Dataset] = []
+        self.bootstraps: List[EigenDataset] = []
 
         self.bootstrap_stabilities: pd.DataFrame = pd.DataFrame()
         self.bootstrap_stability: Tuple[float, float] = None
@@ -261,7 +265,7 @@ class Pandora:
             logger.info(fmt_message("Plotting SmartPCA results for the input dataset."))
             self._plot_dataset()
 
-    def _plot_pca(self, dataset: Dataset, plot_prefix: str):
+    def _plot_pca(self, dataset: EigenDataset, plot_prefix: str):
         if dataset.pca is None:
             raise PandoraException("No PCA run for dataset yet. Nothing to plot.")
         pcx = self.pandora_config.plot_dim_x
@@ -315,10 +319,10 @@ class Pandora:
             self.pandora_config.n_bootstraps,
             self.pandora_config.bootstrap_result_dir,
             self.pandora_config.smartpca,
-            self.pandora_config.seed,
             "pca",  # TODO: config param mit pca oder mds
-            self.pandora_config.threads,
             self.pandora_config.n_components,
+            self.pandora_config.seed,
+            self.pandora_config.threads,
             self.pandora_config.redo,
             self.pandora_config.keep_bootstraps,
             self.pandora_config.smartpca_optional_settings,

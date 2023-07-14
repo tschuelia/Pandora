@@ -1,5 +1,8 @@
-from __future__ import annotations  # allows type hint Dataset inside Dataset class
+from __future__ import (  # allows type hint EigenDataset inside EigenDataset class
+    annotations,
+)
 
+import multiprocessing
 import pathlib
 import random
 import shutil
@@ -183,29 +186,60 @@ def _deduplicate_snp_id(snp_id: str, seen_snps: Set[str]):
     return deduplicate
 
 
-class Dataset:
+class EigenDataset:
+    """Class structure to represent a population genetics dataset in Eigenstrat format.
+    This class provides methods to perform PCA and MDS analyses using the Eigensoft smartpca tool.
+    It further provides methods to generate a bootstrap replicate dataset (SNPs resampled with replacement) and
+    to generate overlapping sliding windows of sub-datasets.
+    Note that in order for the bootstrap and windowing methods to work, the respective geno, ind, and snp files need to
+    be in EIGENSTRAT format with a similar file prefix and need to have file endings `.geno`, `.ind`, and `.snp`.
+
+    Parameters:
+        file_prefix (pathlib.Path) File path prefix pointing to the ind, geno, and snp files in EIGENSTRAT format.
+            All methods assume that all three files have the same prefix and have the file endings
+            `.geno`, `.ind`, and `.snp`.
+        embedding_populations (optional, pathlib.Path): File path pointing to a newline separated file with a list of population
+            names. Only these populations will be used when running PCA with smartpca. All other samples will be
+            projected using the `lsqproject` option. Default is None.
+
+    Attributes:
+        file_prefix (pathlib.Path): File path prefix pointing to the ind, geno, and snp files in EIGENSTRAT format.
+            All methods assume that all three files have the same prefix and have the file endings
+            `.geno`, `.ind`, and `.snp`.
+        name (str): Name of the dataset. Inferred as name of the provided file_prefix.
+        embedding_populations (List[str]): List of population used for PCA analysis with smartpca.
+        samples (pd.DataFrame): Pandas dataframe containing metadata for each sample in the provided dataset.
+            The dataframe contains one row for each sample and the following columns:
+            * sample_id (str): ID of the sample
+            * sex (str): Sex of the sample
+            * population (str): Population of the sample
+            * used_for_embedding (bool): Whether this sample should be used for Embedding computation.
+                If embedding_populations is None, this column is True for all samples.
+        projected_samples (pd.DataFrame): Subset of self.samples, contains only samples where used_for_embedding == True
+        pca (PCA): PCA object as result of a smartpca run on the provided dataset.
+            This is None until self.run_pca() was called.
+        mds (MDS): MDS object as a result of an MDS computation. This is None until self.run_mds() was called.
+    """
+
     def __init__(
         self,
         file_prefix: pathlib.Path,
         embedding_populations: Optional[pathlib.Path] = None,
-        samples: pd.DataFrame = None,
     ):
-        # TODO: in Documentation muss stehen, dass dataset im EIGENSTRAT format erwartet wird sonst funktioniert bootstrapping nicht
         self.file_prefix: pathlib.Path = file_prefix
-        self.file_dir: pathlib.Path = self.file_prefix.parent
+        self._file_dir: pathlib.Path = self.file_prefix.parent
         self.name: str = self.file_prefix.name
 
-        self.ind_file: pathlib.Path = pathlib.Path(f"{self.file_prefix}.ind")
-        self.geno_file: pathlib.Path = pathlib.Path(f"{self.file_prefix}.geno")
-        self.snp_file: pathlib.Path = pathlib.Path(f"{self.file_prefix}.snp")
+        self._ind_file: pathlib.Path = pathlib.Path(f"{self.file_prefix}.ind")
+        self._geno_file: pathlib.Path = pathlib.Path(f"{self.file_prefix}.geno")
+        self._snp_file: pathlib.Path = pathlib.Path(f"{self.file_prefix}.snp")
 
-        self.embedding_populations_file: pathlib.Path = embedding_populations
+        self._embedding_populations_file: pathlib.Path = embedding_populations
         self.embedding_populations: List[str] = get_embedding_populations(
-            self.embedding_populations_file
+            self._embedding_populations_file
         )
-        self.samples: pd.DataFrame = (
-            self.get_sample_info() if samples is None else samples
-        )
+
+        self.samples = self.get_sample_info()
         self.projected_samples: pd.DataFrame = self.samples.loc[
             lambda x: ~x.used_for_embedding
         ]
@@ -215,7 +249,7 @@ class Dataset:
 
     def get_sample_info(self) -> pd.DataFrame:
         """
-        Extracts metadata for each sample in self.ind_file.
+        Extracts metadata for each sample in self._ind_file.
 
         Returns:
             pd.DataFrame: Pandas dataframe with the following columns:
@@ -223,19 +257,19 @@ class Dataset:
                 * sex (str): sex of the sample
                 * population (str): population the sample belongs to
                 * used_for_embedding (bool): whether the sample should be used to compute a dimensionality reduction Embedding
-                    Decided based on self.embedding_populations
+                    Decided based on self.embedding_populations. If self.embedding_populations all values will be True.
         """
-        if not self.ind_file.exists():
+        if not self._ind_file.exists():
             raise PandoraConfigException(
-                f"The .ind file {self.ind_file} does not exist."
+                f"The .ind file {self._ind_file} does not exist."
             )
 
         populations_for_embedding = get_embedding_populations(
-            self.embedding_populations_file
+            self._embedding_populations_file
         )
 
         data = {"sample_id": [], "sex": [], "population": [], "used_for_embedding": []}
-        for sample in self.ind_file.open():
+        for sample in self._ind_file.open():
             sample_id, sex, population = sample.split()
             data["sample_id"].append(sample_id.strip())
             data["sex"].append(sex.strip())
@@ -253,12 +287,12 @@ class Dataset:
 
     def get_sequence_length(self) -> int:
         """
-        Counts and returns the number of SNPs in self.geno_file
+        Counts and returns the number of SNPs in self._geno_file
 
         Returns:
-            int: Number of SNPs in self.geno_file.
+            int: Number of SNPs in self._geno_file.
         """
-        return sum(1 for _ in self.geno_file.open(mode="rb"))
+        return sum(1 for _ in self._geno_file.open(mode="rb"))
 
     def files_exist(self) -> bool:
         """
@@ -268,7 +302,7 @@ class Dataset:
             bool: True, if all three files are present, False otherwise.
         """
         return all(
-            [self.ind_file.exists(), self.geno_file.exists(), self.snp_file.exists()]
+            [self._ind_file.exists(), self._geno_file.exists(), self._snp_file.exists()]
         )
 
     def check_files(self) -> None:
@@ -278,19 +312,19 @@ class Dataset:
         Raises:
             PandoraException: If any of the three files is malformatted.
         """
-        _check_ind_file(self.ind_file)
-        _check_geno_file(self.geno_file)
-        _check_snp_file(self.snp_file)
+        _check_ind_file(self._ind_file)
+        _check_geno_file(self._geno_file)
+        _check_snp_file(self._snp_file)
 
     def remove_input_files(self) -> None:
         """
-        Removes all three input files (self.ind_file, self.geno_file, self.snp_file).
+        Removes all three input files (self._ind_file, self._geno_file, self._snp_file).
         This is useful if you want to save storage space and don't need the input files anymore (e.g. for bootstrap replicates).
 
         """
-        self.ind_file.unlink(missing_ok=True)
-        self.geno_file.unlink(missing_ok=True)
-        self.snp_file.unlink(missing_ok=True)
+        self._ind_file.unlink(missing_ok=True)
+        self._geno_file.unlink(missing_ok=True)
+        self._snp_file.unlink(missing_ok=True)
 
     def run_pca(
         self,
@@ -306,7 +340,7 @@ class Dataset:
         `smartpca_optional_settings = dict(numoutlieriter=0, shrinkmode=True)`.
 
         Args:
-            smartpca (Executable):
+            smartpca (Executable): Path pointing to an executable of the EIGENSOFT smartpca tool.
             n_components (int): Number of principal components to output. Default is 20.
             result_dir (Optional[pathlib.Path]): File path pointing where to write the results to.
                 Default is the directory where all input files are.
@@ -317,7 +351,7 @@ class Dataset:
 
         """
         if result_dir is None:
-            result_dir = self.file_dir
+            result_dir = self._file_dir
 
         evec_out = result_dir / (self.name + ".evec")
         eval_out = result_dir / (self.name + ".eval")
@@ -341,9 +375,9 @@ class Dataset:
 
         with tempfile.NamedTemporaryFile(mode="w") as tmpfile:
             smartpca_params = f"""
-                genotypename: {self.geno_file}
-                snpname: {self.snp_file}
-                indivname: {self.ind_file}
+                genotypename: {self._geno_file}
+                snpname: {self._snp_file}
+                indivname: {self._ind_file}
                 evecoutname: {evec_out}
                 evaloutname: {eval_out}
                 numoutevec: {n_components}
@@ -358,9 +392,9 @@ class Dataset:
                         v = "YES" if v else "NO"
                     smartpca_params += f"{k}: {v}\n"
 
-            if self.embedding_populations_file is not None:
+            if self._embedding_populations_file is not None:
                 smartpca_params += "lsqproject: YES\n"
-                smartpca_params += f"poplistname: {self.embedding_populations_file}\n"
+                smartpca_params += f"poplistname: {self._embedding_populations_file}\n"
 
             tmpfile.write(smartpca_params)
             tmpfile.flush()
@@ -383,12 +417,22 @@ class Dataset:
 
     def _compute_fst_matrix(
         self, smartpca: Executable, fst_file: pathlib.Path, smartpca_log: pathlib.Path
-    ):
+    ) -> None:
+        """
+        Computes the FST genetic distance matrix using EIGENSOFT's smartpca tool.
+        The resulting FST matrix will be stored in fst_file.
+
+        Args:
+            smartpca (Executable): Path pointing to an executable of the EIGENSOFT smartpca tool.
+            fst_file (pathlib.Path): Path to a file where the resulting FST matrix should be stored in.
+            smartpca_log (pathlib.Path): Path to a file where the smartpca log should be written to.
+
+        """
         with tempfile.NamedTemporaryFile(mode="w") as tmpfile:
             smartpca_fst_params = f"""
-                genotypename: {self.geno_file}
-                snpname: {self.snp_file}
-                indivname: {self.ind_file}
+                genotypename: {self._geno_file}
+                snpname: {self._snp_file}
+                indivname: {self._ind_file}
                 phylipoutname: {fst_file}
                 fstonly: YES
                 maxpops: {self.samples.population.unique().shape[0]}
@@ -419,12 +463,26 @@ class Dataset:
         result_dir: Optional[pathlib.Path] = None,
         redo: bool = False,
     ) -> None:
+        """
+        Performs MDS analysis using the data provided in this class. The FST matrix is generated using the
+        EIGENSOFT smartpca tool. The subsequent MDS analysis is performed using the scikit-learn MDS implementation.
+
+        Args:
+            smartpca (Executable): Path pointing to an executable of the EIGENSOFT smartpca tool.
+            n_components (int): Number of components to reduce the data to. Default is 20.
+            result_dir (optional, pathlib.Path): Directory where to store the data in. Calling this method will create two files:
+                * result_dir / (self.name + ".fst"): contains the FST distance matrix.
+                * result_dir / (self.name + ".smartpca.log"): contains the smartpca log.
+                Default is self._file_dir.
+            redo (optional, bool): Whether to recompute the FST matrix in case the result file is already present.
+                Default is False.
+
+        """
         if result_dir is None:
-            result_dir = self.file_dir
+            result_dir = self._file_dir
 
         fst_file = result_dir / (self.name + ".fst")
         smartpca_log = result_dir / (self.name + ".smartpca.log")
-        print(fst_file)
 
         if not fst_file.exists() or not smartpca_log.exists() or redo:
             # TODO: check if results exist and are correct
@@ -456,7 +514,7 @@ class Dataset:
 
     def bootstrap(
         self, bootstrap_prefix: pathlib.Path, seed: int, redo: bool = False
-    ) -> Dataset:
+    ) -> EigenDataset:
         """
         Creates a bootstrap dataset based on the content of self. Bootstraps the dataset by resampling SNPs with replacement.
 
@@ -467,7 +525,7 @@ class Dataset:
             redo (bool): Whether to redo the bootstrap if all output files are present. Default is False.
 
         Returns:
-            Dataset: A new dataset object containing the bootstrap replicate.
+            EigenDataset: A new dataset object containing the bootstrap replicate.
         """
         bs_ind_file = pathlib.Path(f"{bootstrap_prefix}.ind")
         bs_geno_file = pathlib.Path(f"{bootstrap_prefix}.geno")
@@ -478,7 +536,7 @@ class Dataset:
         )
 
         if files_exist and not redo:
-            return Dataset(bootstrap_prefix, self.embedding_populations_file)
+            return EigenDataset(bootstrap_prefix, self._embedding_populations_file)
 
         bs_ind_file.unlink(missing_ok=True)
         bs_geno_file.unlink(missing_ok=True)
@@ -505,7 +563,7 @@ class Dataset:
                 )
 
         # 1. Bootstrap the .snp file
-        snps = self.snp_file.open().readlines()
+        snps = self._snp_file.open().readlines()
         seen_snps = set()
 
         with bs_snp_file.open(mode="a") as f:
@@ -522,7 +580,7 @@ class Dataset:
         # 2. Bootstrap the .geno file using the bootstrap_snp_indices above
         # the .geno file contains one column for each individual sample
         # to sample SNPs we therefore need to sample the rows
-        genos = self.geno_file.open(mode="rb").readlines()
+        genos = self._geno_file.open(mode="rb").readlines()
         with bs_geno_file.open(mode="ab") as f:
             for bootstrap_idx in bootstrap_snp_indices:
                 geno_line = genos[bootstrap_idx].strip()
@@ -530,43 +588,57 @@ class Dataset:
                 f.write(b"\n")
 
         # when bootstrapping on SNP level, the .ind file does not change
-        shutil.copy(self.ind_file, bs_ind_file)
+        shutil.copy(self._ind_file, bs_ind_file)
 
-        return Dataset(bootstrap_prefix, self.embedding_populations_file)
+        return EigenDataset(bootstrap_prefix, self._embedding_populations_file)
 
     def _generate_windowed_dataset(
         self, window_start: int, window_end: int, result_prefix: pathlib.Path
-    ) -> Dataset:
+    ) -> EigenDataset:
+        """
+        Extracts a section of SNPs from self and returns it as new EigenDataset.
+
+        Args:
+            window_start (int): Start index of the section to extract.
+            window_end (int): End index of the section to extract.
+            result_prefix (pathlib.Path): File prefix where to store the resulting EIGENSTRAT files.
+                Will create three new files: {result_prefix}.ind, {result_prefix}.geno, {result_prefix}.snp containing
+                the specified section of SNPs.
+
+        Returns:
+            EigenDataset: EigenDataset object containing the section of SNPs requested.
+
+        """
         ind_file = pathlib.Path(f"{result_prefix}.ind")
         geno_file = pathlib.Path(f"{result_prefix}.geno")
         snp_file = pathlib.Path(f"{result_prefix}.snp")
 
         # .ind file does not change
-        shutil.copy(self.ind_file, ind_file)
+        shutil.copy(self._ind_file, ind_file)
 
         # .snp file needs to be filtered
-        snps = self.snp_file.open().readlines()
+        snps = self._snp_file.open().readlines()
         window_snps = snps[window_start:window_end]
         with snp_file.open(mode="w") as f:
             f.write("".join(window_snps))
 
         # .geno file needs to be filtered as well
-        genos = self.geno_file.open(mode="rb").readlines()
+        genos = self._geno_file.open(mode="rb").readlines()
         window_genos = genos[window_start:window_end]
         with geno_file.open(mode="wb") as f:
             f.write(b"".join(window_genos))
 
-        return Dataset(result_prefix)
+        return EigenDataset(result_prefix)
 
     def get_windows(
         self, result_dir: pathlib.Path, n_windows: int = 100
-    ) -> List[Dataset]:
+    ) -> List[EigenDataset]:
         """
-        Creates n_windows new Dataset objects as overlapping sliding windows over self.
+        Creates n_windows new EigenDataset objects as overlapping sliding windows over self.
         Let M = number of SNPs in self and N = n_windows.
         Each dataset will have a window size of int(M / N + (M / 2 * N)) SNPs.
         The stride is int(M / N) and the overlap between windows is thus int(M / 2 * N) SNPs.
-        Note that the last Dataset will contain fewer SNPs as there is no following window to overlap with.
+        Note that the last EigenDataset will contain fewer SNPs as there is no following window to overlap with.
         However, due to rounding, the number of SNPs in the final Dataset will not simply be overlap fewer.
 
         Args:
@@ -575,7 +647,7 @@ class Dataset:
             n_windows (int): Number of windowed datasets to generate. Default is 100.
 
         Returns:
-            List[Dataset]: List of n_windows new Dataset objects as overlapping windows over self.
+            List[EigenDataset]: List of n_windows new EigenDataset objects as overlapping windows over self.
 
         """
         n_snps = self.get_sequence_length()
@@ -597,6 +669,9 @@ class Dataset:
 
 
 def _bootstrap_and_embed(args):
+    """
+    Draws a bootstrap EigenDataset and performs dimensionaloty reduction using the provided arguments.
+    """
     (
         dataset,
         bootstrap_prefix,
@@ -610,8 +685,8 @@ def _bootstrap_and_embed(args):
     ) = args
     if embedding == "pca":
         if smartpca_finished(n_components, bootstrap_prefix):
-            bootstrap = Dataset(
-                bootstrap_prefix, dataset.embedding_populations_file, dataset.samples
+            bootstrap = EigenDataset(
+                bootstrap_prefix, dataset._embedding_populations_file
             )
         else:
             bootstrap = dataset.bootstrap(bootstrap_prefix, seed, redo)
@@ -634,20 +709,54 @@ def _bootstrap_and_embed(args):
 
 
 def bootstrap_and_embed_multiple(
-    dataset: Dataset,
+    dataset: EigenDataset,
     n_bootstraps: int,
     result_dir: pathlib.Path,
     smartpca: Executable,
-    seed: int,
     embedding: str,
-    threads: int,
     n_components: int = 20,
+    seed: Optional[int] = None,
+    threads: Optional[int] = None,
     redo: bool = False,
     keep_bootstraps: bool = False,
     smartpca_optional_settings: Optional[Dict] = None,
-) -> List[Dataset]:
+) -> List[EigenDataset]:
+    """
+    Draws n_bootstraps bootstrap datasets of the provided EigenDataset and performs PCA/MDS analysis
+    (as specified by embedding) for each bootstrap. Note that unless threads=1, the computation is performed in parallel.
+
+    Args:
+        dataset (EigenDataset): Dataset object to base the bootstrap replicates on.
+        n_bootstraps (int): Number of bootstrap replicates to draw.
+        result_dir (pathlib.Path): Directory where to store all result files.
+        smartpca (Executable): Path pointing to an executable of the EIGENSOFT smartpca tool.
+        embedding (str): Dimensionality reduction technique to apply. Allowed options are "pca" for PCA analysis and
+            "mds" for MDS analysis.
+        n_components (optional, int): Number of dimensions to reduce the data to. Default is 20.
+        seed (optional, int): Seed to initialize the random number generator with.
+            Default is to use the current system time.
+        threads (optional, int): Number of threads to use for parallel bootstrap generation.
+            Default is to use all system threads.
+        redo (bool): Whether to rerun analyses in case the result files are already present. Default is False.
+        keep_bootstraps (bool): Whether to store all intermediate bootstrap ind, geno, and snp files.
+            Note that setting this to True might require a notable amount of disk space. Default is False.
+        smartpca_optional_settings (Optional[Dict]): Additional smartpca settings.
+            Not allowed are the following options: genotypename, snpname, indivname,
+            evecoutname, evaloutname, numoutevec, maxpops. Note that this option is only used when embedding == "pca".
+
+    Returns:
+        List[EigenDataset]: List of n_bootstraps boostrap replicates as EigenDataset objects. Each of the resulting
+            datasets will have either bootstrap.pca != None or bootstrap.mds != None depending on the selected
+            embedding option.
+    """
     result_dir.mkdir(exist_ok=True, parents=True)
-    random.seed(seed)
+
+    if seed is not None:
+        random.seed(seed)
+
+    if threads is None:
+        threads = multiprocessing.cpu_count()
+
     args = [
         (
             dataset,
@@ -669,6 +778,28 @@ def bootstrap_and_embed_multiple(
 
 
 class NumpyDataset:
+    """Class structure to represent a population genetics dataset in numerical format.
+    This class provides methods to perform PCA and MDS analyses on the provided numerical data using scikit-learn.
+    It further provides methods to generate a bootstrap replicate dataset (SNPs resampled with replacement) and
+    to generate overlapping sliding windows of sub-datasets.
+
+    Parameters:
+        input_data (npt.NDArray): Numpy Array containing the input data to use.
+        sample_ids (pd.Series[str]): Pandas Series containing the sample IDs of the sequences contained in input_data.
+            Expects the number of sample_ids to matche the first dimension of input_data.
+        populations (pd.Series[str]): Pandas Series containing the populations of the sequences contained in input_data.
+            Expects the number of populations to matche the first dimension of input_data.
+
+    Attributes:
+        input_data (npt.NDArray): Numpy Array containing the input data to use.
+        sample_ids (pd.Series[str]): Pandas Series containing a sample ID for each row in input_data.
+        populations (pd.Series[str]): Pandas Series containing a population name for each row in input_data.
+        pca (PCA): PCA object as result of a PCA analysis run on the provided dataset.
+            This is None until self.run_pca() was called.
+        mds (MDS): MDS object as a result of an MDS computation. This is None until self.run_mds() was called.
+
+    """
+
     def __init__(
         self, input_data: npt.NDArray, sample_ids: pd.Series, populations: pd.Series
     ):
@@ -684,6 +815,14 @@ class NumpyDataset:
         self.mds: Union[None, MDS] = None
 
     def run_pca(self, n_components: int = 20) -> None:
+        """
+        Performs PCA analysis on self.input_data reducing the data to n_components dimensions.
+        Uses the scikit-learn PCA implementation. The result of the PCA analysis is a PCA object assigned to self.pca.
+
+        Args:
+            n_components (int): Number of components to reduce the data to. Default is 20.
+
+        """
         pca = sklearnPCA(n_components)
         embedding = pca.fit_transform(self.input_data)
         embedding = pd.DataFrame(
@@ -697,6 +836,9 @@ class NumpyDataset:
         self,
         n_components: int = 20,
     ) -> None:
+        # TODO: das macht so keinen sinn
+        # ich kann nicht einfach eine FST matrix bootstrappend -> ich muss davon ausgehen, dass
+        # self.input_data die sample sequences sind und muss hier dann erstmal die FST Matrix selbst berechnen
         mds = sklearnMDS(n_components, dissimilarity="precomputed")
         embedding = mds.fit_transform(self.input_data)
         embedding = pd.DataFrame(
@@ -707,6 +849,15 @@ class NumpyDataset:
         self.mds = MDS(embedding, n_components, mds.stress_)
 
     def bootstrap(self, seed: int) -> NumpyDataset:
+        """
+        Creates a bootstrap dataset based on the content of self. Bootstraps the dataset by resampling SNPs with replacement.
+
+        Args:
+            seed (int): Seed to initialize the random number generator before drawing the bootstraps.
+
+        Returns:
+            NumpyDataset: A new dataset object containing the bootstraped input_data.
+        """
         random.seed(seed)
         num_snps = self.input_data.shape[1]
         bootstrap_data = self.input_data[
@@ -714,8 +865,35 @@ class NumpyDataset:
         ]
         return NumpyDataset(bootstrap_data, self.sample_ids, self.populations)
 
-    def get_windows(self):
-        ...
+    def get_windows(self, n_windows: int = 100) -> List[NumpyDataset]:
+        """
+        Creates n_windows new NumpyDataset objects as overlapping sliding windows over self.
+        Let M = number of SNPs in self and N = n_windows.
+        Each dataset will have a window size of int(M / N + (M / 2 * N)) SNPs.
+        The stride is int(M / N) and the overlap between windows is thus int(M / 2 * N) SNPs.
+        Note that the last NumpyDataset will contain fewer SNPs as there is no following window to overlap with.
+        However, due to rounding, the number of SNPs in the final Dataset will not simply be overlap fewer.
+
+        Args:
+            n_windows (int): Number of windowed datasets to generate. Default is 100.
+
+        Returns:
+            List[NumpyDataset]: List of n_windows new NumpyDataset objects as overlapping windows over self.
+        """
+        num_snps = self.input_data.shape[1]
+        overlap = int((num_snps / n_windows) / 2)
+        stride = int(num_snps / n_windows)
+        window_size = overlap + stride
+
+        windows = []
+
+        for i in range(n_windows):
+            window_start = i * stride
+            window_end = i * stride + window_size
+            window_data = self.input_data[:, window_start:window_end]
+            windows.append(NumpyDataset(window_data, self.sample_ids, self.populations))
+
+        return windows
 
 
 def _bootstrap_and_embed_numpy(args):
@@ -732,12 +910,37 @@ def _bootstrap_and_embed_numpy(args):
 def bootstrap_and_embed_multiple_numpy(
     dataset: NumpyDataset,
     n_bootstraps: int,
-    seed: int,
     embedding: str,
-    threads: int,
     n_components: int = 20,
-):
-    random.seed(seed)
+    seed: Optional[int] = None,
+    threads: Optional[int] = None,
+) -> List[NumpyDataset]:
+    """
+    Draws n_bootstraps bootstrap datasets of the provided NumpyDataset and performs PCA/MDS analysis
+    (as specified by embedding) for each bootstrap. Note that unless threads=1, the computation is performed in parallel.
+
+    Args:
+        dataset (NumpyDataset): Dataset object to base the bootstrap replicates on.
+        n_bootstraps (int): Number of bootstrap replicates to draw.
+        embedding (str): Dimensionality reduction technique to apply. Allowed options are "pca" for PCA analysis and
+            "mds" for MDS analysis.
+        n_components (optional, int): Number of dimensions to reduce the data to. Default is 20.
+        seed (optional, int): Seed to initialize the random number generator with.
+            Default is to use the current system time.
+        threads (optional, int): Number of threads to use for parallel bootstrap generation.
+            Default is to use all system threads.
+
+    Returns:
+        List[NumpyDataset]: List of n_bootstraps boostrap replicates as NumpyDataset objects. Each of the resulting
+            datasets will have either bootstrap.pca != None or bootstrap.mds != None depending on the selected
+            embedding option.
+    """
+    if seed is not None:
+        random.seed(seed)
+
+    if threads is None:
+        threads = multiprocessing.cpu_count()
+
     args = [
         (dataset, random.randint(0, 1_000_000), embedding, n_components)
         for _ in range(n_bootstraps)

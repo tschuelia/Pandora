@@ -3,7 +3,7 @@ import shutil
 import pytest
 import yaml
 
-from pandora.dataset import Dataset
+from pandora.dataset import EigenDataset
 from pandora.embedding import *
 from pandora.pandora import PandoraConfig, pandora_config_from_configfile
 
@@ -31,15 +31,15 @@ def example_population_list() -> pathlib.Path:
 
 
 @pytest.fixture
-def example_dataset(example_eigen_dataset_prefix) -> Dataset:
-    return Dataset(example_eigen_dataset_prefix)
+def example_dataset(example_eigen_dataset_prefix) -> EigenDataset:
+    return EigenDataset(example_eigen_dataset_prefix)
 
 
 @pytest.fixture
 def example_dataset_with_poplist(
     example_eigen_dataset_prefix, example_population_list
-) -> Dataset:
-    return Dataset(example_eigen_dataset_prefix, example_population_list)
+) -> EigenDataset:
+    return EigenDataset(example_eigen_dataset_prefix, example_population_list)
 
 
 @pytest.fixture

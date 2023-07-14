@@ -41,9 +41,9 @@ class TestDatasetBootstrap:
         """
         Tests whether the bootstrapped .geno, .ind, and .snp files have the correct file file_format
         """
-        in_ind_count = sum(1 for _ in example_dataset.ind_file.open())
-        in_geno_count = sum(1 for _ in example_dataset.geno_file.open())
-        in_snp_count = sum(1 for _ in example_dataset.snp_file.open())
+        in_ind_count = sum(1 for _ in example_dataset._ind_file.open())
+        in_geno_count = sum(1 for _ in example_dataset._geno_file.open())
+        in_snp_count = sum(1 for _ in example_dataset._snp_file.open())
 
         with tempfile.TemporaryDirectory() as tmpdir:
             tmpdir = pathlib.Path(tmpdir)
@@ -53,9 +53,9 @@ class TestDatasetBootstrap:
             )
 
             # check that the number of lines is correct
-            bs_ind_count = sum(1 for _ in bootstrap.ind_file.open())
-            bs_geno_count = sum(1 for _ in bootstrap.geno_file.open())
-            bs_snp_count = sum(1 for _ in bootstrap.snp_file.open())
+            bs_ind_count = sum(1 for _ in bootstrap._ind_file.open())
+            bs_geno_count = sum(1 for _ in bootstrap._geno_file.open())
+            bs_snp_count = sum(1 for _ in bootstrap._snp_file.open())
 
             assert in_ind_count == bs_ind_count
             assert in_geno_count == bs_geno_count
@@ -65,9 +65,9 @@ class TestDatasetBootstrap:
             bootstrap.check_files()
 
     def test_bootstrap_files_correct_with_redo(self, example_dataset):
-        in_ind_count = sum(1 for _ in example_dataset.ind_file.open())
-        in_geno_count = sum(1 for _ in example_dataset.geno_file.open())
-        in_snp_count = sum(1 for _ in example_dataset.snp_file.open())
+        in_ind_count = sum(1 for _ in example_dataset._ind_file.open())
+        in_geno_count = sum(1 for _ in example_dataset._geno_file.open())
+        in_snp_count = sum(1 for _ in example_dataset._snp_file.open())
 
         with tempfile.TemporaryDirectory() as tmpdir:
             tmpdir = pathlib.Path(tmpdir)
@@ -77,9 +77,9 @@ class TestDatasetBootstrap:
             bootstrap = example_dataset.bootstrap(bootstrap_prefix, seed=42, redo=True)
 
             # check that the number of lines is correct
-            bs_ind_count = sum(1 for _ in bootstrap.ind_file.open())
-            bs_geno_count = sum(1 for _ in bootstrap.geno_file.open())
-            bs_snp_count = sum(1 for _ in bootstrap.snp_file.open())
+            bs_ind_count = sum(1 for _ in bootstrap._ind_file.open())
+            bs_geno_count = sum(1 for _ in bootstrap._geno_file.open())
+            bs_snp_count = sum(1 for _ in bootstrap._snp_file.open())
 
             assert in_ind_count == bs_ind_count
             assert in_geno_count == bs_geno_count
@@ -98,24 +98,24 @@ class TestDatasetBootstrap:
             bootstrap_prefix = tmpdir / "bootstrap"
 
             # make sure we do not overwrite the correct input example_dataset files
-            shutil.copy(example_dataset.ind_file, f"{bootstrap_prefix}.ind")
-            shutil.copy(example_dataset.geno_file, f"{bootstrap_prefix}.geno")
-            shutil.copy(example_dataset.snp_file, f"{bootstrap_prefix}.snp")
+            shutil.copy(example_dataset._ind_file, f"{bootstrap_prefix}.ind")
+            shutil.copy(example_dataset._geno_file, f"{bootstrap_prefix}.geno")
+            shutil.copy(example_dataset._snp_file, f"{bootstrap_prefix}.snp")
 
             bootstrap = example_dataset.bootstrap(bootstrap_prefix, seed=0, redo=False)
 
             # compare example_dataset and bootstrap contents
             assert (
-                example_dataset.ind_file.open().read()
-                == bootstrap.ind_file.open().read()
+                example_dataset._ind_file.open().read()
+                == bootstrap._ind_file.open().read()
             )
             assert (
-                example_dataset.geno_file.open().read()
-                == bootstrap.geno_file.open().read()
+                example_dataset._geno_file.open().read()
+                == bootstrap._geno_file.open().read()
             )
             assert (
-                example_dataset.snp_file.open().read()
-                == bootstrap.snp_file.open().read()
+                example_dataset._snp_file.open().read()
+                == bootstrap._snp_file.open().read()
             )
 
             # check that all files are correctly formatted
@@ -140,9 +140,9 @@ class TestDatasetBootstrap:
             backup_snp = pathlib.Path(f"{bootstrap_backup_prefix}.snp")
 
             # move bootstrap's geno, ind, snp files such that we can delete them, but compare them later
-            shutil.move(bootstrap.ind_file, backup_ind)
-            shutil.move(bootstrap.geno_file, backup_geno)
-            shutil.move(bootstrap.snp_file, backup_snp)
+            shutil.move(bootstrap._ind_file, backup_ind)
+            shutil.move(bootstrap._geno_file, backup_geno)
+            shutil.move(bootstrap._snp_file, backup_snp)
 
             # make sure moving actually worked such that a subsequent bootstrap run will use the checkpoint
             assert not bootstrap.files_exist()
@@ -158,9 +158,9 @@ class TestDatasetBootstrap:
             )
 
             # compare the file contents to make sure the checkpoint was actually used
-            assert backup_ind.open().read() == bootstrap.ind_file.open().read()
-            assert backup_geno.open().read() == bootstrap.geno_file.open().read()
-            assert backup_snp.open().read() == bootstrap.snp_file.open().read()
+            assert backup_ind.open().read() == bootstrap._ind_file.open().read()
+            assert backup_geno.open().read() == bootstrap._geno_file.open().read()
+            assert backup_snp.open().read() == bootstrap._snp_file.open().read()
 
     def test_deduplicate_snp_id(self):
         n_ids = 5

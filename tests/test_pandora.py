@@ -140,4 +140,4 @@ class TestPandora:
         pandora.bootstrap_pcas()
 
         assert len(pandora.bootstraps) == n_bootstraps_expected
-        assert all(isinstance(bs, Dataset) for bs in pandora.bootstraps)
+        assert all(isinstance(bs, EigenDataset) for bs in pandora.bootstraps)

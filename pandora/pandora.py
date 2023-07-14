@@ -94,7 +94,7 @@ class PandoraConfig:
     # Embedding related
     n_components: NonNegativeInt = 20
     smartpca: Executable = "smartpca"
-    smartpca_optional_settings: Optional[Dict[str, str]] = None
+    smartpca_optional_settings: Optional[Dict[str, Any]] = None
     embedding_populations: Optional[
         pathlib.Path
     ] = None  # list of populations to use for Embedding and later project the remaining populations on the Embedding

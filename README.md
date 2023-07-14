@@ -45,10 +45,3 @@ If you encounter any trouble using Pandora, have a question, or you find a bug, 
 
 ## Publication
 The paper explaining the details of Pandora is soon available as preprint on bioRxiv. Stay tuned!
-
-<hr>
-
-**PCA level:**
-On a scale of 0 – 1, how closely do the resampled PCAs match the PCA on the original data.
-0 is the worst possible score and 1 the best possible score where all bootstrapped PCAs are exactly identical to the original PCA.
-The lower the score, the more careful you should be to draw conclusions based on the PCA of the data.

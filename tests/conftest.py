@@ -3,7 +3,7 @@ import shutil
 import pytest
 import yaml
 
-from pandora.dataset import EigenDataset
+from pandora.dataset import EigenDataset, NumpyDataset
 from pandora.embedding import *
 from pandora.pandora import PandoraConfig, pandora_config_from_configfile
 
@@ -161,6 +161,15 @@ def pandora_test_config_with_pca_populations(
     pandora_config.smartpca = smartpca
     pandora_config.convertf = convertf
     return pandora_config
+
+
+@pytest.fixture
+def test_numpy_dataset():
+    test_data = np.asarray([[1, 1, 1], [2, 2, 2], [3, 3, 3]])
+    sample_ids = pd.Series(["sample1", "sample2", "sample3"])
+    populations = pd.Series(["population1", "population2", "population3"])
+    dataset = NumpyDataset(test_data, sample_ids, populations)
+    return dataset
 
 
 @pytest.fixture(autouse=True)

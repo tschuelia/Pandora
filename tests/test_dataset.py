@@ -2,6 +2,7 @@ import pathlib
 import shutil
 import tempfile
 
+import numpy as np
 import pytest
 
 from pandora.dataset import *
@@ -33,6 +34,46 @@ class TestDataset:
 
         # each sample in this example dataset has a unique population
         assert samples.population.unique().shape[0] == samples.shape[0]
+
+    def test_get_windows(self, example_dataset):
+        n_snps = example_dataset.get_sequence_length()
+        n_windows = 3
+
+        expected_overlap = int((n_snps / n_windows) / 2)
+        expected_stride = int(n_snps / n_windows)
+        expected_window_size = expected_stride + expected_overlap
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            window_dir = pathlib.Path(tmpdir)
+            windows = example_dataset.get_windows(window_dir, n_windows=n_windows)
+
+            assert len(windows) == n_windows
+            assert all(isinstance(w, EigenDataset) for w in windows)
+
+            # all windows except the last one should have length expected_window_size
+            for w in windows[:-1]:
+                assert w.get_sequence_length() == expected_window_size
+
+            # the last window should have less than or equal the expected_window_size
+            assert windows[-1].get_sequence_length() <= w.get_sequence_length()
+
+            # now let's check that they are actually overlapping
+            # for window 0 and window 1, the last / first expected_overlap SNPs should be identical
+            window0_genos = windows[0]._geno_file.open().readlines()
+            window0_genos = [list(line.strip()) for line in window0_genos]
+            window0_genos = np.asarray(window0_genos).T
+
+            window1_genos = windows[1]._geno_file.open().readlines()
+            window1_genos = [list(line.strip()) for line in window1_genos]
+            window1_genos = np.asarray(window1_genos).T
+
+            overlap_window0 = window0_genos[:, expected_overlap + 1 :]
+            overlap_window1 = window1_genos[:, :expected_overlap]
+
+            assert overlap_window0.shape == overlap_window1.shape
+            assert overlap_window0.shape[1] == expected_overlap
+
+            assert np.all(overlap_window0 == overlap_window1)
 
 
 class TestDatasetBootstrap:
@@ -248,3 +289,67 @@ class TestDatasetSmartPCA:
                 smartpca_optional_settings=smartpca_settings,
             )
             assert isinstance(example_dataset.pca, PCA)
+
+    def test_smartpca_fails_for_too_many_components(self, smartpca, example_dataset):
+        n_pcs = example_dataset.get_sequence_length() + 10
+
+        with pytest.raises(
+            PandoraException, match="Number of Principal Components needs to be smaller"
+        ):
+            example_dataset.run_pca(smartpca, n_pcs)
+
+
+class TestNumpyDataset:
+    def test_init(self):
+        test_data = np.asarray([[1, 1, 1], [2, 2, 2], [3, 3, 3]])
+        sample_ids = pd.Series(["sample1", "sample2", "sample3"])
+        populations = pd.Series(["population1", "population2", "population3"])
+
+        # everything should work fine with no error
+        dataset = NumpyDataset(test_data, sample_ids, populations)
+        assert np.all(dataset.input_data == test_data)
+        assert (dataset.sample_ids == sample_ids).all()
+        assert (dataset.populations == populations).all()
+        assert dataset.pca is None
+        assert dataset.mds is None
+
+        # now change the number of populations to mismatch, this should cause an error
+        populations = pd.Series(["population1", "population2"])
+
+        with pytest.raises(PandoraException, match="a population for each sample"):
+            NumpyDataset(test_data, sample_ids, populations)
+
+        # now change the number of samples in test_data to mismatch sample_ids, this should cause an error
+        populations = pd.Series(["population1", "population2", "population3"])
+        test_data = np.asarray([[1, 1, 1], [2, 2, 2], [3, 3, 3], [4, 4, 4]])
+
+        with pytest.raises(PandoraException, match="a sample ID for each sample"):
+            NumpyDataset(test_data, sample_ids, populations)
+
+    def test_run_pca(self, test_numpy_dataset):
+        n_pcs = 2
+        test_numpy_dataset.run_pca(n_pcs)
+        # dataset should now have a PCA object attached with embedding data (n_samples, n_pcs)
+        # dataset.mds should still be None
+        assert test_numpy_dataset.pca is not None
+        assert test_numpy_dataset.mds is None
+        assert isinstance(test_numpy_dataset.pca, PCA)
+        assert test_numpy_dataset.pca.embedding_matrix.shape == (
+            test_numpy_dataset.input_data.shape[0],
+            n_pcs,
+        )
+        assert (
+            test_numpy_dataset.pca.embedding.sample_id == test_numpy_dataset.sample_ids
+        ).all()
+        assert (
+            test_numpy_dataset.pca.embedding.population
+            == test_numpy_dataset.populations
+        ).all()
+
+    def test_run_pca_fails_for_too_many_pcs(self, test_numpy_dataset):
+        n_pcs = test_numpy_dataset.input_data.shape[1] + 10
+
+        with pytest.raises(
+            PandoraException, match="Number of Principal Components needs to be smaller"
+        ):
+            test_numpy_dataset.run_pca(n_pcs)

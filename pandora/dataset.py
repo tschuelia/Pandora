@@ -350,6 +350,13 @@ class EigenDataset:
                 evecoutname, evaloutname, numoutevec, maxpops.
 
         """
+        n_snps = self.get_sequence_length()
+        if n_components > n_snps:
+            raise PandoraException(
+                "Number of Principal Components needs to be smaller or equal than the number of SNPs. "
+                f"Got {n_snps} SNPs, but asked for {n_components}."
+            )
+
         if result_dir is None:
             result_dir = self._file_dir
 
@@ -478,6 +485,13 @@ class EigenDataset:
                 Default is False.
 
         """
+        n_snps = self.get_sequence_length()
+        if n_components > n_snps:
+            raise PandoraException(
+                "Number of components needs to be smaller or equal than the number of SNPs. "
+                f"Got {n_snps} SNPs, but asked for {n_components}."
+            )
+
         if result_dir is None:
             result_dir = self._file_dir
 
@@ -805,7 +819,13 @@ class NumpyDataset:
     ):
         if sample_ids.shape[0] != populations.shape[0]:
             raise PandoraException(
-                f"Provide a population for each sample. Got {sample_ids.shape[0]} samples but {populations.shape[0]} populations."
+                f"Provide a population for each sample. "
+                f"Got {sample_ids.shape[0]} samples but {populations.shape[0]} populations."
+            )
+        if sample_ids.shape[0] != input_data.shape[0]:
+            raise PandoraException(
+                f"Provide a sample ID for each sample in input_data. "
+                f"Got {sample_ids.shape[0]} samples but input_data has shape {input_data.shape}"
             )
         self.input_data = input_data
         self.sample_ids = sample_ids
@@ -823,6 +843,13 @@ class NumpyDataset:
             n_components (int): Number of components to reduce the data to. Default is 20.
 
         """
+        n_snps = self.input_data.shape[1]
+        if n_components > n_snps:
+            raise PandoraException(
+                "Number of Principal Components needs to be smaller or equal than the number of SNPs. "
+                f"Got {n_snps} SNPs, but asked for {n_components}."
+            )
+
         pca = sklearnPCA(n_components)
         embedding = pca.fit_transform(self.input_data)
         embedding = pd.DataFrame(
@@ -839,6 +866,12 @@ class NumpyDataset:
         # TODO: das macht so keinen sinn
         # ich kann nicht einfach eine FST matrix bootstrappend -> ich muss davon ausgehen, dass
         # self.input_data die sample sequences sind und muss hier dann erstmal die FST Matrix selbst berechnen
+        n_snps = self.input_data.shape[1]
+        if n_components > n_snps:
+            raise PandoraException(
+                "Number of components needs to be smaller or equal than the number of SNPs. "
+                f"Got {n_snps} SNPs, but asked for {n_components}."
+            )
         mds = sklearnMDS(n_components, dissimilarity="precomputed")
         embedding = mds.fit_transform(self.input_data)
         embedding = pd.DataFrame(

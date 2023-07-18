@@ -114,8 +114,3 @@ def _clean_converted_names(ind_out: pathlib.Path) -> None:
         corrected_content.append(line)
 
     ind_out.open("w").write("\n".join(corrected_content))
-
-
-def _reannotate_populations():
-    # TODO: implement
-    raise NotImplementedError

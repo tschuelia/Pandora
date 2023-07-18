@@ -307,6 +307,9 @@ class EigenDataset:
 
         Returns:
             pd.Series: Pandas series containing the sample IDs of the dataset in the order in the ind file.
+
+        Raises:
+            PandoraException: if the respective .ind file does not exist
         """
         if not self._ind_file.exists():
             raise PandoraConfigException(
@@ -326,6 +329,9 @@ class EigenDataset:
 
         Returns:
             pd.Series: Pandas series containing the population for each sample in the prder in the ind file.
+
+        Raises:
+            PandoraException: if the respective .ind file does not exist
         """
         if not self._ind_file.exists():
             raise PandoraConfigException(
@@ -368,7 +374,15 @@ class EigenDataset:
 
         Returns:
             int: Number of SNPs in self._geno_file.
+
+        Raises:
+            PandoraException: if the respective .geno file does not exist
         """
+        if not self._geno_file.exists():
+            raise PandoraConfigException(
+                f"The .geno file {self._geno_file} does not exist."
+            )
+
         return sum(1 for _ in self._geno_file.open(mode="rb"))
 
     def files_exist(self) -> bool:
@@ -1048,7 +1062,7 @@ def _bootstrap_and_embed_numpy(args):
 def bootstrap_and_embed_multiple_numpy(
     dataset: NumpyDataset,
     n_bootstraps: int,
-    embedding: str,
+    embedding: EmbeddingAlgorithm,
     n_components: int = 20,
     seed: Optional[int] = None,
     threads: Optional[int] = None,
@@ -1060,8 +1074,8 @@ def bootstrap_and_embed_multiple_numpy(
     Args:
         dataset (NumpyDataset): Dataset object to base the bootstrap replicates on.
         n_bootstraps (int): Number of bootstrap replicates to draw.
-        embedding (str): Dimensionality reduction technique to apply. Allowed options are "pca" for PCA analysis and
-            "mds" for MDS analysis.
+        embedding (EmbeddingAlgorithm): Dimensionality reduction technique to apply. Allowed options are
+            EmbeddingAlgorithm.PCA for PCA analysis and EmbeddingAlgorithm.MDS for MDS analysis.
         n_components (optional, int): Number of dimensions to reduce the data to. Default is 20.
         seed (optional, int): Seed to initialize the random number generator with.
             Default is to use the current system time.

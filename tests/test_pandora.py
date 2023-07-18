@@ -86,10 +86,10 @@ class TestPandora:
         assert len(pandora.bootstrap_cluster_stabilities) == 0
         assert pandora.sample_support_values.empty
 
-    def test_init_with_pca_populations(
-        self, pandora_test_config_with_pca_populations, example_population_list
+    def test_init_with_embedding_populations(
+        self, pandora_test_config_with_embedding_populations, example_population_list
     ):
-        pandora = Pandora(pandora_test_config_with_pca_populations)
+        pandora = Pandora(pandora_test_config_with_embedding_populations)
 
         # check that the embedding_populations were initialized correctly
         pca_populations_expected = {l.strip() for l in example_population_list.open()}
@@ -107,10 +107,22 @@ class TestPandora:
         # plot directory should contain two plots
         assert len(list(pandora.pandora_config.plot_dir.iterdir())) == 2
 
+    def test_do_mds(self, pandora_test_config_mds):
+        pandora = Pandora(pandora_test_config_mds)
+
+        assert pandora.dataset.mds is None
+
+        pandora.embed_dataset()
+
+        # pandora's dataset's MDS should be a MDS object now and not None
+        assert isinstance(pandora.dataset.mds, MDS)
+        # plot directory should contain two plots
+        assert len(list(pandora.pandora_config.plot_dir.iterdir())) == 2
+
     def test_do_pca_with_pca_populations(
-        self, pandora_test_config_with_pca_populations
+        self, pandora_test_config_with_embedding_populations
     ):
-        pandora = Pandora(pandora_test_config_with_pca_populations)
+        pandora = Pandora(pandora_test_config_with_embedding_populations)
 
         assert pandora.dataset.pca is None
         assert len(pandora.dataset.embedding_populations) > 0
@@ -128,16 +140,42 @@ class TestPandora:
         with pytest.raises(PandoraException, match="Embedding not yet run for dataset"):
             pandora._plot_dataset(pandora.dataset, pandora.dataset.name)
 
-    def test_bootstrap_pcas(self, pandora_test_config):
+    def test_plot_dataset_fails_if_mds_is_missing(self, pandora_test_config_mds):
+        pandora = Pandora(pandora_test_config_mds)
+        with pytest.raises(PandoraException, match="Embedding not yet run for dataset"):
+            pandora._plot_dataset(pandora.dataset, pandora.dataset.name)
+
+    def test_bootstrap_embeddings_with_pca(self, pandora_test_config):
         pandora = Pandora(pandora_test_config)
         pandora.pandora_config.keep_bootstraps = True
         n_bootstraps_expected = pandora.pandora_config.n_bootstraps
 
         assert len(pandora.bootstraps) == 0
 
-        # for plotting we need the empirical PCA data
+        # for plotting we need the empirical embedding data
         pandora.embed_dataset()
         pandora.bootstrap_embeddings()
 
         assert len(pandora.bootstraps) == n_bootstraps_expected
         assert all(isinstance(bs, EigenDataset) for bs in pandora.bootstraps)
+        assert all(b.pca is not None for b in pandora.bootstraps)
+
+    def test_bootstrap_embedding_with_mds(self, pandora_test_config_mds):
+        pandora = Pandora(pandora_test_config_mds)
+        pandora.pandora_config.keep_bootstraps = True
+        n_bootstraps_expected = pandora.pandora_config.n_bootstraps
+
+        assert len(pandora.bootstraps) == 0
+
+        # for plotting we need the empirical embedding data
+        pandora.embed_dataset()
+        pandora.bootstrap_embeddings()
+
+        # since we are asking for MDS analyses, pandora.dataset.mds should be set, but pandora.dataset.pca shouldn't
+        assert pandora.dataset.mds is not None
+        assert isinstance(pandora.dataset.mds, MDS)
+        assert pandora.dataset.pca is None
+
+        assert len(pandora.bootstraps) == n_bootstraps_expected
+        assert all(isinstance(bs, EigenDataset) for bs in pandora.bootstraps)
+        assert all(b.mds is not None for b in pandora.bootstraps)

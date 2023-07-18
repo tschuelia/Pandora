@@ -139,24 +139,32 @@ def pandora_test_config(pandora_test_config_file, smartpca, convertf) -> Pandora
 
 
 @pytest.fixture
+def pandora_test_config_mds(pandora_test_config):
+    pandora_test_config.embedding_algorithm = EmbeddingAlgorithm.MDS
+    return pandora_test_config
+
+
+@pytest.fixture
 def pandora_test_config_yaml(pandora_test_config_file) -> Dict:
     return yaml.safe_load(pandora_test_config_file.open())
 
 
 @pytest.fixture
-def pandora_test_config_with_pca_populations_file() -> pathlib.Path:
+def pandora_test_config_with_embedding_populations_file() -> pathlib.Path:
     return (
-        pathlib.Path(__file__).parent / "data" / "test_config_with_pca_populations.yaml"
+        pathlib.Path(__file__).parent
+        / "data"
+        / "test_config_with_embedding_populations.yaml"
     )
 
 
 @pytest.fixture
-def pandora_test_config_with_pca_populations(
-    pandora_test_config_with_pca_populations_file, smartpca, convertf
+def pandora_test_config_with_embedding_populations(
+    pandora_test_config_with_embedding_populations_file, smartpca, convertf
 ) -> PandoraConfig:
     # load the config file and manually set smartpca and convertf options based on the test_config
     pandora_config = pandora_config_from_configfile(
-        pandora_test_config_with_pca_populations_file
+        pandora_test_config_with_embedding_populations_file
     )
     pandora_config.smartpca = smartpca
     pandora_config.convertf = convertf

@@ -243,10 +243,10 @@ class Pandora:
         self.bootstraps: List[EigenDataset] = []
 
         self.bootstrap_stabilities: pd.DataFrame = pd.DataFrame()
-        self.bootstrap_stability: Tuple[float, float] = None
+        self.bootstrap_stability: float = None
 
         self.bootstrap_cluster_stabilities: pd.DataFrame = pd.DataFrame()
-        self.bootstrap_cluster_stability: Tuple[float, float] = None
+        self.bootstrap_cluster_stability: float = None
 
         self.sample_support_values: pd.DataFrame = pd.DataFrame()
 
@@ -498,7 +498,7 @@ class Pandora:
         logger.info(support_values_result_string)
 
     def log_and_save_sample_support_values(self):
-        if len(self.sample_support_values) == 0:
+        if self.sample_support_values.empty:
             raise PandoraException("No bootstrap results to log!")
 
         support_values = self.sample_support_values.copy()

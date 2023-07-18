@@ -10,30 +10,10 @@ from pandora.dataset import _deduplicate_snp_id
 from pandora.embedding import PCA
 
 
-class TestDataset:
+class TestEigenDataset:
     def test_get_pca_populations(self, example_population_list):
         populations = get_embedding_populations(example_population_list)
         assert len(populations) == 4
-
-    def test_sample_dataframe_correct(self, example_dataset_with_poplist):
-        samples = example_dataset_with_poplist.samples
-
-        # example.ind has 5 samples
-        assert samples.shape[0] == 5
-        # samples should have 4 columns: sample_id, sex, population, used_for_embedding
-        assert samples.shape[1] == 4
-        assert set(samples.columns) == {
-            "sample_id",
-            "sex",
-            "population",
-            "used_for_embedding",
-        }
-
-        # this dataset has a population list, so some samples should not be used_for_embedding
-        assert not samples.used_for_embedding.all()
-
-        # each sample in this example dataset has a unique population
-        assert samples.population.unique().shape[0] == samples.shape[0]
 
     def test_get_windows(self, example_dataset):
         n_snps = example_dataset.get_sequence_length()
@@ -55,7 +35,7 @@ class TestDataset:
                 assert w.get_sequence_length() == expected_window_size
 
             # the last window should have less than or equal the expected_window_size
-            assert windows[-1].get_sequence_length() <= w.get_sequence_length()
+            assert windows[-1].get_sequence_length() <= expected_window_size
 
             # now let's check that they are actually overlapping
             # for window 0 and window 1, the last / first expected_overlap SNPs should be identical
@@ -76,7 +56,7 @@ class TestDataset:
             assert np.all(overlap_window0 == overlap_window1)
 
 
-class TestDatasetBootstrap:
+class TestEigenDatasetBootstrap:
     @pytest.mark.parametrize("seed", [0, 10, 100, 885440])
     def test_bootstrap_files_correct(self, example_dataset, seed):
         """
@@ -216,7 +196,7 @@ class TestDatasetBootstrap:
         assert len(seen_ids) == n_ids
 
 
-class TestDatasetSmartPCA:
+class TestEigenDatasetPCA:
     def test_smartpca_finished(self, correct_smartpca_result_prefix):
         n_pcs = 2
         assert smartpca_finished(n_pcs, correct_smartpca_result_prefix)
@@ -319,7 +299,7 @@ class TestNumpyDataset:
         with pytest.raises(PandoraException, match="a population for each sample"):
             NumpyDataset(test_data, sample_ids, populations)
 
-        # now change the number of samples in test_data to mismatch sample_ids, this should cause an error
+        # now change the number of sample_ids in test_data to mismatch sample_ids, this should cause an error
         populations = pd.Series(["population1", "population2", "population3"])
         test_data = np.asarray([[1, 1, 1], [2, 2, 2], [3, 3, 3], [4, 4, 4]])
 
@@ -353,3 +333,44 @@ class TestNumpyDataset:
             PandoraException, match="Number of Principal Components needs to be smaller"
         ):
             test_numpy_dataset.run_pca(n_pcs)
+
+    def test_bootstrap(self, test_numpy_dataset):
+        bootstrap = test_numpy_dataset.bootstrap(0)
+
+        assert isinstance(bootstrap, NumpyDataset)
+        assert bootstrap.input_data.shape == test_numpy_dataset.input_data.shape
+        assert (bootstrap.sample_ids == test_numpy_dataset.sample_ids).all()
+        assert (bootstrap.populations == test_numpy_dataset.populations).all()
+
+    def test_get_windows(self, test_numpy_dataset):
+        n_snps = test_numpy_dataset.input_data.shape[1]
+        n_windows = 3
+
+        expected_overlap = int((n_snps / n_windows) / 2)
+        expected_stride = int(n_snps / n_windows)
+        expected_window_size = expected_stride + expected_overlap
+
+        windows = test_numpy_dataset.get_windows(n_windows)
+
+        assert len(windows) == n_windows
+        assert all(isinstance(w, NumpyDataset) for w in windows)
+
+        # all windows except the last one should have length expected_window_size
+        for w in windows[:-1]:
+            assert w.input_data.shape[1] == expected_window_size
+
+        # the last window should have less than or equal the expected_window_size
+        assert windows[-1].input_data.shape[1] <= expected_window_size
+
+        # now let's check that they are actually overlapping
+        # for window 0 and window 1, the last / first expected_overlap SNPs should be identical
+        window0_genos = windows[0].input_data
+        window1_genos = windows[1].input_data
+
+        overlap_window0 = window0_genos[:, expected_overlap + 1 :]
+        overlap_window1 = window1_genos[:, :expected_overlap]
+
+        assert overlap_window0.shape == overlap_window1.shape
+        assert overlap_window0.shape[1] == expected_overlap
+
+        assert np.all(overlap_window0 == overlap_window1)

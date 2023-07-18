@@ -75,7 +75,7 @@ class TestPandora:
 
         # check that everything was initialized correctly
         # pandora_test_config does not specify embedding_populations
-        assert pandora.dataset.embedding_populations == []
+        assert pandora.dataset.embedding_populations.empty
         # file prefix should be set correctly and files should exist
         assert pandora.dataset.file_prefix == pandora_test_config.dataset_prefix
         assert pandora.dataset.files_exist()
@@ -100,7 +100,7 @@ class TestPandora:
 
         assert pandora.dataset.pca is None
 
-        pandora.do_pca()
+        pandora.embed_dataset()
 
         # pandora's dataset's PCA should be a PCA object now and not None
         assert isinstance(pandora.dataset.pca, PCA)
@@ -115,7 +115,7 @@ class TestPandora:
         assert pandora.dataset.pca is None
         assert len(pandora.dataset.embedding_populations) > 0
 
-        pandora.do_pca()
+        pandora.embed_dataset()
 
         # pandora's dataset's PCA should be a PCA object now and not None
         assert isinstance(pandora.dataset.pca, PCA)
@@ -125,8 +125,8 @@ class TestPandora:
 
     def test_plot_dataset_fails_if_pca_is_missing(self, pandora_test_config):
         pandora = Pandora(pandora_test_config)
-        with pytest.raises(PandoraException, match="No PCA run for dataset yet"):
-            pandora._plot_dataset()
+        with pytest.raises(PandoraException, match="Embedding not yet run for dataset"):
+            pandora._plot_dataset(pandora.dataset, pandora.dataset.name)
 
     def test_bootstrap_pcas(self, pandora_test_config):
         pandora = Pandora(pandora_test_config)
@@ -136,8 +136,8 @@ class TestPandora:
         assert len(pandora.bootstraps) == 0
 
         # for plotting we need the empirical PCA data
-        pandora.do_pca()
-        pandora.bootstrap_pcas()
+        pandora.embed_dataset()
+        pandora.bootstrap_embeddings()
 
         assert len(pandora.bootstraps) == n_bootstraps_expected
         assert all(isinstance(bs, EigenDataset) for bs in pandora.bootstraps)

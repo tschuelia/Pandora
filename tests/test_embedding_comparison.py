@@ -27,7 +27,7 @@ def test_clip_missing_samples_for_comparison(
             pca_comparable_fewer_samples, pca_reference
         )
 
-    # both PCAs should now contain only the samples present in both PCAs
+    # both PCAs should now contain only the sample_ids present in both PCAs
     present_in_both = set(pca_reference.embedding.sample_id).intersection(
         set(pca_comparable_fewer_samples.embedding.sample_id)
     )
@@ -132,3 +132,7 @@ class TestEmbeddingComparison:
         comparison = EmbeddingComparison(pca1, pca2)
 
         assert 0 < comparison.compare() < 1
+
+
+class TestBatchEmbeddingComparison:
+    pass

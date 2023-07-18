@@ -287,21 +287,31 @@ def from_smartpca(evec: pathlib.Path, eval: pathlib.Path) -> PCA:
 
 
 def from_sklearn_mds(
-    embedding: pd.DataFrame, sample_metadata: pd.DataFrame, stress: float
+    embedding: pd.DataFrame,
+    sample_ids: pd.Series,
+    populations: pd.Series,
+    stress: float,
 ) -> MDS:
     mds_data = []
     n_components = embedding.shape[1] - 1  # one column is 'populations'
 
-    for idx, row in sample_metadata.iterrows():
+    if sample_ids.shape[0] != populations.shape[0]:
+        raise PandoraException(
+            "Number of sample IDs needs to be identical to the number of populations."
+            f"Got {sample_ids.shape[0]} sample IDs but {populations.shape[0]} populations."
+        )
+
+    for sample_id, population in zip(sample_ids, populations):
         embedding_vector = embedding.loc[
-            lambda x: x.population.str.strip() == row.population.strip()
+            lambda x: x.population.str.strip() == population
         ]
+
         assert embedding_vector.shape[0] == 1, (
             f"Multiple/No MDS embeddings for population {row.population}. "
             f"Got {embedding_vector.shape[0]} rows but expected 1."
         )
         embedding_vector = embedding_vector.squeeze().to_list()
-        mds_data.append([row.sample_id, *embedding_vector])
+        mds_data.append([sample_id, *embedding_vector])
 
     mds_data = pd.DataFrame(
         data=mds_data,

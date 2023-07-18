@@ -149,20 +149,20 @@ def smartpca_finished(n_components: int, result_prefix: pathlib.Path) -> bool:
 
 def get_embedding_populations(
     embedding_populations: Optional[pathlib.Path],
-) -> List[str]:
+) -> pd.Series:
     """
-    Return a list of populations to use for the embedding computation.
+    Return a pandas series of populations to use for the embedding computation.
 
     Args:
         embedding_populations (pathlib.Path): Filepath containing the newline-separated list of populations.
 
     Returns:
-        List[str]: List of populations to use for the embedding computation.
+        pd.Series: Pandas series of populations to use for the embedding computation.
 
     """
     if embedding_populations is None:
-        return []
-    return [pop.strip() for pop in embedding_populations.open()]
+        return pd.Series(dtype=object)
+    return pd.Series([pop.strip() for pop in embedding_populations.open()])
 
 
 def _deduplicate_snp_id(snp_id: str, seen_snps: Set[str]):
@@ -208,14 +208,11 @@ class EigenDataset:
             `.geno`, `.ind`, and `.snp`.
         name (str): Name of the dataset. Inferred as name of the provided file_prefix.
         embedding_populations (List[str]): List of population used for PCA analysis with smartpca.
-        samples (pd.DataFrame): Pandas dataframe containing metadata for each sample in the provided dataset.
-            The dataframe contains one row for each sample and the following columns:
-            * sample_id (str): ID of the sample
-            * sex (str): Sex of the sample
-            * population (str): Population of the sample
-            * used_for_embedding (bool): Whether this sample should be used for Embedding computation.
-                If embedding_populations is None, this column is True for all samples.
-        projected_samples (pd.DataFrame): Subset of self.samples, contains only samples where used_for_embedding == True
+        sample_ids (pd.Series): Pandas series containing the sample IDs for the dataset.
+        populations (pd.Series): Pandas series containing the populations for all samples in the dataset.
+        projected_samples (pd.DataFrame): Subset of self.sample_ids, contains only sample_ids that do not belong to
+            embedding_populations.
+        n_snps (int): Number of SNPs in the dataset.
         pca (PCA): PCA object as result of a smartpca run on the provided dataset.
             This is None until self.run_pca() was called.
         mds (MDS): MDS object as a result of an MDS computation. This is None until self.run_mds() was called.
@@ -225,7 +222,36 @@ class EigenDataset:
         self,
         file_prefix: pathlib.Path,
         embedding_populations: Optional[pathlib.Path] = None,
+        sample_ids: pd.Series = None,
+        populations: pd.Series = None,
+        n_snps: int = None,
     ):
+        """
+        Initializes a new EigenDataset object using the provided population genetics files and metadata.
+        Note that in order for the bootstrap and windowing methods to work, the respective geno, ind, and snp files need
+        to be in EIGENSTRAT format with a similar file prefix and need to have file endings `.geno`, `.ind`, and `.snp`.
+
+        Args:
+            file_prefix (pathlib.Path): File path prefix pointing to the ind, geno, and snp files in EIGENSTRAT format.
+            All methods assume that all three files have the same prefix and have the file endings
+            `.geno`, `.ind`, and `.snp`.
+            embedding_populations (optional, pathlib.Path): Path pointing to a file containing a new-line separated list
+                containing population names. Only samples belonging to these populations will be used for PCA analyses.
+            sample_ids (optional, pd.Series): pandas Series containing a sample ID for each sequence in the dataset.
+            populations (optional, pd.Series): pandas Series containing the population for each sample in the dataset.
+            n_snps (optional, int): Number of SNPs in the dataset.
+
+            Note that Pandora does not check on init whether all input files are present, as you are allowed to init
+            a dataset despite the files missing. This is useful for saving storage when drawing lots of bootstrap
+            replicates. In case the input files are missing, you need to pass sample_ids, populations and n_snps.
+            Of course, you need the files if you want to run self.bootstrap, self.run_pca,
+            self.run_mds, or self.get_windows.
+
+        Raises:
+             PandoraException:
+                - if the number of sample IDs and populations are not identical
+                - if either of the input files does not exist, but sample_ids, populations, and/or n_snps is None
+        """
         self.file_prefix: pathlib.Path = file_prefix
         self._file_dir: pathlib.Path = self.file_prefix.parent
         self.name: str = self.file_prefix.name
@@ -235,55 +261,106 @@ class EigenDataset:
         self._snp_file: pathlib.Path = pathlib.Path(f"{self.file_prefix}.snp")
 
         self._embedding_populations_file: pathlib.Path = embedding_populations
-        self.embedding_populations: List[str] = get_embedding_populations(
+        self.embedding_populations: pd.Series = get_embedding_populations(
             self._embedding_populations_file
         )
 
-        self.samples = self.get_sample_info()
-        self.projected_samples: pd.DataFrame = self.samples.loc[
-            lambda x: ~x.used_for_embedding
-        ]
+        if not self.files_exist() and any(
+            [sample_ids is None, populations is None, n_snps is None]
+        ):
+            # in case of missing input files, sample_ids, populations, and n_snps need to be set
+            # otherwise the following initialization will fail due to missing files
+            raise PandoraException(
+                "Not all input files (.ind, .geno, .snp) for file_prefix present, "
+                "but sample_ids, populations, and/or n_snps is None."
+            )
+
+        if sample_ids is None:
+            self.sample_ids = self.get_sample_info()
+        else:
+            self.sample_ids = sample_ids
+
+        if populations is None:
+            self.populations = self.get_population_info()
+        else:
+            self.populations = populations
+
+        if self.sample_ids.shape[0] != self.populations.shape[0]:
+            raise PandoraException(
+                f"Number of sample IDs and populations need to be identical. "
+                f"Got {self.sample_ids.shape[0]} sample IDs, but {self.populations.shape[0]} populations."
+            )
+
+        self.projected_samples = self.get_projected_samples()
+
+        if n_snps is None:
+            self.n_snps = self.get_sequence_length()
+        else:
+            self.n_snps = n_snps
 
         self.pca: Union[None, PCA] = None
         self.mds: Union[None, MDS] = None
 
-    def get_sample_info(self) -> pd.DataFrame:
+    def get_sample_info(self) -> pd.Series:
         """
-        Extracts metadata for each sample in self._ind_file.
+        Reads the sample IDs from self._ind_file
 
         Returns:
-            pd.DataFrame: Pandas dataframe with the following columns:
-                * sample_id (str): ID of the sample
-                * sex (str): sex of the sample
-                * population (str): population the sample belongs to
-                * used_for_embedding (bool): whether the sample should be used to compute a dimensionality reduction Embedding
-                    Decided based on self.embedding_populations. If self.embedding_populations all values will be True.
+            pd.Series: Pandas series containing the sample IDs of the dataset in the order in the ind file.
         """
         if not self._ind_file.exists():
             raise PandoraConfigException(
                 f"The .ind file {self._ind_file} does not exist."
             )
 
+        sample_ids = []
+        for sample in self._ind_file.open():
+            sample_id, _, _ = sample.split()
+            sample_ids.append(sample_id.strip())
+
+        return pd.Series(sample_ids)
+
+    def get_population_info(self) -> pd.Series:
+        """
+        Reads the populations from self._ind_file.
+
+        Returns:
+            pd.Series: Pandas series containing the population for each sample in the prder in the ind file.
+        """
+        if not self._ind_file.exists():
+            raise PandoraConfigException(
+                f"The .ind file {self._ind_file} does not exist."
+            )
+
+        populations = []
+        for sample in self._ind_file.open():
+            _, _, population = sample.split()
+            populations.append(population.strip())
+
+        return pd.Series(populations)
+
+    def get_projected_samples(self) -> pd.Series:
+        """
+        Returns a pandas series with sample IDs of projected samples. If a sample is projected or used to compute the
+        embedding is decided based on the presence and content of self._embedding_populations_file.
+
+        Returns:
+            pd.Series: Pandas series containing only sample IDs of projected samples.
+        """
         populations_for_embedding = get_embedding_populations(
             self._embedding_populations_file
         )
 
-        data = {"sample_id": [], "sex": [], "population": [], "used_for_embedding": []}
-        for sample in self._ind_file.open():
-            sample_id, sex, population = sample.split()
-            data["sample_id"].append(sample_id.strip())
-            data["sex"].append(sex.strip())
-            data["population"].append(population.strip())
+        if len(populations_for_embedding) == 0:
+            # no samples are projected
+            return pd.Series(dtype=object)
 
-            if len(populations_for_embedding) == 0:
-                # all samples used for PCA
-                data["used_for_embedding"].append(True)
-            else:
-                data["used_for_embedding"].append(
-                    population in populations_for_embedding
-                )
+        projected = []
+        for sample_id, population in zip(self.sample_ids, self.populations):
+            if population not in populations_for_embedding:
+                projected.append(sample_id)
 
-        return pd.DataFrame(data=data)
+        return pd.Series(projected)
 
     def get_sequence_length(self) -> int:
         """
@@ -350,11 +427,10 @@ class EigenDataset:
                 evecoutname, evaloutname, numoutevec, maxpops.
 
         """
-        n_snps = self.get_sequence_length()
-        if n_components > n_snps:
+        if n_components > self.n_snps:
             raise PandoraException(
                 "Number of Principal Components needs to be smaller or equal than the number of SNPs. "
-                f"Got {n_snps} SNPs, but asked for {n_components}."
+                f"Got {self.n_snps} SNPs, but asked for {n_components}."
             )
 
         if result_dir is None:
@@ -388,7 +464,7 @@ class EigenDataset:
                 evecoutname: {evec_out}
                 evaloutname: {eval_out}
                 numoutevec: {n_components}
-                maxpops: {self.samples.population.unique().shape[0]}
+                maxpops: {self.populations.unique().shape[0]}
                 """
 
             smartpca_params = textwrap.dedent(smartpca_params)
@@ -442,7 +518,7 @@ class EigenDataset:
                 indivname: {self._ind_file}
                 phylipoutname: {fst_file}
                 fstonly: YES
-                maxpops: {self.samples.population.unique().shape[0]}
+                maxpops: {self.populations.unique().shape[0]}
                 """
 
             tmpfile.write(smartpca_fst_params)
@@ -485,11 +561,10 @@ class EigenDataset:
                 Default is False.
 
         """
-        n_snps = self.get_sequence_length()
-        if n_components > n_snps:
+        if n_components > self.n_snps:
             raise PandoraException(
                 "Number of components needs to be smaller or equal than the number of SNPs. "
-                f"Got {n_snps} SNPs, but asked for {n_components}."
+                f"Got {self.n_snps} SNPs, but asked for {n_components}."
             )
 
         if result_dir is None:
@@ -501,6 +576,10 @@ class EigenDataset:
         if not fst_file.exists() or not smartpca_log.exists() or redo:
             # TODO: check if results exist and are correct
             self._compute_fst_matrix(smartpca, fst_file, smartpca_log)
+
+        fst_content = fst_file.open().read()
+        fst_content = fst_content.replace("-", " -")
+        fst_file.open("w").write(fst_content)
 
         with fst_file.open() as f:
             shape = int(f.readline())
@@ -519,12 +598,18 @@ class EigenDataset:
             _, _, population, *_ = line.split()
             populations.append(population.strip())
 
-        mds = sklearnMDS(n_components=n_components, dissimilarity="precomputed")
+        mds = sklearnMDS(
+            n_components=n_components,
+            dissimilarity="precomputed",
+            normalized_stress=False,
+        )
         embedding = mds.fit_transform(fst_results[cols])
         embedding = pd.DataFrame(data=embedding)
         embedding["population"] = populations
 
-        self.mds = from_sklearn_mds(embedding, self.samples, mds.stress_)
+        self.mds = from_sklearn_mds(
+            embedding, self.sample_ids, self.populations, mds.stress_
+        )
 
     def bootstrap(
         self, bootstrap_prefix: pathlib.Path, seed: int, redo: bool = False
@@ -550,7 +635,13 @@ class EigenDataset:
         )
 
         if files_exist and not redo:
-            return EigenDataset(bootstrap_prefix, self._embedding_populations_file)
+            return EigenDataset(
+                bootstrap_prefix,
+                self._embedding_populations_file,
+                self.sample_ids,
+                self.populations,
+                self.n_snps,
+            )
 
         bs_ind_file.unlink(missing_ok=True)
         bs_geno_file.unlink(missing_ok=True)
@@ -603,8 +694,13 @@ class EigenDataset:
 
         # when bootstrapping on SNP level, the .ind file does not change
         shutil.copy(self._ind_file, bs_ind_file)
-
-        return EigenDataset(bootstrap_prefix, self._embedding_populations_file)
+        return EigenDataset(
+            bootstrap_prefix,
+            self._embedding_populations_file,
+            self.sample_ids,
+            self.populations,
+            self.n_snps,
+        )
 
     def _generate_windowed_dataset(
         self, window_start: int, window_end: int, result_prefix: pathlib.Path
@@ -642,7 +738,12 @@ class EigenDataset:
         with geno_file.open(mode="wb") as f:
             f.write(b"".join(window_genos))
 
-        return EigenDataset(result_prefix)
+        return EigenDataset(
+            result_prefix,
+            self._embedding_populations_file,
+            self.sample_ids,
+            self.populations,
+        )
 
     def get_windows(
         self, result_dir: pathlib.Path, n_windows: int = 100
@@ -697,10 +798,14 @@ def _bootstrap_and_embed(args):
         keep_bootstraps,
         smartpca_optional_settings,
     ) = args
-    if embedding == "pca":
-        if smartpca_finished(n_components, bootstrap_prefix):
+    if embedding == EmbeddingAlgorithm.PCA:
+        if smartpca_finished(n_components, bootstrap_prefix) and not redo:
             bootstrap = EigenDataset(
-                bootstrap_prefix, dataset._embedding_populations_file
+                bootstrap_prefix,
+                dataset._embedding_populations_file,
+                dataset.sample_ids,
+                dataset.populations,
+                dataset.n_snps,
             )
         else:
             bootstrap = dataset.bootstrap(bootstrap_prefix, seed, redo)
@@ -710,7 +815,7 @@ def _bootstrap_and_embed(args):
             redo=redo,
             smartpca_optional_settings=smartpca_optional_settings,
         )
-    elif embedding == "mds":
+    elif embedding == EmbeddingAlgorithm.MDS:
         bootstrap = dataset.bootstrap(bootstrap_prefix, seed, redo)
         bootstrap.run_mds(smartpca=smartpca, n_components=n_components, redo=redo)
     else:
@@ -727,7 +832,7 @@ def bootstrap_and_embed_multiple(
     n_bootstraps: int,
     result_dir: pathlib.Path,
     smartpca: Executable,
-    embedding: str,
+    embedding: EmbeddingAlgorithm,
     n_components: int = 20,
     seed: Optional[int] = None,
     threads: Optional[int] = None,
@@ -744,8 +849,8 @@ def bootstrap_and_embed_multiple(
         n_bootstraps (int): Number of bootstrap replicates to draw.
         result_dir (pathlib.Path): Directory where to store all result files.
         smartpca (Executable): Path pointing to an executable of the EIGENSOFT smartpca tool.
-        embedding (str): Dimensionality reduction technique to apply. Allowed options are "pca" for PCA analysis and
-            "mds" for MDS analysis.
+        embedding (EmbeddingAlgorithm): Dimensionality reduction technique to apply. Allowed options are
+            EmbeddingAlgorithm.PCA for PCA analysis and EmbeddingAlgorithm.MDS for MDS analysis.
         n_components (optional, int): Number of dimensions to reduce the data to. Default is 20.
         seed (optional, int): Seed to initialize the random number generator with.
             Default is to use the current system time.
@@ -800,7 +905,7 @@ class NumpyDataset:
     Parameters:
         input_data (npt.NDArray): Numpy Array containing the input data to use.
         sample_ids (pd.Series[str]): Pandas Series containing the sample IDs of the sequences contained in input_data.
-            Expects the number of sample_ids to matche the first dimension of input_data.
+            Expects the number of sample_ids to match the first dimension of input_data.
         populations (pd.Series[str]): Pandas Series containing the populations of the sequences contained in input_data.
             Expects the number of populations to matche the first dimension of input_data.
 
@@ -820,12 +925,12 @@ class NumpyDataset:
         if sample_ids.shape[0] != populations.shape[0]:
             raise PandoraException(
                 f"Provide a population for each sample. "
-                f"Got {sample_ids.shape[0]} samples but {populations.shape[0]} populations."
+                f"Got {sample_ids.shape[0]} sample_ids but {populations.shape[0]} populations."
             )
         if sample_ids.shape[0] != input_data.shape[0]:
             raise PandoraException(
                 f"Provide a sample ID for each sample in input_data. "
-                f"Got {sample_ids.shape[0]} samples but input_data has shape {input_data.shape}"
+                f"Got {sample_ids.shape[0]} sample_ids but input_data has shape {input_data.shape}"
             )
         self.input_data = input_data
         self.sample_ids = sample_ids
@@ -932,9 +1037,9 @@ class NumpyDataset:
 def _bootstrap_and_embed_numpy(args):
     dataset, seed, embedding, n_components = args
     bootstrap = dataset.bootstrap(seed)
-    if embedding == "pca":
+    if embedding == EmbeddingAlgorithm.PCA:
         bootstrap.run_pca(n_components)
-    elif embedding == "mds":
+    elif embedding == EmbeddingAlgorithm.MDS:
         bootstrap.run_mds(n_components)
 
     return bootstrap

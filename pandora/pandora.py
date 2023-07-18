@@ -93,6 +93,7 @@ class PandoraConfig:
 
     # Embedding related
     n_components: NonNegativeInt = 20
+    embedding_algorithm: EmbeddingAlgorithm = EmbeddingAlgorithm.PCA
     smartpca: Executable = "smartpca"
     smartpca_optional_settings: Optional[Dict[str, Any]] = None
     embedding_populations: Optional[
@@ -195,7 +196,7 @@ class PandoraConfig:
         for k, v in config.items():
             if isinstance(v, pathlib.Path):
                 config[k] = str(v.absolute())
-            elif isinstance(v, FileFormat):
+            elif isinstance(v, Enum):
                 config[k] = v.value
 
         return config
@@ -249,37 +250,64 @@ class Pandora:
 
         self.sample_support_values: pd.DataFrame = pd.DataFrame()
 
-    def do_pca(self):
+    def embed_dataset(self):
         self.pandora_config.result_dir.mkdir(exist_ok=True, parents=True)
-        logger.info(fmt_message("Running SmartPCA on the input dataset."))
-        self.dataset.run_pca(
-            result_dir=self.pandora_config.result_dir,
-            smartpca=self.pandora_config.smartpca,
-            n_components=self.pandora_config.n_components,
-            redo=self.pandora_config.redo,
-            smartpca_optional_settings=self.pandora_config.smartpca_optional_settings,
-        )
+        if self.pandora_config.embedding_algorithm == EmbeddingAlgorithm.PCA:
+            logger.info(fmt_message("Running SmartPCA on the input dataset."))
+            self.dataset.run_pca(
+                smartpca=self.pandora_config.smartpca,
+                n_components=self.pandora_config.n_components,
+                result_dir=self.pandora_config.result_dir,
+                redo=self.pandora_config.redo,
+                smartpca_optional_settings=self.pandora_config.smartpca_optional_settings,
+            )
+        elif self.pandora_config.embedding_algorithm == EmbeddingAlgorithm.MDS:
+            logger.info(fmt_message("Performing MDS analysis on the input dataset."))
+            self.dataset.run_mds(
+                smartpca=self.pandora_config.smartpca,
+                n_components=self.pandora_config.n_components,
+                result_dir=self.pandora_config.result_dir,
+                redo=self.pandora_config.redo,
+            )
+        else:
+            raise PandoraConfigException(
+                f"Unrecognized embedding algorithm: {self.pandora_config.embedding_algorithm}."
+            )
 
         if self.pandora_config.plot_results:
             self.pandora_config.plot_dir.mkdir(exist_ok=True, parents=True)
-            logger.info(fmt_message("Plotting SmartPCA results for the input dataset."))
-            self._plot_dataset()
+            logger.info(
+                fmt_message("Plotting embedding results for the input dataset.")
+            )
+            self._plot_dataset(self.dataset, self.dataset.name)
 
-    def _plot_pca(self, dataset: EigenDataset, plot_prefix: str):
-        if dataset.pca is None:
-            raise PandoraException("No PCA run for dataset yet. Nothing to plot.")
+    def _plot_dataset(self, dataset: EigenDataset, plot_prefix: str):
+        if self.pandora_config.embedding_algorithm == EmbeddingAlgorithm.PCA:
+            embedding = dataset.pca
+        elif self.pandora_config.embedding_algorithm == EmbeddingAlgorithm.MDS:
+            embedding = dataset.mds
+        else:
+            raise PandoraConfigException(
+                f"Unrecognized embedding algorithm: {self.pandora_config.embedding_algorithm}."
+            )
+
+        if embedding is None:
+            raise PandoraException(
+                "Embedding not yet run for dataset. Nothing to plot."
+            )
+
         pcx = self.pandora_config.plot_dim_x
         pcy = self.pandora_config.plot_dim_y
 
         # plot with annotated populations
-        fig = plot_populations(dataset.pca, pcx, pcy)
+        fig = plot_populations(embedding, pcx, pcy)
         fig.write_image(
             self.pandora_config.plot_dir / f"{plot_prefix}_with_populations.pdf"
         )
 
         # plot with annotated clusters
         fig = plot_clusters(
-            dataset.pca,
+            embedding,
             dim_x=pcx,
             dim_y=pcy,
             kmeans_k=self.pandora_config.kmeans_k,
@@ -290,7 +318,7 @@ class Pandora:
 
         if len(self.dataset.embedding_populations) > 0:
             fig = plot_projections(
-                dataset.pca,
+                embedding,
                 embedding_populations=list(self.dataset.embedding_populations),
                 dim_x=pcx,
                 dim_y=pcy,
@@ -299,19 +327,17 @@ class Pandora:
                 self.pandora_config.plot_dir / f"{plot_prefix}_projections.pdf"
             )
 
-    def _plot_dataset(self):
-        self._plot_pca(self.dataset, self.dataset.name)
-
     # ===========================
     # BOOTSTRAP RELATED FUNCTIONS
     # ===========================
-    def bootstrap_pcas(self):
+    def bootstrap_embeddings(self):
         """
-        Create bootstrap datasets and run PCA on each dataset
+        Create bootstrap datasets and run dimensionality reduction on each dataset
         """
         logger.info(
             fmt_message(
-                f"Drawing {self.pandora_config.n_bootstraps} bootstrapped datasets and running SmartPCA."
+                f"Drawing {self.pandora_config.n_bootstraps} bootstrapped datasets and "
+                f"running {self.pandora_config.embedding_algorithm.value}."
             )
         )
         self.bootstraps = bootstrap_and_embed_multiple(
@@ -319,7 +345,7 @@ class Pandora:
             self.pandora_config.n_bootstraps,
             self.pandora_config.bootstrap_result_dir,
             self.pandora_config.smartpca,
-            "pca",  # TODO: config param mit pca oder mds
+            self.pandora_config.embedding_algorithm,
             self.pandora_config.n_components,
             self.pandora_config.seed,
             self.pandora_config.threads,
@@ -332,12 +358,12 @@ class Pandora:
         # Compare results
         # pairwise comparison between all bootstraps
         # =======================================
-        logger.info(fmt_message(f"Comparing bootstrap PCA results."))
+        logger.info(fmt_message(f"Comparing bootstrap embedding results."))
         self._compare_bootstrap_similarity()
 
         if self.pandora_config.plot_results:
             self.pandora_config.plot_dir.mkdir(exist_ok=True, parents=True)
-            logger.info(fmt_message(f"Plotting bootstrap PCA results."))
+            logger.info(fmt_message(f"Plotting bootstrap embedding results."))
             self._plot_bootstraps()
             self._plot_sample_support_values()
 
@@ -346,25 +372,32 @@ class Pandora:
 
     def _plot_bootstraps(self):
         for i, bootstrap in enumerate(self.bootstraps):
-            self._plot_pca(bootstrap, f"bootstrap_{i}")
+            self._plot_dataset(bootstrap, f"bootstrap_{i}")
 
     def _plot_sample_support_values(self, projected_samples_only: bool = False):
-        if self.dataset.pca is None:
+        if self.pandora_config.embedding_algorithm == EmbeddingAlgorithm.PCA:
+            embedding = self.dataset.pca
+        elif self.pandora_config.embedding_algorithm == EmbeddingAlgorithm.MDS:
+            embedding = self.dataset.mds
+        else:
+            raise PandoraConfigException(
+                f"Unrecognized embedding algorithm: {self.pandora_config.embedding_algorithm}."
+            )
+
+        if embedding is None:
             raise PandoraException(
-                "Support values are plotted using self.dataset.embedding, but PCA was not performed for self.dataset. "
-                "Make sure to run self.do_pca prior to plotting."
+                "Support values are plotted using self.dataset.embedding, but dimensionality reduction was not performed"
+                "for self.dataset. Make sure to run self.embed_dataset() prior to plotting."
             )
         pcx = self.pandora_config.plot_dim_x
         pcy = self.pandora_config.plot_dim_y
 
         projected_samples = (
-            self.dataset.projected_samples.sample_id.unique()
-            if projected_samples_only
-            else None
+            self.dataset.projected_samples if projected_samples_only else None
         )
 
         fig = plot_support_values(
-            self.dataset.pca,
+            embedding,
             self.sample_support_values.mean(axis=1),
             self.pandora_config.support_value_rogue_cutoff,
             pcx,
@@ -382,15 +415,28 @@ class Pandora:
 
     def _compare_bootstrap_similarity(self):
         # Compare all bootstraps pairwise
+        if self.pandora_config.embedding_algorithm == EmbeddingAlgorithm.PCA:
+            embedding = self.dataset.pca
+            batch_comparison = BatchEmbeddingComparison(
+                [b.pca for b in self.bootstraps]
+            )
+        elif self.pandora_config.embedding_algorithm == EmbeddingAlgorithm.MDS:
+            embedding = self.dataset.mds
+            batch_comparison = BatchEmbeddingComparison(
+                [b.mds for b in self.bootstraps]
+            )
+        else:
+            raise PandoraConfigException(
+                f"Unrecognized embedding algorithm: {self.pandora_config.embedding_algorithm}."
+            )
+
         if self.pandora_config.kmeans_k is not None:
             kmeans_k = self.pandora_config.kmeans_k
         else:
-            kmeans_k = self.dataset.pca.get_optimal_kmeans_k()
+            kmeans_k = embedding.get_optimal_kmeans_k()
 
         if len(self.bootstraps) == 0:
             raise PandoraException("No bootstrap replicates to compare!")
-
-        batch_comparison = BatchEmbeddingComparison([b.pca for b in self.bootstraps])
 
         self.bootstrap_stability = batch_comparison.compare()
         self.bootstrap_stabilities = batch_comparison.get_pairwise_stabilities()
@@ -421,10 +467,10 @@ class Pandora:
             > Number of Kmeans clusters: {self.pandora_config.kmeans_k}
 
             ------------------
-            Bootstrapping Similarity
+            Bootstrapping Results
             ------------------
-            PCA: {round(self.bootstrap_stability[0], _rd)} ± {round(self.bootstrap_stability[1], _rd)}
-            K-Means clustering: {round(self.bootstrap_cluster_stability[0], _rd)} ± {round(self.bootstrap_cluster_stability[1], _rd)}"""
+            Pandora Stability: {round(self.bootstrap_stability, _rd)}
+            Pandora Cluster Stability: {round(self.bootstrap_cluster_stability, _rd)}"""
         )
 
         self.pandora_config.result_file.open(mode="w").write(bootstrap_results_string)
@@ -467,7 +513,7 @@ class Pandora:
             return
 
         projected_support_values = self.sample_support_values.loc[
-            lambda x: x.index.isin(self.dataset.projected_samples.sample_id.tolist())
+            lambda x: x.index.isin(self.dataset.projected_samples)
         ]
         self._log_support_values(
             "Projected Samples", projected_sample_support_values.mean(axis=1)
@@ -507,6 +553,12 @@ def pandora_config_from_configfile(configfile: pathlib.Path) -> PandoraConfig:
     file_format = config_data.get("file_format")
     if file_format is not None:
         config_data["file_format"] = FileFormat(file_format)
+
+    embedding_algorithm = config_data.get("embedding_algorithm")
+    if embedding_algorithm is not None:
+        config_data["embedding_algorithm"] = EmbeddingAlgorithm[
+            embedding_algorithm.upper()
+        ]
 
     try:
         return PandoraConfig(**config_data)

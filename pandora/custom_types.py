@@ -15,3 +15,8 @@ class FileFormat(Enum):
     PED = "PED"
     PACKEDPED = "PACKEDPED"
     PACKEDANCESTRYMAP = "PACKEDANCESTRYMAP"
+
+
+class EmbeddingAlgorithm(Enum):
+    PCA = "PCA"
+    MDS = "MDS"

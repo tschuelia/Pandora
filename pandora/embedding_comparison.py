@@ -102,7 +102,7 @@ def _clip_missing_samples_for_comparison(
         == reference_clipped.embedding_matrix.shape
     )
     # Issue a warning if we clip more than 20% of all samples of either Embedding
-    # and fail if there are no samples lef
+    # and fail if there are no samples left
     _check_sample_clipping(comparable, comparable_clipped)
     _check_sample_clipping(reference, reference_clipped)
 
@@ -166,7 +166,7 @@ class EmbeddingComparison:
 
     def compare(self) -> float:
         """
-        Compares self.comparable to self.reference using Procrustes Analysis and returns the similarity.
+        Computes the Pandora stability between self.comparable to self.reference using Procrustes Analysis.
 
         Returns:
             float: Similarity score on a scale of 0 (entirely different) to 1 (identical) measuring the similarity of
@@ -179,7 +179,8 @@ class EmbeddingComparison:
 
     def compare_clustering(self, kmeans_k: int = None) -> float:
         """
-        Compares the assigned cluster labels based on K-Means clustering on self.reference and self.comparable.
+        Computes the Pandora cluster stability between self.comparable and self.reference.
+        Compares the assigned cluster labels based on K-Means clustering on both embeddings.
 
         Args:
             kmeans_k (int): Number k of clusters to use for K-Means clustering.
@@ -224,7 +225,7 @@ class EmbeddingComparison:
 
     def get_sample_support_values(self) -> pd.Series[float]:
         """
-        Computes the samples support value for each sample in self.sample_id using the euclidean distance
+        Computes the sample support value for each sample in self.sample_id using the euclidean distance
         between projections in self.reference and self.comparable.
         The euclidean distance `d` is normalized to [0, 1] by computing ` 1 / (1 + d)`.
         The higher the support the closer the projections are in euclidean space in self.reference and self.comparable.
@@ -259,12 +260,63 @@ class EmbeddingComparison:
 
 
 class BatchEmbeddingComparison:
+    """Class structure for comparing three or more Embedding results. All comparisons are conducted pairwise for all
+    unique pairs of embeddings.
+    Embedding objects must all be of the same type, allowed types are PCA and MDS.
+
+    This class provides methods for comparing both Embedding based on all samples,
+    for comparing the K-Means clustering results, and for computing sample support values.
+
+    BatchEmbeddingComparison makes use of pairwise EmbeddingComparison objects for comparing results pairwise.
+
+    Attributes:
+        embeddings (List[Embedding]): List of embeddings to compare
+
+    """
+
     def __init__(self, embeddings: List[Embedding]):
-        # TODO: check that all embeddings are of the same type
-        # TODO: check that there are at least three embeddings otherwise batch comparison does not make sense
+        """
+        Initializes a new BatchEmbeddingComparison object using the list of embeddings passed.
+
+        Args:
+            embeddings (List[Embedding]): List of embeddings to compare
+
+        Raises:
+            PandoraException:
+                - if not all embeddings are of the same type
+                - if not all embeddings are either PCA or MDS objects
+                - if less than three embeddings are passed
+        """
+        types = set(type(e) for e in embeddings)
+        if len(types) > 1:
+            raise PandoraException("All Embeddings need to be of identical types.")
+
+        if types.pop() not in [PCA, MDS]:
+            raise PandoraException("All Embeddings must be PCA or MDS embeddings.")
+
+        if len(embeddings) < 3:
+            raise PandoraException(
+                "BatchEmbeddingComparison of Embeddings makes only sense for three or more embeddings."
+                "For two use the EmbeddingComparison class."
+            )
         self.embeddings = embeddings
 
-    def get_pairwise_stabilities(self) -> pd.DataFrame:
+    def get_pairwise_stabilities(self) -> pd.Series:
+        """
+        Computes the pairwise Pandora stability scores for all unique pairs of self.embedding and stores them in a
+        pandas Series.
+
+        Returns:
+            pd.Series: Pandas Series containing the pairwise stability scores for all unique pairs of
+                self.embeddings. The resulting Series is named bootstrap_stability and has the indices of the
+                pairwise comparisons as index. So a result looks e.g. like this:
+                (0, 1)    0.93
+                (0, 2)    0.79
+                (1, 2)    0.71
+                Name: bootstrap_stability, dtype: float64
+                Each value is between 0 and 1.
+
+        """
         pairwise_stabilities = []
         for (i1, embedding1), (i2, embedding2) in itertools.combinations(
             enumerate(self.embeddings), r=2
@@ -278,11 +330,25 @@ class BatchEmbeddingComparison:
         pairwise_stabilities.name = "bootstrap_stability"
         return pairwise_stabilities
 
-    def compare(self) -> Tuple[float, float]:
-        pairwise_stabilities = self.get_pairwise_stabilities()
-        return pairwise_stabilities.mean(), pairwise_stabilities.std()
+    def compare(self) -> float:
+        """
+        Compares all embeddings pairwise and returns the average of the resulting pairwise Pandora stability scores.
+
+        Returns:
+            float: Average of pairwise Pandora stability scores.
+
+        """
+        return self.get_pairwise_stabilities().mean()
 
     def get_pairwise_cluster_stabilities(self, kmeans_k: int) -> pd.DataFrame:
+        """
+
+        Args:
+            kmeans_k:
+
+        Returns:
+
+        """
         pairwise_cluster_stabilities = []
         for (i1, embedding1), (i2, embedding2) in itertools.combinations(
             enumerate(self.embeddings), r=2
@@ -296,9 +362,8 @@ class BatchEmbeddingComparison:
         pairwise_cluster_stabilities.name = "bootstrap_cluster_stability"
         return pairwise_cluster_stabilities
 
-    def compare_clustering(self, kmeans_k: int) -> Tuple[float, float]:
-        pairwise_cluster_stabilities = self.get_pairwise_cluster_stabilities(kmeans_k)
-        return pairwise_cluster_stabilities.mean(), pairwise_cluster_stabilities.std()
+    def compare_clustering(self, kmeans_k: int) -> float:
+        return self.get_pairwise_cluster_stabilities(kmeans_k).mean()
 
     def get_sample_support_values(self) -> pd.DataFrame:
         sample_supports = []
@@ -343,7 +408,7 @@ def _numpy_to_dataframe(
     if sample_ids.shape[0] != embedding_data.shape[0]:
         raise PandoraException(
             f"One sample ID required for each sample. Got {len(sample_ids)} IDs, "
-            f"but embedding_data has {embedding_data.shape[0]} samples."
+            f"but embedding_data has {embedding_data.shape[0]} sample_ids."
         )
 
     embedding_data["sample_id"] = sample_ids.values
@@ -351,7 +416,7 @@ def _numpy_to_dataframe(
     if populations.shape[0] != embedding_data.shape[0]:
         raise PandoraException(
             f"One population required for each sample. Got {len(populations)} populations, "
-            f"but embedding_data has {embedding_data.shape[0]} samples."
+            f"but embedding_data has {embedding_data.shape[0]} sample_ids."
         )
 
     embedding_data["population"] = populations.values

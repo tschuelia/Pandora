@@ -88,12 +88,12 @@ def main():
     # initialize empty Pandora object that keeps track of all results
     pandora_results = Pandora(pandora_config)
 
-    # Run PCA on the input dataset without any bootstrapping
-    pandora_results.do_pca()
+    # Run PCA/MDS on the input dataset without any bootstrapping
+    pandora_results.embed_dataset()
 
     if pandora_config.do_bootstrapping:
         # Bootstrapped PCAs
-        pandora_results.bootstrap_pcas()
+        pandora_results.bootstrap_embeddings()
 
     logger.info("\n\n========= PANDORA RESULTS =========")
     logger.info(f"> Input dataset: {pandora_config.dataset_prefix.absolute()}")

@@ -764,9 +764,9 @@ class EigenDataset:
     ) -> List[EigenDataset]:
         """
         Creates n_windows new EigenDataset objects as overlapping sliding windows over self.
-        Let M = number of SNPs in self and N = n_windows.
-        Each dataset will have a window size of int(M / N + (M / 2 * N)) SNPs.
-        The stride is int(M / N) and the overlap between windows is thus int(M / 2 * N) SNPs.
+        Let K = number of SNPs in self and N = n_windows.
+        Each dataset will have a window size of int(K / N + (K / 2 * N)) SNPs.
+        The stride is int(K / N) and the overlap between windows is thus int(K / 2 * N) SNPs.
         Note that the last EigenDataset will contain fewer SNPs as there is no following window to overlap with.
         However, due to rounding, the number of SNPs in the final Dataset will not simply be overlap fewer.
 
@@ -1020,9 +1020,9 @@ class NumpyDataset:
     def get_windows(self, n_windows: int = 100) -> List[NumpyDataset]:
         """
         Creates n_windows new NumpyDataset objects as overlapping sliding windows over self.
-        Let M = number of SNPs in self and N = n_windows.
-        Each dataset will have a window size of int(M / N + (M / 2 * N)) SNPs.
-        The stride is int(M / N) and the overlap between windows is thus int(M / 2 * N) SNPs.
+        Let K = number of SNPs in self and N = n_windows.
+        Each dataset will have a window size of int(K / N + (K / 2 * N)) SNPs.
+        The stride is int(K / N) and the overlap between windows is thus int(K / 2 * N) SNPs.
         Note that the last NumpyDataset will contain fewer SNPs as there is no following window to overlap with.
         However, due to rounding, the number of SNPs in the final Dataset will not simply be overlap fewer.
 

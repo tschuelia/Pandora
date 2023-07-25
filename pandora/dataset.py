@@ -420,7 +420,7 @@ class EigenDataset:
     def run_pca(
         self,
         smartpca: Executable,
-        n_components: int = 20,
+        n_components: int = 10,
         result_dir: Optional[pathlib.Path] = None,
         redo: bool = False,
         smartpca_optional_settings: Optional[Dict] = None,
@@ -432,7 +432,7 @@ class EigenDataset:
 
         Args:
             smartpca (Executable): Path pointing to an executable of the EIGENSOFT smartpca tool.
-            n_components (int): Number of principal components to output. Default is 20.
+            n_components (int): Number of principal components to output. Default is 10.
             result_dir (Optional[pathlib.Path]): File path pointing where to write the results to.
                 Default is the directory where all input files are.
             redo (bool): Whether to redo the analysis, if all outfiles are already present and correct.
@@ -556,7 +556,7 @@ class EigenDataset:
     def run_mds(
         self,
         smartpca: Executable,
-        n_components: int = 20,
+        n_components: int = 2,
         result_dir: Optional[pathlib.Path] = None,
         redo: bool = False,
     ) -> None:
@@ -566,7 +566,7 @@ class EigenDataset:
 
         Args:
             smartpca (Executable): Path pointing to an executable of the EIGENSOFT smartpca tool.
-            n_components (int): Number of components to reduce the data to. Default is 20.
+            n_components (int): Number of components to reduce the data to. Default is 2.
             result_dir (optional, pathlib.Path): Directory where to store the data in. Calling this method will create two files:
                 * result_dir / (self.name + ".fst"): contains the FST distance matrix.
                 * result_dir / (self.name + ".smartpca.log"): contains the smartpca log.
@@ -847,7 +847,7 @@ def bootstrap_and_embed_multiple(
     result_dir: pathlib.Path,
     smartpca: Executable,
     embedding: EmbeddingAlgorithm,
-    n_components: int = 20,
+    n_components: int,
     seed: Optional[int] = None,
     threads: Optional[int] = None,
     redo: bool = False,
@@ -865,7 +865,8 @@ def bootstrap_and_embed_multiple(
         smartpca (Executable): Path pointing to an executable of the EIGENSOFT smartpca tool.
         embedding (EmbeddingAlgorithm): Dimensionality reduction technique to apply. Allowed options are
             EmbeddingAlgorithm.PCA for PCA analysis and EmbeddingAlgorithm.MDS for MDS analysis.
-        n_components (optional, int): Number of dimensions to reduce the data to. Default is 20.
+        n_components (optional, int): Number of dimensions to reduce the data to.
+            The recommended number is 10 for PCA and 2 for MDS.
         seed (optional, int): Seed to initialize the random number generator with.
             Default is to use the current system time.
         threads (optional, int): Number of threads to use for parallel bootstrap generation.
@@ -953,13 +954,13 @@ class NumpyDataset:
         self.pca: Union[None, PCA] = None
         self.mds: Union[None, MDS] = None
 
-    def run_pca(self, n_components: int = 20) -> None:
+    def run_pca(self, n_components: int = 10) -> None:
         """
         Performs PCA analysis on self.input_data reducing the data to n_components dimensions.
         Uses the scikit-learn PCA implementation. The result of the PCA analysis is a PCA object assigned to self.pca.
 
         Args:
-            n_components (int): Number of components to reduce the data to. Default is 20.
+            n_components (int): Number of components to reduce the data to. Default is 10.
 
         """
         n_snps = self.input_data.shape[1]
@@ -980,7 +981,8 @@ class NumpyDataset:
 
     def run_mds(
         self,
-        n_components: int = 20,
+        n_components: int = 2,
+        distance_metric: Callable[[npt.NDArray], npt.NDArray] = _euclidean_distance,
     ) -> None:
         # TODO: das macht so keinen sinn
         # ich kann nicht einfach eine FST matrix bootstrappend -> ich muss davon ausgehen, dass
@@ -1076,7 +1078,8 @@ def bootstrap_and_embed_multiple_numpy(
         n_bootstraps (int): Number of bootstrap replicates to draw.
         embedding (EmbeddingAlgorithm): Dimensionality reduction technique to apply. Allowed options are
             EmbeddingAlgorithm.PCA for PCA analysis and EmbeddingAlgorithm.MDS for MDS analysis.
-        n_components (optional, int): Number of dimensions to reduce the data to. Default is 20.
+        n_components (optional, int): Number of dimensions to reduce the data to.
+            The recommended number is 10 for PCA and 2 for MDS.
         seed (optional, int): Seed to initialize the random number generator with.
             Default is to use the current system time.
         threads (optional, int): Number of threads to use for parallel bootstrap generation.
@@ -1093,11 +1096,31 @@ def bootstrap_and_embed_multiple_numpy(
     if threads is None:
         threads = multiprocessing.cpu_count()
 
+    if distance_metric is None and embedding == EmbeddingAlgorithm.MDS:
+        raise PandoraException(
+            "Need to pass a distance metric Callable for MDS analyses."
+        )
+
+    if embedding == EmbeddingAlgorithm.PCA and distance_metric is not None:
+        warnings.warn(
+            "Setting distance_metric if embedding == PCA does not have an effect."
+        )
+
     args = [
-        (dataset, random.randint(0, 1_000_000), embedding, n_components)
+        (
+            dataset,
+            random.randint(0, 1_000_000),
+            embedding,
+            n_components,
+            distance_metric,
+        )
         for _ in range(n_bootstraps)
     ]
     with Pool(threads) as p:
         bootstraps = list(p.map(_bootstrap_and_embed_numpy, args))
 
     return bootstraps
+
+
+# TODO: missing data imputation in run_pca and run_mds
+# allow different types of imputation

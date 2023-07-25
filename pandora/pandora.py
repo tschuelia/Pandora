@@ -43,7 +43,8 @@ class PandoraConfig:
         keep_bootstraps (bool): Whether to store all bootstrap datasets files (.geno, .snp, .ind). Note that this will
             result in a substantial storage consumption. Default is False. Note that the bootstrapped indicies are
             stored as checkpoints for full reproducibility in any case.
-        n_components (PositiveInt): Number of Principal Components to output and compare for PCA analyses. Default is 20.
+        n_components (PositiveInt): Number of dimensions to output and compare for PCA and MDS analyses.
+            The recommended number is 10 for PCA and 2 for MDS. Default is 10 in correspondance to the default PCA embedding.
         smartpca (Executable): File path pointing to an executable of Eigensoft's smartpca tool. Smartpca is used
             for PCA analyses on the provided dataset. Default is 'smartpca'. This will only work if smartpca is
             installed systemwide.
@@ -92,7 +93,7 @@ class PandoraConfig:
     keep_bootstraps: bool = False
 
     # Embedding related
-    n_components: NonNegativeInt = 20
+    n_components: NonNegativeInt = 10
     embedding_algorithm: EmbeddingAlgorithm = EmbeddingAlgorithm.PCA
     smartpca: Executable = "smartpca"
     smartpca_optional_settings: Optional[Dict[str, Any]] = None

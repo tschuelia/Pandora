@@ -1,8 +1,17 @@
 # Pandora
 [![Build and test Pandora](https://github.com/tschuelia/Pandora/actions/workflows/test-pandora.yml/badge.svg)](https://github.com/tschuelia/Pandora/actions/workflows/test-pandora.yml)
 
+<hr>
+
+**Warning: Pandora is still under development and the documentation and wiki are not complete yet. Until everything is properly tested,
+all results you obtain should be handled with care.**
+
+<hr>
+
+
 Pandora's Box for PCA and MDS analyses. Pandora is a command line tool that estimates the stability of your PCA or MDS analyses under bootstrapping.
 As the name suggests: there might be results surfacing that you don't like :-)
+
 Pandora is specifically designed for population genetics and ancient DNA data.
 
 ## Boostrap Stability Analysis

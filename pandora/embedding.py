@@ -292,7 +292,28 @@ def from_sklearn_mds(
     populations: pd.Series,
     stress: float,
 ) -> MDS:
-    mds_data = []
+    """
+    Creates a new MDS object based on an MDS embedding pandas dataframe. Note that embedding is expected to have a
+    column entitled populations. This is needed since the input distance matrices for MDS may be summary statistics
+    for all samples of one population. The resulting MDS object however will duplicate the results for each sample
+    given in sample_ids to match the original input data.
+
+    TODO: finish docstring
+
+    Args:
+        embedding:
+        sample_ids:
+        populations:
+        stress:
+
+    Returns:
+
+    """
+    if "population" not in embedding.columns:
+        raise PandoraException(
+            "The embedding dataframe needs to contain a column entitled 'populations'."
+        )
+
     n_components = embedding.shape[1] - 1  # one column is 'populations'
 
     if sample_ids.shape[0] != populations.shape[0]:
@@ -301,20 +322,36 @@ def from_sklearn_mds(
             f"Got {sample_ids.shape[0]} sample IDs but {populations.shape[0]} populations."
         )
 
-    for sample_id, population in zip(sample_ids, populations):
-        embedding_vector = embedding.loc[
-            lambda x: x.population.str.strip() == population
-        ]
+    # depending on whether the distance matrix for MDS was computed using all samples or per population
+    # we need to duplicate results for all samples per population
+    # so we first check if the embedding shape matches the number of populations
+    if embedding.shape[0] == populations.shape[0]:
+        # we can directly use the embedding data as mds_data
+        mds_data = embedding
+        # add the sample_id column
+        mds_data["sample_id"] = sample_ids
+    else:
+        # otherwise we need to iterate the embedding data and duplicate the results for each sample in sample_ids
+        mds_data = []
 
-        assert embedding_vector.shape[0] == 1, (
-            f"Multiple/No MDS embeddings for population {row.population}. "
-            f"Got {embedding_vector.shape[0]} rows but expected 1."
+        for sample_id, population in zip(sample_ids, populations):
+            embedding_vector = embedding.loc[
+                lambda x: x.population.str.strip() == population
+            ]
+
+            assert embedding_vector.shape[0] == 1, (
+                f"Multiple/No MDS embeddings for population {population}. "
+                f"Got {embedding_vector.shape[0]} rows but expected exactly 1."
+            )
+            embedding_vector = embedding_vector.squeeze().to_list()
+            mds_data.append([sample_id, *embedding_vector])
+
+        mds_data = pd.DataFrame(
+            data=mds_data,
+            columns=[
+                "sample_id",
+                *[f"D{i}" for i in range(n_components)],
+                "population",
+            ],
         )
-        embedding_vector = embedding_vector.squeeze().to_list()
-        mds_data.append([sample_id, *embedding_vector])
-
-    mds_data = pd.DataFrame(
-        data=mds_data,
-        columns=["sample_id", *[f"D{i}" for i in range(n_components)], "population"],
-    )
     return MDS(mds_data, n_components, stress)

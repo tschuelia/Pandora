@@ -9,15 +9,18 @@ import shutil
 import subprocess
 import tempfile
 import textwrap
+import warnings
 from multiprocessing import Pool
 
 import numpy as np
 import pandas as pd
 from sklearn.decomposition import PCA as sklearnPCA
 from sklearn.manifold import MDS as sklearnMDS
+from sklearn.metrics.pairwise import euclidean_distances
 
 from pandora.custom_errors import *
 from pandora.custom_types import *
+from pandora.distance_metrics import POPULATION_DISTANCES, SAMPLE_DISTANCES
 from pandora.embedding import MDS, PCA, from_sklearn_mds, from_smartpca
 
 
@@ -618,7 +621,9 @@ class EigenDataset:
             normalized_stress=False,
         )
         embedding = mds.fit_transform(fst_results[cols])
-        embedding = pd.DataFrame(data=embedding)
+        embedding = pd.DataFrame(
+            data=embedding, columns=[f"D{i}" for i in range(n_components)]
+        )
         embedding["population"] = populations
 
         self.mds = from_sklearn_mds(
@@ -911,6 +916,10 @@ def bootstrap_and_embed_multiple(
     return bootstraps
 
 
+def _euclidean_distance(input_data: npt.NDArray) -> npt.NDArray:
+    return euclidean_distances(input_data, input_data)
+
+
 class NumpyDataset:
     """Class structure to represent a population genetics dataset in numerical format.
     This class provides methods to perform PCA and MDS analyses on the provided numerical data using scikit-learn.
@@ -982,25 +991,63 @@ class NumpyDataset:
     def run_mds(
         self,
         n_components: int = 2,
-        distance_metric: Callable[[npt.NDArray], npt.NDArray] = _euclidean_distance,
+        distance_metric: str = "euclidean",
+        summarize_populations: bool = False,
     ) -> None:
-        # TODO: das macht so keinen sinn
-        # ich kann nicht einfach eine FST matrix bootstrappend -> ich muss davon ausgehen, dass
-        # self.input_data die sample sequences sind und muss hier dann erstmal die FST Matrix selbst berechnen
-        n_snps = self.input_data.shape[1]
-        if n_components > n_snps:
+        """
+        Performs MDS analysis using the data provided in this class. The distance matrix is generated using the
+        provided distance_metric callable. The subsequent MDS analysis is performed using the scikit-learn MDS implementation.
+
+        Args:
+            n_components (int): Number of components to reduce the data to. Default is 2.
+            distance_metric (str): Distance metric to use for computing the distance matrix input for MDS.
+                Available are: TODO
+            summarize_populations (bool): Whether to compute the distance matrix population-wide or per sample.
+                If True, the distances will be averaged over all samples per population and MDS is then computed between
+                populations.
+                If False, the pairwise sample distances will be used. Default is False.
+
+        """
+        if summarize_populations:
+            distance_metric = POPULATION_DISTANCES.get(distance_metric)
+            if distance_metric is None:
+                raise PandoraException(
+                    f"Unrecognized population-wide distance metric: {distance_metric}. "
+                    f"Available options are: {POPULATION_DISTANCES.keys()}"
+                )
+
+            distance_matrix = distance_metric(self.input_data, self.populations)
+            populations = self.populations.unique()
+        else:
+            distance_metric = SAMPLE_DISTANCES.get(distance_metric)
+            if distance_metric is None:
+                raise PandoraException(
+                    f"Unrecognized pairwise distance metric: {distance_metric}. "
+                    f"Available options are: {SAMPLE_DISTANCES.keys()}"
+                )
+
+            distance_matrix = distance_metric(self.input_data)
+            populations = self.populations
+
+        n_dims = distance_matrix.shape[1]
+        if n_components > n_dims:
             raise PandoraException(
-                "Number of components needs to be smaller or equal than the number of SNPs. "
-                f"Got {n_snps} SNPs, but asked for {n_components}."
+                "Number of components needs to be smaller or equal than the number of dimensions. "
+                f"Got {n_dims} dimensions in the distance matrix, but asked for {n_components}."
             )
-        mds = sklearnMDS(n_components, dissimilarity="precomputed")
-        embedding = mds.fit_transform(self.input_data)
+
+        mds = sklearnMDS(
+            n_components, dissimilarity="precomputed", normalized_stress=False
+        )
+        embedding = mds.fit_transform(distance_matrix)
         embedding = pd.DataFrame(
             data=embedding, columns=[f"D{i}" for i in range(n_components)]
         )
-        embedding["sample_id"] = self.sample_ids
-        embedding["population"] = self.populations
-        self.mds = MDS(embedding, n_components, mds.stress_)
+        embedding["population"] = populations
+
+        self.mds = from_sklearn_mds(
+            embedding, self.sample_ids, self.populations, mds.stress_
+        )
 
     def bootstrap(self, seed: int) -> NumpyDataset:
         """
@@ -1051,12 +1098,19 @@ class NumpyDataset:
 
 
 def _bootstrap_and_embed_numpy(args):
-    dataset, seed, embedding, n_components = args
+    (
+        dataset,
+        seed,
+        embedding,
+        n_components,
+        distance_metric,
+        summarize_populations,
+    ) = args
     bootstrap = dataset.bootstrap(seed)
     if embedding == EmbeddingAlgorithm.PCA:
         bootstrap.run_pca(n_components)
     elif embedding == EmbeddingAlgorithm.MDS:
-        bootstrap.run_mds(n_components)
+        bootstrap.run_mds(n_components, distance_metric, summarize_populations)
 
     return bootstrap
 
@@ -1065,9 +1119,11 @@ def bootstrap_and_embed_multiple_numpy(
     dataset: NumpyDataset,
     n_bootstraps: int,
     embedding: EmbeddingAlgorithm,
-    n_components: int = 20,
+    n_components: int,
     seed: Optional[int] = None,
     threads: Optional[int] = None,
+    distance_metric: str = "euclidean",
+    summarize_populations: bool = False,
 ) -> List[NumpyDataset]:
     """
     Draws n_bootstraps bootstrap datasets of the provided NumpyDataset and performs PCA/MDS analysis
@@ -1084,6 +1140,12 @@ def bootstrap_and_embed_multiple_numpy(
             Default is to use the current system time.
         threads (optional, int): Number of threads to use for parallel bootstrap generation.
             Default is to use all system threads.
+        distance_metric (str): Distance metric to use for computing the distance matrix input for MDS.
+                Available are: TODO
+        summarize_populations (bool): For MDS: whether to compute the distance matrix population-wide or per sample.
+                If True, the distances will be averaged over all samples per population and MDS is then computed between
+                populations.
+                If False, the pairwise sample distances will be used. Default is False.
 
     Returns:
         List[NumpyDataset]: List of n_bootstraps boostrap replicates as NumpyDataset objects. Each of the resulting
@@ -1096,16 +1158,6 @@ def bootstrap_and_embed_multiple_numpy(
     if threads is None:
         threads = multiprocessing.cpu_count()
 
-    if distance_metric is None and embedding == EmbeddingAlgorithm.MDS:
-        raise PandoraException(
-            "Need to pass a distance metric Callable for MDS analyses."
-        )
-
-    if embedding == EmbeddingAlgorithm.PCA and distance_metric is not None:
-        warnings.warn(
-            "Setting distance_metric if embedding == PCA does not have an effect."
-        )
-
     args = [
         (
             dataset,
@@ -1113,6 +1165,7 @@ def bootstrap_and_embed_multiple_numpy(
             embedding,
             n_components,
             distance_metric,
+            summarize_populations,
         )
         for _ in range(n_bootstraps)
     ]

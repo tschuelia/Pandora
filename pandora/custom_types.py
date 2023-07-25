@@ -1,6 +1,6 @@
 import pathlib
 from enum import Enum
-from typing import Any, Dict, Iterable, List, Optional, Set, Tuple, Union
+from typing import Any, Callable, Dict, Iterable, List, Optional, Set, Tuple, Union
 
 import numpy as np
 import numpy.typing as npt

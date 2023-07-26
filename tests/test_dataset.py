@@ -434,9 +434,8 @@ class TestNumpyDataset:
         "embedding", [EmbeddingAlgorithm.PCA, EmbeddingAlgorithm.MDS]
     )
     @pytest.mark.parametrize("impute_missing", [True, False])
-    @pytest.mark.parametrize("imputation", ["mean", "remove"])
     def test_bootstrap_and_embed_multiple_numpy(
-        self, test_numpy_dataset, embedding, impute_missing, imputation
+        self, test_numpy_dataset, embedding, impute_missing
     ):
         n_bootstraps = 2
         bootstraps = bootstrap_and_embed_multiple_numpy(
@@ -448,7 +447,9 @@ class TestNumpyDataset:
             threads=2,
             impute_missing=impute_missing,
             missing_value=0,
-            imputation=imputation,
+            # we don't test for 'remove' here because we have a small dataset and we might end up getting an error
+            # because the bootstrapped dataset contains only nan-columns
+            imputation="mean",
         )
 
         assert len(bootstraps) == n_bootstraps

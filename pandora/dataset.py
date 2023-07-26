@@ -1214,8 +1214,8 @@ class NumpyDataset:
         Note that the last NumpyDataset will contain fewer SNPs as there is no following window to overlap with.
         However, due to rounding, the number of SNPs in the final Dataset will not simply be overlap fewer.
 
-        Parameters:
-        -----------
+        Parameters
+        ----------
         n_windows: int, default=100
             Number of windowed datasets to generate.
 

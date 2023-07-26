@@ -16,3 +16,8 @@ dependencies:
   - pip
   - eigensoft
   - pydantic
+  - make
+  - numpydoc
+  - sphinx
+  - sphinxcontrib-apidoc
+  - sphinx_rtd_theme

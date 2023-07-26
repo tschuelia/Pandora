@@ -9,10 +9,8 @@ import shutil
 import subprocess
 import tempfile
 import textwrap
-import warnings
 from multiprocessing import Pool
 
-import numpy as np
 import pandas as pd
 from sklearn.decomposition import PCA as sklearnPCA
 from sklearn.impute import SimpleImputer
@@ -21,7 +19,7 @@ from sklearn.metrics.pairwise import euclidean_distances
 
 from pandora.custom_errors import *
 from pandora.custom_types import *
-from pandora.distance_metrics import POPULATION_DISTANCES, SAMPLE_DISTANCES
+from pandora.distance_metrics import euclidean_sample_distance
 from pandora.embedding import MDS, PCA, from_sklearn_mds, from_smartpca
 
 
@@ -1034,8 +1032,9 @@ class NumpyDataset:
     def run_mds(
         self,
         n_components: int = 2,
-        distance_metric: str = "euclidean",  # TODO: das hier vielleicht doch als Callable?
-        summarize_populations: bool = False,
+        distance_metric: Callable[
+            [npt.NDArray, pd.Series], Tuple[npt.NDArray, pd.Series]
+        ] = euclidean_sample_distance,
         impute_missing: bool = True,
         missing_value: Union[np.nan, int] = np.nan,
         imputation: str = "mean",
@@ -1047,12 +1046,13 @@ class NumpyDataset:
 
         Args:
             n_components (int): Number of components to reduce the data to. Default is 2.
-            distance_metric (str): Distance metric to use for computing the distance matrix input for MDS.
-                Available are: TODO
-            summarize_populations (bool): Whether to compute the distance matrix population-wide or per sample.
-                If True, the distances will be averaged over all samples per population and MDS is then computed between
-                populations.
-                If False, the pairwise sample distances will be used. Default is False.
+            distance_metric (Callable[[npt.NDArray, pd.Series], Tuple[npt.NDArray, pd.Series]]):
+                Distance metric to use for computing the distance matrix input for MDS. This is expected to be a
+                function that receives the numpy array of sequences and the population for each sequence as input
+                and should output the distance matrix and the respective populations for each row.
+                The resulting distance matrix is of size (n, m) and the resulting populations is expected to be
+                of size (n, 1).
+                Default is distance_metrics::eculidean_sample_distance (the pairwise Euclidean distance of all samples)
             impute_missing (bool): Whether to impute missing values in self.input_data before performing PCA.
             missing_value (Union[np.nan, int]): Value to treat as missing value.
             imputation (str): Imputation method to use. Available options are:
@@ -1065,26 +1065,13 @@ class NumpyDataset:
         else:
             input_data = self.input_data
 
-        if summarize_populations:
-            distance_metric = POPULATION_DISTANCES.get(distance_metric)
-            if distance_metric is None:
-                raise PandoraException(
-                    f"Unrecognized population-wide distance metric: {distance_metric}. "
-                    f"Available options are: {POPULATION_DISTANCES.keys()}"
-                )
-
-            distance_matrix = distance_metric(input_data, self.populations)
-            populations = self.populations.unique()
-        else:
-            distance_metric = SAMPLE_DISTANCES.get(distance_metric)
-            if distance_metric is None:
-                raise PandoraException(
-                    f"Unrecognized pairwise distance metric: {distance_metric}. "
-                    f"Available options are: {SAMPLE_DISTANCES.keys()}"
-                )
-
-            distance_matrix = distance_metric(input_data)
-            populations = self.populations
+        distance_matrix, populations = distance_metric(input_data, self.populations)
+        if distance_matrix.shape[0] != populations.shape[0]:
+            raise PandoraException(
+                "The distance matrix computation did not yield the expected array and series shapes: "
+                "The number of populations needs to be identical to the number of rows in the distance matrix. "
+                f"Got {populations.shape[0]} populations but {distance_matrix.shape[0]} rows in the distance matrix."
+            )
 
         n_dims = distance_matrix.shape[1]
         if n_components > n_dims:
@@ -1161,7 +1148,6 @@ def _bootstrap_and_embed_numpy(args):
         embedding,
         n_components,
         distance_metric,
-        summarize_populations,
         impute_missing,
         missing_value,
         imputation,
@@ -1173,7 +1159,6 @@ def _bootstrap_and_embed_numpy(args):
         bootstrap.run_mds(
             n_components,
             distance_metric,
-            summarize_populations,
             impute_missing,
             missing_value,
             imputation,
@@ -1189,8 +1174,9 @@ def bootstrap_and_embed_multiple_numpy(
     n_components: int,
     seed: Optional[int] = None,
     threads: Optional[int] = None,
-    distance_metric: str = "euclidean",
-    summarize_populations: bool = False,
+    distance_metric: Callable[
+        [npt.NDArray, pd.Series], Tuple[npt.NDArray, pd.Series]
+    ] = euclidean_sample_distance,
     impute_missing: bool = True,
     missing_value: Union[np.nan, int] = np.nan,
     imputation: str = "mean",
@@ -1210,12 +1196,13 @@ def bootstrap_and_embed_multiple_numpy(
             Default is to use the current system time.
         threads (optional, int): Number of threads to use for parallel bootstrap generation.
             Default is to use all system threads.
-        distance_metric (str): Distance metric to use for computing the distance matrix input for MDS.
-                Available are: TODO
-        summarize_populations (bool): For MDS: whether to compute the distance matrix population-wide or per sample.
-                If True, the distances will be averaged over all samples per population and MDS is then computed between
-                populations.
-                If False, the pairwise sample distances will be used. Default is False.
+        distance_metric (Callable[[npt.NDArray, pd.Series], Tuple[npt.NDArray, pd.Series]]):
+                Distance metric to use for computing the distance matrix input for MDS. This is expected to be a
+                function that receives the numpy array of sequences and the population for each sequence as input
+                and should output the distance matrix and the respective populations for each row.
+                The resulting distance matrix is of size (n, m) and the resulting populations is expected to be
+                of size (n, 1).
+                Default is distance_metrics::eculidean_sample_distance (the pairwise Euclidean distance of all samples)
         impute_missing (bool): Whether to impute missing values in self.input_data before performing PCA.
         missing_value (Union[np.nan, int]): Value to treat as missing value.
         imputation (str): Imputation method to use. Available options are:
@@ -1240,7 +1227,6 @@ def bootstrap_and_embed_multiple_numpy(
             embedding,
             n_components,
             distance_metric,
-            summarize_populations,
             impute_missing,
             missing_value,
             imputation,

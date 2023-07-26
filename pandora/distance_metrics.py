@@ -4,19 +4,23 @@ from pandora.custom_errors import *
 from pandora.custom_types import *
 
 
-def _euclidean_distance(input_data: npt.NDArray, *_) -> npt.NDArray:
-    return euclidean_distances(input_data, input_data)
+def euclidean_sample_distance(
+    input_data: npt.NDArray, populations: pd.Series
+) -> Tuple[npt.NDArray, pd.Series]:
+    return euclidean_distances(input_data, input_data), populations
 
 
-def _manhattan_distance(input_data: npt.NDArray, *_) -> npt.NDArray:
-    return manhattan_distances(input_data, input_data)
+def manhattan_sample_distance(
+    input_data: npt.NDArray, populations: pd.Series
+) -> Tuple[npt.NDArray, pd.Series]:
+    return manhattan_distances(input_data, input_data), populations
 
 
 def _population_distance(
     input_data: npt.NDArray,
     populations: pd.Series,
     distance_metric: Callable[[npt.NDArray, npt.NDArray], npt.NDArray],
-) -> npt.NDArray:
+) -> Tuple[npt.NDArray, pd.Series]:
     input_data = pd.DataFrame(input_data)
 
     if input_data.shape[0] != populations.shape[0]:
@@ -47,27 +51,24 @@ def _population_distance(
         # distance matrix needs to be symmetric
         distance_matrix[j, i] = np.mean(sample_distances)
 
-    return distance_matrix
+    return distance_matrix, pd.Series(unique_populations)
 
 
-def _euclidean_population_distance(
+def euclidean_population_distance(
     input_data: npt.NDArray, populations: pd.Series
-) -> npt.NDArray:
+) -> Tuple[npt.NDArray, pd.Series]:
     return _population_distance(input_data, populations, euclidean_distances)
 
 
-def _manhattan_population_distance(
+def manhattan_population_distance(
     input_data: npt.NDArray, populations: pd.Series
-) -> npt.NDArray:
+) -> Tuple[npt.NDArray, pd.Series]:
     return _population_distance(input_data, populations, manhattan_distances)
 
 
-SAMPLE_DISTANCES: [str, Callable] = {
-    "euclidean": _euclidean_distance,
-    "manhattan": _manhattan_distance,
-}
-
-POPULATION_DISTANCES: [str, Callable] = {
-    "euclidean": _euclidean_population_distance,
-    "manhattan": _manhattan_population_distance,
-}
+DISTANCE_METRICS = [
+    euclidean_sample_distance,
+    manhattan_sample_distance,
+    euclidean_population_distance,
+    manhattan_population_distance,
+]

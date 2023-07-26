@@ -1,12 +1,8 @@
-import pathlib
-import shutil
-import tempfile
-
-import numpy as np
 import pytest
 
 from pandora.dataset import *
 from pandora.dataset import _deduplicate_snp_id
+from pandora.distance_metrics import DISTANCE_METRICS
 from pandora.embedding import PCA
 
 
@@ -454,15 +450,13 @@ class TestNumpyDataset:
             assert all(isinstance(b.mds, MDS) for b in bootstraps)
             assert all(b.pca is None for b in bootstraps)
 
-    @pytest.mark.parametrize("distance_metric", ["euclidean", "manhattan"])
-    @pytest.mark.parametrize("summarize_populations", [True, False])
+    @pytest.mark.parametrize("distance_metric", DISTANCE_METRICS)
     @pytest.mark.parametrize("impute_missing", [True, False])
     @pytest.mark.parametrize("imputation", ["mean", "remove"])
     def test_run_mds(
         self,
         test_numpy_dataset,
         distance_metric,
-        summarize_populations,
         impute_missing,
         imputation,
     ):
@@ -471,7 +465,6 @@ class TestNumpyDataset:
         test_numpy_dataset.run_mds(
             n_components=n_components,
             distance_metric=distance_metric,
-            summarize_populations=summarize_populations,
             impute_missing=impute_missing,
             imputation=imputation,
         )

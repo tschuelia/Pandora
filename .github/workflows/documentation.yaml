@@ -11,7 +11,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
       - name: Setup conda
-        uses: mamba-org/setup-micromamba@d05808540d968a55ca33c798e0661fb98f533c73
+        uses: mamba-org/setup-micromamba@v1
         with:
           environment-file: etc/environment.yml
           cache-environment: true

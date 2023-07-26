@@ -16,7 +16,7 @@ def manhattan_sample_distance(
     return manhattan_distances(input_data, input_data), populations
 
 
-def _population_distance(
+def population_distance(
     input_data: npt.NDArray,
     populations: pd.Series,
     distance_metric: Callable[[npt.NDArray, npt.NDArray], npt.NDArray],
@@ -57,13 +57,13 @@ def _population_distance(
 def euclidean_population_distance(
     input_data: npt.NDArray, populations: pd.Series
 ) -> Tuple[npt.NDArray, pd.Series]:
-    return _population_distance(input_data, populations, euclidean_distances)
+    return population_distance(input_data, populations, euclidean_distances)
 
 
 def manhattan_population_distance(
     input_data: npt.NDArray, populations: pd.Series
 ) -> Tuple[npt.NDArray, pd.Series]:
-    return _population_distance(input_data, populations, manhattan_distances)
+    return population_distance(input_data, populations, manhattan_distances)
 
 
 DISTANCE_METRICS = [

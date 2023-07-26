@@ -18,14 +18,19 @@ from pandora.embedding import MDS, PCA, Embedding
 
 
 def filter_samples(embedding: Embedding, samples_to_keep: List[str]) -> Embedding:
-    """
-    Filters the given Embedding object by removing all samples not contained in samples_to_keep
+    """Filters the given Embedding object by removing all samples not contained in samples_to_keep
 
-    Args:
-        embedding (Embedding): Embedding object to filter.
-        samples_to_keep (List[str]): List of sample IDs to keep.
+    Parameters
+    ----------
+    embedding: Embedding
+        Embedding object to filter.
+    samples_to_keep: List[str]
+        List of sample IDs to keep.
 
-    Returns: new Embedding object containing the data of embedding for all samples in samples_to_keep
+    Returns
+    -------
+    Embedding
+        new Embedding object containing the data of embedding for all samples in samples_to_keep
 
     """
     embedding_data = embedding.embedding
@@ -57,8 +62,6 @@ def _check_sample_clipping(
     Args:
         before_clipping (PCA): PCA object prior to sample filtering.
         after_clipping (PCA): PCA object after sample filtering.
-
-    Returns: None
 
     """
     n_samples_before = before_clipping.embedding.shape[0]
@@ -115,36 +118,41 @@ class EmbeddingComparison:
     This class provides methods for comparing both Embedding based on all samples,
     for comparing the K-Means clustering results, and for computing sample support values.
 
-    Prior to comparing the results, both Embeddings are filtered such that they only contain samples present in both Embeddings.
+    On initialization, comparable and reference are both reduced to contain only samples present in both Embeddings.
+    In order to compare the two Embeddings, on initialization Procrustes Analysis is applied transforming
+    comparable towards reference. Procrustes Analysis transforms comparable by applying scaling, translation,
+    rotation and reflection aiming to match all sample projections as close as possible to the projections in
+    reference. Prior to comparing the results, both Embeddings are filtered such that they only contain samples present
+    in both Embeddings.
 
     Note that for comparing Embedding results, the sample IDs are used to ensure the correct comparison of projections.
     If an error occurs during initialization, this is most likely due to incorrect sample IDs.
 
-    Attributes:
-        comparable (Embedding): comparable Embedding object after sample filtering and Procrustes Transformation.
-        reference (Embedding): reference Embedding object after sample filtering and Procrustes Transformation.
-        sample_ids (pd.Series[str]): pd.Series containing the sample IDs present in both Embedding objects
+    Parameters
+    ----------
+    comparable: Embedding
+        Embedding object to compare
+    reference: Embedding
+        Embedding object to transform comparable towards
+
+    Attributes
+    ----------
+    comparable: Embedding
+        comparable Embedding object after sample filtering and Procrustes Transformation.
+    reference: Embedding
+        reference Embedding object after sample filtering and Procrustes Transformation.
+    sample_ids: pd.Series[str]
+        pd.Series containing the sample IDs present in both Embedding objects
+
+    Raises
+    ------
+    PandoraException:
+        - if either comparable of reference is not a Embedding object
+        - if comparable and reference are not of the same type (e.g. one is PCA and the other MDS)
+
     """
 
     def __init__(self, comparable: Embedding, reference: Embedding):
-        """
-        Initializes a new EmbeddingComparison object using comparable and reference.
-        On initialization, comparable and reference are both reduced to contain only samples present in both Embeddings.
-        In order to compare the two Embeddings, on initialization Procrustes Analysis is applied transforming
-        comparable towards reference. Procrustes Analysis transforms comparable by applying scaling, translation,
-        rotation and reflection aiming to match all sample projections as close as possible to the projections in
-        reference.
-
-        Args:
-            comparable: Embedding object to compare.
-            reference: Embedding object to transform comparable towards.
-
-        Raises
-            PandoraException:
-                - if either comparable of reference is not a Embedding object
-                - if comparable and reference are not of the same type (e.g. one is PCA and the other MDS)
-
-        """
         if not isinstance(comparable, Embedding) or not isinstance(
             reference, Embedding
         ):
@@ -165,12 +173,13 @@ class EmbeddingComparison:
         self.sample_ids = self.comparable.embedding.sample_id
 
     def compare(self) -> float:
-        """
-        Computes the Pandora stability between self.comparable to self.reference using Procrustes Analysis.
+        """Computes the Pandora stability between self.comparable to self.reference using Procrustes Analysis.
 
-        Returns:
-            float: Similarity score on a scale of 0 (entirely different) to 1 (identical) measuring the similarity of
-                self.comparable and self.reference.
+        Returns
+        -------
+        float
+            Similarity score on a scale of 0 (entirely different) to 1 (identical) measuring the similarity of
+            self.comparable and self.reference.
 
         """
         similarity = np.sqrt(1 - self.disparity)
@@ -178,17 +187,22 @@ class EmbeddingComparison:
         return similarity
 
     def compare_clustering(self, kmeans_k: int = None) -> float:
-        """
-        Computes the Pandora cluster stability between self.comparable and self.reference.
+        """Computes the Pandora cluster stability between self.comparable and self.reference.
+
         Compares the assigned cluster labels based on K-Means clustering on both embeddings.
 
-        Args:
-            kmeans_k (int): Number k of clusters to use for K-Means clustering.
-                If not set, the optimal number of clusters is determined automatically using self.reference.
+        Parameters
+        ----------
+        kmeans_k: int, default=None
+            Number k of clusters to use for K-Means clustering.
+            If not set, the optimal number of clusters is determined automatically using self.reference.
 
-        Returns:
-            float: The Fowlkes-Mallow score of Cluster similarity between the clustering results
-                of self.reference and self.comparable. The score ranges from 0 (entirely distinct) to 1 (identical).
+        Returns
+        -------
+        float
+            The Fowlkes-Mallow score of Cluster similarity between the clustering results of self.reference and
+            self.comparable. The score ranges from 0 (entirely distinct) to 1 (identical).
+
         """
         if kmeans_k is None:
             # we are comparing self to other -> use other as ground truth
@@ -205,12 +219,13 @@ class EmbeddingComparison:
         return fowlkes_mallows_score(ref_cluster_labels, comp_cluster_labels)
 
     def _get_sample_distances(self) -> pd.Series[float]:
-        """
-        Computest the euclidean distances between pairs of samples in self.reference and self.comparable.
+        """Computes the euclidean distances between pairs of samples in self.reference and self.comparable.
 
-        Returns:
-            pd.Series[float]: Euclidean distance between projections for each sample in
-                self.reference and self.comparable. Contains one value for each sample in self.sample_ids
+        Returns
+        -------
+        pd.Series[float]
+            Euclidean distance between projections for each sample in self.reference and self.comparable.
+            Contains one value for each sample in self.sample_ids
 
         """
         # make sure we are comparing the correct PC-vectors in the following
@@ -224,14 +239,16 @@ class EmbeddingComparison:
         return pd.Series(sample_distances, index=self.sample_ids)
 
     def get_sample_support_values(self) -> pd.Series[float]:
-        """
-        Computes the sample support value for each sample in self.sample_id using the euclidean distance
+        """Computes the sample support value for each sample in self.sample_id using the euclidean distance
         between projections in self.reference and self.comparable.
-        The euclidean distance `d` is normalized to [0, 1] by computing ` 1 / (1 + d)`.
+
+        The euclidean distance d is normalized to [0, 1] by computing ` 1 / (1 + d)`.
         The higher the support the closer the projections are in euclidean space in self.reference and self.comparable.
 
-        Returns:
-            pd.Series[float]: Support value when comparing self.reference and self.comparable for each sample in self.sample_id
+        Returns
+        -------
+        pd.Series[float]
+            Support value when comparing self.reference and self.comparable for each sample in self.sample_id
 
         """
         sample_distances = self._get_sample_distances()
@@ -241,15 +258,18 @@ class EmbeddingComparison:
     def detect_rogue_samples(
         self, support_value_rogue_cutoff: float = 0.5
     ) -> pd.Series[float]:
-        """
-        Returns the support values for all samples with a support value below support_value_rogue_cutoff.
+        """Returns the support values for all samples with a support value below support_value_rogue_cutoff.
 
-        Args:
-            support_value_rogue_cutoff (float): Threshold flagging samples as rogue. Default is 0.5.
+        Parameters
+        ----------
+        support_value_rogue_cutoff: float
+            Threshold flagging samples as rogue. Default is 0.5.
 
-        Returns:
-            pd.Series[float]: Support values for all samples with a support value below support_value_rogue_cutoff.
-                The indices of the pandas Series correspond to the sample IDs.
+        Returns
+        -------
+        pd.Series[float]
+            Support values for all samples with a support value below support_value_rogue_cutoff.
+            The indices of the pandas Series correspond to the sample IDs.
 
         """
         support_values = self.get_sample_support_values()
@@ -262,6 +282,7 @@ class EmbeddingComparison:
 class BatchEmbeddingComparison:
     """Class structure for comparing three or more Embedding results. All comparisons are conducted pairwise for all
     unique pairs of embeddings.
+
     Embedding objects must all be of the same type, allowed types are PCA and MDS.
 
     This class provides methods for comparing both Embedding based on all samples,
@@ -269,24 +290,26 @@ class BatchEmbeddingComparison:
 
     BatchEmbeddingComparison makes use of pairwise EmbeddingComparison objects for comparing results pairwise.
 
-    Attributes:
-        embeddings (List[Embedding]): List of embeddings to compare
+    Parameters
+    ----------
+    embeddings: List[Embedding]
+        List of embeddings to compare
+
+    Attributes
+    ----------
+    embeddings: List[Embedding]
+        List of embeddings to compare
+
+    Raises
+    ------
+    PandoraException
+        - if not all embeddings are of the same type
+        - if not all embeddings are either PCA or MDS objects
+        - if less than three embeddings are passed
 
     """
 
     def __init__(self, embeddings: List[Embedding]):
-        """
-        Initializes a new BatchEmbeddingComparison object using the list of embeddings passed.
-
-        Args:
-            embeddings (List[Embedding]): List of embeddings to compare
-
-        Raises:
-            PandoraException:
-                - if not all embeddings are of the same type
-                - if not all embeddings are either PCA or MDS objects
-                - if less than three embeddings are passed
-        """
         types = set(type(e) for e in embeddings)
         if len(types) > 1:
             raise PandoraException("All Embeddings need to be of identical types.")
@@ -302,19 +325,20 @@ class BatchEmbeddingComparison:
         self.embeddings = embeddings
 
     def get_pairwise_stabilities(self) -> pd.Series:
-        """
-        Computes the pairwise Pandora stability scores for all unique pairs of self.embedding and stores them in a
+        """Computes the pairwise Pandora stability scores for all unique pairs of self.embedding and stores them in a
         pandas Series.
 
-        Returns:
-            pd.Series: Pandas Series containing the pairwise stability scores for all unique pairs of
-                self.embeddings. The resulting Series is named bootstrap_stability and has the indices of the
-                pairwise comparisons as index. So a result looks e.g. like this:
-                (0, 1)    0.93
-                (0, 2)    0.79
-                (1, 2)    0.71
-                Name: bootstrap_stability, dtype: float64
-                Each value is between 0 and 1.
+        Returns
+        -------
+        pd.Series
+            Pandas Series containing the pairwise stability scores for all unique pairs of
+            self.embeddings. The resulting Series is named bootstrap_stability and has the indices of the
+            pairwise comparisons as index. So a result looks e.g. like this:
+            (0, 1)    0.93
+            (0, 2)    0.79
+            (1, 2)    0.71
+            Name: bootstrap_stability, dtype: float64
+            Each value is between 0 and 1.
 
         """
         pairwise_stabilities = []
@@ -331,17 +355,19 @@ class BatchEmbeddingComparison:
         return pairwise_stabilities
 
     def compare(self) -> float:
-        """
-        Compares all embeddings pairwise and returns the average of the resulting pairwise Pandora stability scores.
+        """Compares all embeddings pairwise and returns the average of the resulting pairwise Pandora stability scores.
 
-        Returns:
-            float: Average of pairwise Pandora stability scores.
+        Returns
+        -------
+        float
+            Average of pairwise Pandora stability scores.
 
         """
         return self.get_pairwise_stabilities().mean()
 
     def get_pairwise_cluster_stabilities(self, kmeans_k: int) -> pd.DataFrame:
         """
+        TODO
 
         Args:
             kmeans_k:
@@ -363,9 +389,26 @@ class BatchEmbeddingComparison:
         return pairwise_cluster_stabilities
 
     def compare_clustering(self, kmeans_k: int) -> float:
+        """
+        TODO
+
+        Parameters
+        ----------
+        kmeans_k
+
+        Returns
+        -------
+
+        """
         return self.get_pairwise_cluster_stabilities(kmeans_k).mean()
 
     def get_sample_support_values(self) -> pd.DataFrame:
+        """TODO
+
+        Returns
+        -------
+
+        """
         sample_supports = []
         for (i1, embedding1), (i2, embedding2) in itertools.combinations(
             enumerate(self.embeddings), r=2
@@ -383,17 +426,22 @@ def _numpy_to_dataframe(
     sample_ids: pd.Series[str],
     populations: pd.Series[str],
 ):
-    """
-    Transforms a numpy ndarray to a pandas Dataframe as required for initializing a Embedding object.
+    """Transforms a numpy ndarray to a pandas Dataframe as required for initializing a Embedding object.
 
-    Args:
-        embedding_matrix (npt.NDArray[float]): Numpy ndarray containing the Embedding results (PC vectors) for all samples.
-        sample_ids (pd.Series[str]): Pandas Series containing the sample IDs corresponding to the embedding_matrix.
-        populations (pd.Series[str]): Pandas Series containing the populations corresponding to the sample_ids.
+    Parameters
+    ----------
+    embedding_matrix: npt.NDArray[float]
+        Numpy ndarray containing the Embedding results (PC vectors) for all samples.
+    sample_ids: pd.Series[str]
+        Pandas Series containing the sample IDs corresponding to the embedding_matrix.
+    populations: pd.Series[str]
+        Pandas Series containing the populations corresponding to the sample_ids.
 
-    Returns:
-        pd.DataFrame: Pandas dataframe containing all required columns to initialize a Embedding object
-            (sample_id, population, D{i} for i in range(embedding_matrix.shape[1]))
+    Returns
+    -------
+    pd.DataFrame
+        Pandas dataframe containing all required columns to initialize a Embedding object
+        (sample_id, population, D{i} for i in range(embedding_matrix.shape[1]))
 
     """
     if embedding_matrix.ndim != 2:
@@ -426,24 +474,29 @@ def _numpy_to_dataframe(
 def match_and_transform(
     comparable: Embedding, reference: Embedding
 ) -> Tuple[Embedding, Embedding, float]:
-    """
-    Uses Procrustes Analysis to find a transformation matrix that most closely matches comparable to reference.
+    """Uses Procrustes Analysis to find a transformation matrix that most closely matches comparable to reference.
     and transforms comparable.
 
-    Args:
-        comparable (Embedding): The Embedding that should be transformed
-        reference (Embedding): The Embedding that comparable should be transformed towards
+    Parameters
+    ----------
+    comparable: Embedding
+        The Embedding that should be transformed
+    reference: Embedding
+        The Embedding that comparable should be transformed towards
 
-    Returns:
-        Tuple[Embedding, Embedding, float]: Two new Embedding objects and the disparity.
-            The first new Embedding is the transformed comparable and the second one is the standardized reference.
-            The disparity is the sum of squared distances between the transformed comparable and transformed
-            reference Embeddings.
+    Returns
+    -------
+    Tuple[Embedding, Embedding, float]
+        Two new Embedding objects and the disparity.
+        The first new Embedding is the transformed comparable and the second one is the standardized reference.
+        The disparity is the sum of squared distances between the transformed comparable and transformed
+        reference Embeddings.
 
-    Raises:
-        PandoraException:
-            - Mismatch in sample IDs between comparable and reference (identical sample IDs required for comparison)
-            - No samples left after clipping. This is most likely caused by incorrect annotations of sample IDs.
+    Raises
+    ------
+    PandoraException:
+        - Mismatch in sample IDs between comparable and reference (identical sample IDs required for comparison)
+        - No samples left after clipping. This is most likely caused by incorrect annotations of sample IDs.
     """
     comparable, reference = _clip_missing_samples_for_comparison(comparable, reference)
 

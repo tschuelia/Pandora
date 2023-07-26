@@ -100,7 +100,6 @@ def main():
 
     if pandora_config.do_bootstrapping:
         pandora_results.log_and_save_bootstrap_results()
-        pandora_results.log_and_save_sample_support_values()
 
     pandora_config.log_results_files()
 

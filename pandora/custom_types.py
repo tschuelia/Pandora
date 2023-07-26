@@ -10,6 +10,10 @@ Executable = Union[str, pathlib.Path]
 
 
 class FileFormat(Enum):
+    """
+    Supported population genetics file formats.
+    """
+
     ANCESTRYMAP = "ANCESTRYMAP"
     EIGENSTRAT = "EIGENSTRAT"
     PED = "PED"
@@ -18,5 +22,9 @@ class FileFormat(Enum):
 
 
 class EmbeddingAlgorithm(Enum):
+    """
+    Supported options for dimensionality reduction.
+    """
+
     PCA = "PCA"
     MDS = "MDS"

@@ -7,9 +7,9 @@ from pandora.embedding import PCA
 
 
 class TestEigenDataset:
-    def test_get_pca_populations(self, example_population_list):
+    def test_get_embedding_populations(self, example_population_list):
         populations = get_embedding_populations(example_population_list)
-        assert len(populations) == 4
+        assert (populations == pd.Series(["Pop1", "Pop2", "Pop3"])).all()
 
     def test_get_windows(self, example_dataset):
         n_snps = example_dataset.get_sequence_length()
@@ -50,6 +50,20 @@ class TestEigenDataset:
             assert overlap_window0.shape[1] == expected_overlap
 
             assert np.all(overlap_window0 == overlap_window1)
+
+    def test_get_projected_samples_for_dataset_without_projections(
+        self, example_dataset
+    ):
+        # example_dataset is initialized without embedding_populations
+        # so projected_samples should be empty
+        projected_samples = example_dataset.get_projected_samples()
+        assert projected_samples.empty
+
+    def test_get_projected_samples(self, example_dataset_with_poplist):
+        # Pop4 is not listed in the embeddings populations, so example_dataset_with_poplist.get_projected_samples()
+        # should return non-empty series with two samples (SAMPLE3 and SAMPLE4)
+        projected_samples = example_dataset_with_poplist.get_projected_samples()
+        assert projected_samples.shape[0] == 2
 
 
 class TestEigenDatasetBootstrap:

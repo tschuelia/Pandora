@@ -46,7 +46,8 @@ and compares them pairwise to compute the overall stability as average similarit
 
 
 ## Installation and Usage
-We provide detailed instructions on how to setup Pandora in [the wiki](https://github.com/tschuelia/Pandora/wiki).
+See [the documentation](https://pandorageno.readthedocs.io) for information on how to install and use Pandora.
+
 
 ## Support
 If you encounter any trouble using Pandora, have a question, or you find a bug, please feel free to open an issue here.

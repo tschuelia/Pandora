@@ -174,7 +174,7 @@ def pandora_test_config_with_embedding_populations(
 @pytest.fixture
 def test_numpy_dataset():
     test_data = np.asarray(
-        [[1, 1, 1, 1, 1, 1, 1], [2, 2, 2, 2, 2, 2, 2], [3, 3, 3, 3, 3, 3, 3]]
+        [[0, 1, 1, 1, 1, 1, 1], [2, 2, 0, 2, 2, 2, 2], [3, 3, 3, 0, 3, 3, 3]]
     )
     sample_ids = pd.Series(["sample1", "sample2", "sample3"])
     populations = pd.Series(["population1", "population2", "population3"])

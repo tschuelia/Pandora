@@ -15,6 +15,7 @@ from multiprocessing import Pool
 import numpy as np
 import pandas as pd
 from sklearn.decomposition import PCA as sklearnPCA
+from sklearn.impute import SimpleImputer
 from sklearn.manifold import MDS as sklearnMDS
 from sklearn.metrics.pairwise import euclidean_distances
 
@@ -963,13 +964,50 @@ class NumpyDataset:
         self.pca: Union[None, PCA] = None
         self.mds: Union[None, MDS] = None
 
-    def run_pca(self, n_components: int = 10) -> None:
+    def _get_imputed_data(
+        self, missing_value: Union[np.nan, int] = np.nan, imputation: str = "mean"
+    ) -> npt.NDArray:
+        if imputation == "mean":
+            imputer = SimpleImputer(missing_values=missing_value, strategy="mean")
+            return imputer.fit_transform(self.input_data)
+        elif imputation == "remove":
+            # remove all columns containing at least one missing value
+            # to do so, we first replace all missing_value occurrences with np.nan
+            imputed_data = self.input_data.astype("float", copy=True)
+            imputed_data[imputed_data == missing_value] = np.nan
+            imputed_data = imputed_data[:, ~np.isnan(imputed_data).any(axis=0)]
+
+            if imputed_data.size == 0:
+                raise PandoraException(
+                    "No data left after imputation. Every SNP seems to contain at least one missing value. "
+                    "Consider using a different dataset or set imputation='mean'."
+                )
+
+            return imputed_data
+        else:
+            raise PandoraException(
+                f"Unrecognized imputation method {imputation}. "
+                f"Allowed methods are 'mean' and 'remove'."
+            )
+
+    def run_pca(
+        self,
+        n_components: int = 10,
+        impute_missing: bool = True,
+        missing_value: Union[np.nan, int] = np.nan,
+        imputation: str = "mean",
+    ) -> None:
         """
         Performs PCA analysis on self.input_data reducing the data to n_components dimensions.
         Uses the scikit-learn PCA implementation. The result of the PCA analysis is a PCA object assigned to self.pca.
 
         Args:
             n_components (int): Number of components to reduce the data to. Default is 10.
+            impute_missing (bool): Whether to impute missing values in self.input_data before performing PCA.
+            missing_value (Union[np.nan, int]): Value to treat as missing value.
+            imputation (str): Imputation method to use. Available options are:
+                - mean: Imputes missing values with the average of the respective SNP
+                - remove: Removes all SNPs with at least one missing value.
 
         """
         n_snps = self.input_data.shape[1]
@@ -979,8 +1017,13 @@ class NumpyDataset:
                 f"Got {n_snps} SNPs, but asked for {n_components}."
             )
 
+        if impute_missing:
+            pca_input = self._get_imputed_data(missing_value, imputation)
+        else:
+            pca_input = self.input_data
+
         pca = sklearnPCA(n_components)
-        embedding = pca.fit_transform(self.input_data)
+        embedding = pca.fit_transform(pca_input)
         embedding = pd.DataFrame(
             data=embedding, columns=[f"D{i}" for i in range(n_components)]
         )
@@ -991,12 +1034,16 @@ class NumpyDataset:
     def run_mds(
         self,
         n_components: int = 2,
-        distance_metric: str = "euclidean",
+        distance_metric: str = "euclidean",  # TODO: das hier vielleicht doch als Callable?
         summarize_populations: bool = False,
+        impute_missing: bool = True,
+        missing_value: Union[np.nan, int] = np.nan,
+        imputation: str = "mean",
     ) -> None:
         """
         Performs MDS analysis using the data provided in this class. The distance matrix is generated using the
-        provided distance_metric callable. The subsequent MDS analysis is performed using the scikit-learn MDS implementation.
+        provided distance_metric callable. The subsequent MDS analysis is performed using the scikit-learn MDS
+        implementation. The result of the MDS analysis is an MDS object assigned to self.mds.
 
         Args:
             n_components (int): Number of components to reduce the data to. Default is 2.
@@ -1006,8 +1053,18 @@ class NumpyDataset:
                 If True, the distances will be averaged over all samples per population and MDS is then computed between
                 populations.
                 If False, the pairwise sample distances will be used. Default is False.
+            impute_missing (bool): Whether to impute missing values in self.input_data before performing PCA.
+            missing_value (Union[np.nan, int]): Value to treat as missing value.
+            imputation (str): Imputation method to use. Available options are:
+                - mean: Imputes missing values with the average of the respective SNP
+                - remove: Removes all SNPs with at least one missing value.
 
         """
+        if impute_missing:
+            input_data = self._get_imputed_data(missing_value, imputation)
+        else:
+            input_data = self.input_data
+
         if summarize_populations:
             distance_metric = POPULATION_DISTANCES.get(distance_metric)
             if distance_metric is None:
@@ -1016,7 +1073,7 @@ class NumpyDataset:
                     f"Available options are: {POPULATION_DISTANCES.keys()}"
                 )
 
-            distance_matrix = distance_metric(self.input_data, self.populations)
+            distance_matrix = distance_metric(input_data, self.populations)
             populations = self.populations.unique()
         else:
             distance_metric = SAMPLE_DISTANCES.get(distance_metric)
@@ -1026,7 +1083,7 @@ class NumpyDataset:
                     f"Available options are: {SAMPLE_DISTANCES.keys()}"
                 )
 
-            distance_matrix = distance_metric(self.input_data)
+            distance_matrix = distance_metric(input_data)
             populations = self.populations
 
         n_dims = distance_matrix.shape[1]
@@ -1105,12 +1162,22 @@ def _bootstrap_and_embed_numpy(args):
         n_components,
         distance_metric,
         summarize_populations,
+        impute_missing,
+        missing_value,
+        imputation,
     ) = args
     bootstrap = dataset.bootstrap(seed)
     if embedding == EmbeddingAlgorithm.PCA:
-        bootstrap.run_pca(n_components)
+        bootstrap.run_pca(n_components, impute_missing, missing_value, imputation)
     elif embedding == EmbeddingAlgorithm.MDS:
-        bootstrap.run_mds(n_components, distance_metric, summarize_populations)
+        bootstrap.run_mds(
+            n_components,
+            distance_metric,
+            summarize_populations,
+            impute_missing,
+            missing_value,
+            imputation,
+        )
 
     return bootstrap
 
@@ -1124,6 +1191,9 @@ def bootstrap_and_embed_multiple_numpy(
     threads: Optional[int] = None,
     distance_metric: str = "euclidean",
     summarize_populations: bool = False,
+    impute_missing: bool = True,
+    missing_value: Union[np.nan, int] = np.nan,
+    imputation: str = "mean",
 ) -> List[NumpyDataset]:
     """
     Draws n_bootstraps bootstrap datasets of the provided NumpyDataset and performs PCA/MDS analysis
@@ -1146,6 +1216,11 @@ def bootstrap_and_embed_multiple_numpy(
                 If True, the distances will be averaged over all samples per population and MDS is then computed between
                 populations.
                 If False, the pairwise sample distances will be used. Default is False.
+        impute_missing (bool): Whether to impute missing values in self.input_data before performing PCA.
+        missing_value (Union[np.nan, int]): Value to treat as missing value.
+        imputation (str): Imputation method to use. Available options are:
+            - mean: Imputes missing values with the average of the respective SNP
+            - remove: Removes all SNPs with at least one missing value.
 
     Returns:
         List[NumpyDataset]: List of n_bootstraps boostrap replicates as NumpyDataset objects. Each of the resulting
@@ -1166,6 +1241,9 @@ def bootstrap_and_embed_multiple_numpy(
             n_components,
             distance_metric,
             summarize_populations,
+            impute_missing,
+            missing_value,
+            imputation,
         )
         for _ in range(n_bootstraps)
     ]
@@ -1173,7 +1251,3 @@ def bootstrap_and_embed_multiple_numpy(
         bootstraps = list(p.map(_bootstrap_and_embed_numpy, args))
 
     return bootstraps
-
-
-# TODO: missing data imputation in run_pca and run_mds
-# allow different types of imputation

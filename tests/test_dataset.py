@@ -347,9 +347,13 @@ class TestNumpyDataset:
         with pytest.raises(PandoraException, match="a sample ID for each sample"):
             NumpyDataset(test_data, sample_ids, populations)
 
-    def test_run_pca(self, test_numpy_dataset):
+    @pytest.mark.parametrize("impute_missing", [True, False])
+    @pytest.mark.parametrize("imputation", ["mean", "remove"])
+    def test_run_pca(self, test_numpy_dataset, impute_missing, imputation):
         n_pcs = 2
-        test_numpy_dataset.run_pca(n_pcs)
+        test_numpy_dataset.run_pca(
+            n_pcs, impute_missing=impute_missing, imputation=imputation
+        )
         # dataset should now have a PCA object attached with embedding data (n_samples, n_pcs)
         # dataset.mds should still be None
         assert test_numpy_dataset.pca is not None
@@ -416,10 +420,14 @@ class TestNumpyDataset:
 
         assert np.all(overlap_window0 == overlap_window1)
 
-    # @pytest.mark.parametrize("embedding", [EmbeddingAlgorithm.PCA, EmbeddingAlgorithm.MDS])
-    # TODO: test embedding = MDS once fully implemented with FST matrix computation
-    def test_bootstrap_and_embed_multiple_numpy(self, test_numpy_dataset):
-        embedding = EmbeddingAlgorithm.PCA
+    @pytest.mark.parametrize(
+        "embedding", [EmbeddingAlgorithm.PCA, EmbeddingAlgorithm.MDS]
+    )
+    @pytest.mark.parametrize("impute_missing", [True, False])
+    @pytest.mark.parametrize("imputation", ["mean", "remove"])
+    def test_bootstrap_and_embed_multiple_numpy(
+        self, test_numpy_dataset, embedding, impute_missing, imputation
+    ):
         n_bootstraps = 2
         bootstraps = bootstrap_and_embed_multiple_numpy(
             dataset=test_numpy_dataset,
@@ -428,6 +436,9 @@ class TestNumpyDataset:
             n_components=2,
             seed=0,
             threads=2,
+            impute_missing=impute_missing,
+            missing_value=0,
+            imputation=imputation,
         )
 
         assert len(bootstraps) == n_bootstraps
@@ -442,3 +453,70 @@ class TestNumpyDataset:
             assert all(b.mds is not None for b in bootstraps)
             assert all(isinstance(b.mds, MDS) for b in bootstraps)
             assert all(b.pca is None for b in bootstraps)
+
+    @pytest.mark.parametrize("distance_metric", ["euclidean", "manhattan"])
+    @pytest.mark.parametrize("summarize_populations", [True, False])
+    @pytest.mark.parametrize("impute_missing", [True, False])
+    @pytest.mark.parametrize("imputation", ["mean", "remove"])
+    def test_run_mds(
+        self,
+        test_numpy_dataset,
+        distance_metric,
+        summarize_populations,
+        impute_missing,
+        imputation,
+    ):
+        n_components = 2
+
+        test_numpy_dataset.run_mds(
+            n_components=n_components,
+            distance_metric=distance_metric,
+            summarize_populations=summarize_populations,
+            impute_missing=impute_missing,
+            imputation=imputation,
+        )
+        # test_numpy_dataset should now have an MDS object attached with embedding data (n_samples, n_components)
+        # test_numpy_dataset.pca should still be None
+        assert test_numpy_dataset.mds is not None
+        assert test_numpy_dataset.pca is None
+        assert isinstance(test_numpy_dataset.mds, MDS)
+        assert test_numpy_dataset.mds.embedding_matrix.shape == (
+            test_numpy_dataset.input_data.shape[0],
+            n_components,
+        )
+        assert (
+            test_numpy_dataset.mds.embedding.sample_id == test_numpy_dataset.sample_ids
+        ).all()
+        assert (
+            test_numpy_dataset.mds.embedding.population
+            == test_numpy_dataset.populations
+        ).all()
+
+    def test_data_imputation(self):
+        test_data = np.asarray([[np.nan, 1, 1], [2, np.nan, 2], [3, 3, 3]])
+        sample_ids = pd.Series(["sample1", "sample2", "sample3"])
+        populations = pd.Series(["population1", "population2", "population3"])
+        dataset = NumpyDataset(test_data, sample_ids, populations)
+
+        # imputation remove -> should result in a single column being left
+        imputed_data = dataset._get_imputed_data(
+            missing_value=np.nan, imputation="remove"
+        )
+        assert imputed_data.shape == (test_data.shape[0], 1)
+
+        # mean imputation should result in the following data matrix:
+        expected_imputed_data = np.asarray(
+            [[2.5, 1, 1], [2, 2, 2], [3, 3, 3]], dtype="float"
+        )
+        imputed_data = dataset._get_imputed_data(
+            missing_value=np.nan, imputation="mean"
+        )
+        np.testing.assert_equal(imputed_data, expected_imputed_data)
+
+    def test_data_imputation_remove_fails_for_snps_with_all_nan(self):
+        test_data = np.asarray([[np.nan, 1, 1], [2, np.nan, 2], [3, 3, np.nan]])
+        sample_ids = pd.Series(["sample1", "sample2", "sample3"])
+        populations = pd.Series(["population1", "population2", "population3"])
+        dataset = NumpyDataset(test_data, sample_ids, populations)
+        with pytest.raises(PandoraException, match="No data left after imputation."):
+            dataset._get_imputed_data(missing_value=np.nan, imputation="remove")

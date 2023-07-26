@@ -1,5 +1,6 @@
 from sklearn.metrics.pairwise import *
 
+from pandora.custom_errors import *
 from pandora.custom_types import *
 
 
@@ -17,6 +18,13 @@ def _population_distance(
     distance_metric: Callable[[npt.NDArray, npt.NDArray], npt.NDArray],
 ) -> npt.NDArray:
     input_data = pd.DataFrame(input_data)
+
+    if input_data.shape[0] != populations.shape[0]:
+        raise PandoraException(
+            f"Need to pass a population for each sample in input_data. "
+            f"Got {input_data.shape[0]} samples but only {populations.shape[0]} populations."
+        )
+
     input_data["population"] = populations
 
     unique_populations = populations.unique()

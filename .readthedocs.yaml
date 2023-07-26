@@ -5,10 +5,10 @@
 # Required
 version: 2
 
+conda:
+  environment: etc/environment.yml
+
 build:
   os: ubuntu-22.04
   tools:
-    python: "3.11"
-
-conda:
-  environment: etc/environment.yml
+    python: "mambaforge-4.10"

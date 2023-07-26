@@ -2,10 +2,12 @@ Welcome to Pandora's API documentation!
 =======================================
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 4
    :caption: Contents:
 
-   API Reference <api/modules>
+   Installation <install.rst>
+   Command Line Interface <cli_config.rst>
+   Pandora API <api/modules>
 
 
 

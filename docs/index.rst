@@ -49,10 +49,18 @@ The paper explaining the details of Pandora is soon available as preprint on bio
 
 .. toctree::
    :maxdepth: 4
-   :caption: Contents:
+   :caption: Getting Started
 
    Installation <install.rst>
+   Getting Started <getting_started.rst>
+
+.. toctree::
+   :maxdepth: 4
+   :caption: Usage
+
+   Usage <usage.rst>
    Command Line Interface <cli_config.rst>
+   Examples <examples/example.rst>
    Pandora API <api/modules>
 
 

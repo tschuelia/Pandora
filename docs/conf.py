@@ -29,7 +29,7 @@ from typing import cast
 _mod = importlib.import_module("pandora")
 
 
-project = "pandora"
+project = "Pandora"
 copyright = f"{datetime.date.today().year}, Julia Haag"
 author = "Julia Haag"
 

@@ -1,5 +1,6 @@
-Pandora Command Line Interface
-==============================
+.. _Command Line Interface:
+Pandora Command Line Interface Configuration
+============================================
 
 Configuration options:
 ----------------------

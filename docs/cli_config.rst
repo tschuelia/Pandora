@@ -1,9 +1,12 @@
+
 .. _Command Line Interface:
+
 Pandora Command Line Interface Configuration
 ============================================
 
 Configuration options:
 ----------------------
+
 - ``dataset_prefix``, File path prefix pointing to the dataset to use for the Pandora analyses. Pandora will look for files called .* so make sure all files have the same prefix.
 - ``result_dir``, Directory where to store all (intermediate) results to.
 - ``file_format``, default = ``EIGENSTRAT``, Name of the file format your dataset is in. Supported formats are ``ANCESTRYMAP``, ``EIGENSTRAT``, ``PED``, ``PACKEDPED``, ``PACKEDANCESTRYMAP``. For more information see Section `Input data`_ below.
@@ -32,17 +35,13 @@ Configuration options:
 - ``plot_dim_x``, default = 0, Dimension to plot on the x-axis. Note that the dimensions are zero-indexed. To plot the first dimension set ``plot_dim_x = 0``.
 - ``plot_dim_y``, default = 1, Dimension to plot on the y-axis. Note that the dimensions are zero-indexed. To plot the second dimension set ``plot_dim_y = 1``.
 
-
 .. _SmartPCA:
+
 SmartPCA optional settings
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Pandora supports all smartPCA commands, for a list of possible settings
-see the `SmartPCA
-documentation <https://github.com/DReichLab/EIG/blob/master/POPGEN/README>`__.
-Not allowed are the following options: ``genotypename``, ``snpname``,
-``indivname``, ``evecoutname``, ``evaloutname``, ``numoutevec``,
-``maxpops``. Use the following schema to set the options:
+Pandora supports all smartPCA commands, for a list of possible settings see the `SmartPCA documentation <https://github.com/DReichLab/EIG/blob/master/POPGEN/README>`__.
+Not allowed are the following options: ``genotypename``, ``snpname``, ``indivname``, ``evecoutname``, ``evaloutname``, ``numoutevec``, ``maxpops``. Use the following schema to set the options:
 
 .. code:: yaml
 
@@ -50,15 +49,13 @@ Not allowed are the following options: ``genotypename``, ``snpname``,
      shrinkmode: YES
      numoutlieriter: 1
 
+
 .. _Input data:
+
 Input data
 ----------
 
-Pandora supports a variety of different input formats. Basically, we
-support all file formats than can be converted to Eigensoft's Eigenstrat
-format using the ``convertf`` program. Pandora expects the three input
-files (SNP, GENO, IND files) to have the same prefix and the file
-endings should follow the convention according to the table below.
+Pandora supports a variety of different input formats. Basically, we support all file formats than can be converted to Eigensoft's Eigenstrat format using the ``convertf`` program. Pandora expects the three input files (SNP, GENO, IND files) to have the same prefix and the file endings should follow the convention according to the table below.
 
 ================= =============================
 File Format       Expected file endings
@@ -70,8 +67,23 @@ PackedPED         ``.bed``, ``.fam``, ``.bim``
 PackedAncestrymap ``.geno``, ``.ind``, ``.snp``
 ================= =============================
 
-Pandora performs its bootstrapping file-based and makes use of the
-Eigenstrat format. Thus, all other file formats are automatically
-converted to Eigenstrat prior to the analyses using the ``convertf``
-tool. Make sure to correctly set the ``convertf`` option in your config
-file before running Pandora.
+Pandora performs its bootstrapping file-based and makes use of the Eigenstrat format. Thus, all other file formats are automatically converted to Eigenstrat prior to the analyses using the ``convertf`` tool. Make sure to correctly set the ``convertf`` option in your config file before running Pandora.
+
+
+Output files
+------------
+
+Running Pandora in the command line will produce a number of (intermediate) output files. In the following I will describe these files and their content. Note that the names of the files are all relative to the specified ``result_dir`` in the configuration file.
+
+- ``pandora.log``: The main pandora log file. Everything you see in your terminal will also be written to this log file.
+- ``pandora.yaml``: On program start, Pandora will save a verbose version of the configuration in this file. You can use this file to reproduce your results.
+- ``pandora.txt``: Main results file. The summary of the Pandora run will be written to this file, including the Pandora Stability, Pandora Cluster Stability and the summary of the Pandora support values.
+- ``pandora.bootstrap.csv``: Verbose comparison output. This file will contain the Pandora Stability and Pandora Cluster Stability for all pairwise results of bootstrap replicates. Each row corresponds to one comparison with the first column indicating the indices of the compared bootstraps.
+- ``pandora.supportValues.pairwise.csv``: This file contains the Pandora support value for all samples in the dataset. Each row corresponds to one sample. For each pairwise comparison there is a column indicating the respective Pandora support value for each sample for this particular comparison. The final two columns are the average and standard deviation of Pandora support values across all pairwise comparisons.
+- ``pandora.supportValues.projected.csv``: In case you specified a list of populations that should only be used for the PCA embedding, all remaining samples will be projected onto the resulting embedding. This file will contain the same support value data as ``pandora.supportValues.pairwise.csv``, but only for projected samples.
+- ``bootstrap/``: If you selected the bootstrap analyses, this directory will contain three files for each bootstrap replicate:
+
+    - ``*.ckp``: Pandora checkpoint file that stores the random seed used for this bootstrap as well as the SNP indices.
+    - ``*.eval``, ``*.evec``: The results of the ``smartpca`` PCA embedding.
+    - In case you specified ``keep_bootstraps: true`` in your config, there will also be the bootstrapped dataset files (``*.geno``, ``*.snp``, ``*.ind``).
+- ``plots/``: If you set ``plot_results: true`` in your config, this directory will contain all plots Pandora generated during the execution. The names of the files should be self-explanatory.

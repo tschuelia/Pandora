@@ -684,7 +684,9 @@ class Pandora:
 
         projected_support_values = self.sample_support_values.loc[
             lambda x: x.index.isin(self.dataset.projected_samples)
-        ]
+        ].copy()
+        projected_support_values["mean"] = projected_support_values.mean(axis=1)
+        projected_support_values["stdev"] = projected_support_values.std(axis=1)
 
         projected_support_values.to_csv(
             self.pandora_config.projected_sample_support_values_csv

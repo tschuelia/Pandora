@@ -1,6 +1,7 @@
 import pathlib
 import tempfile
 
+import pandas as pd
 import pytest
 
 from pandora.pandora import *
@@ -179,3 +180,61 @@ class TestPandora:
         assert len(pandora.bootstraps) == n_bootstraps_expected
         assert all(isinstance(bs, EigenDataset) for bs in pandora.bootstraps)
         assert all(b.mds is not None for b in pandora.bootstraps)
+
+    def test_log_and_save_results_fails_if_no_embedding_run_yet(
+        self, pandora_test_config
+    ):
+        pandora = Pandora(pandora_test_config)
+        with pytest.raises(PandoraException, match="No bootstrap results to log!"):
+            pandora.log_and_save_bootstrap_results()
+
+    def test_log_and_save_results(self, pandora_test_config_with_embedding_populations):
+        # modify the config to not plot anything for these tests
+        pandora_test_config_with_embedding_populations.plot_results = False
+        pandora = Pandora(pandora_test_config_with_embedding_populations)
+
+        # first lets run the bootstrap analyses to make sure there is something to log
+        pandora.bootstrap_embeddings()
+
+        # next log the results and check if the expected files exist
+        pandora.log_and_save_bootstrap_results()
+
+        expected_files = [
+            pandora.pandora_config.pairwise_bootstrap_result_file,  # csv with pairwise Pandora stabilities
+            pandora.pandora_config.sample_support_values_csv,  # csv with pandora support values
+            pandora.pandora_config.projected_sample_support_values_csv,  # support values for projected samples only
+        ]
+
+        assert all(f.exists() for f in expected_files)
+
+        # also check if the file contents are what we expect in terms of number of rows and columns
+        n_bootstraps = pandora.pandora_config.n_bootstraps
+        n_bootstrap_combinations = n_bootstraps * (n_bootstraps - 1) / 2
+
+        n_samples = pandora.dataset.sample_ids.shape[0]
+        n_projected_samples = pandora.dataset.projected_samples.shape[0]
+
+        # for this pandora config the number of projected samples should be smaller than n_samples -> sanity check
+        assert n_projected_samples < n_samples
+
+        pairwise_bootstrap_results = pd.read_csv(
+            pandora.pandora_config.pairwise_bootstrap_result_file, index_col=0
+        )
+        # we expect one row for each pairwise combination and two columns (PS and PCS)
+        assert pairwise_bootstrap_results.shape == (n_bootstrap_combinations, 2)
+
+        sample_support_values = pd.read_csv(
+            pandora.pandora_config.sample_support_values_csv, index_col=0
+        )
+        # we expect one row per sample and n_bootstrap_combinations columns + 2 for the average and stdev
+        assert sample_support_values.shape == (n_samples, n_bootstrap_combinations + 2)
+
+        projected_sample_support_values = pd.read_csv(
+            pandora.pandora_config.projected_sample_support_values_csv, index_col=0
+        )
+        print(projected_sample_support_values)
+        # we expect one row per projected sample and again n_bootstrap_combinations + 2 columns
+        assert projected_sample_support_values.shape == (
+            n_projected_samples,
+            n_bootstrap_combinations + 2,
+        )

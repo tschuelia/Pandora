@@ -1,6 +1,5 @@
 Usage
 =====
-
 You have two options to use Pandora. You can either use the Command Line Interface or you can use Pandora as Python library.
 
 Command Line Interface
@@ -18,7 +17,7 @@ Suppose you have a configuration file called ``config.yaml``, then you can run t
     pandora -c config.yaml
 
 
-See (TODO: GETTING STARTED) for an example on how to use Pandora with the command line interface.
+See :ref:`Getting Started` for an example on how to use Pandora with the command line interface.
 
 
 Python Library

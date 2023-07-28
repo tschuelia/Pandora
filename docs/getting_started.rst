@@ -1,15 +1,17 @@
+
+.. _Getting Started:
+
 Getting Started
 ===============
 
 This example demonstrates the basic usage of Pandora using the command line interface.
 
 1. Setup Pandora and all requirements by following the :ref:`Installation` instructions.
-2. To run this example, you need to clone the Pandora Git repo to obtain the example input files:::
+2. To run this example, you need to clone the Pandora Git repo to obtain the example input files:
 
-.. code-block:: bash
+.. code-block:: shell
 
     git clone https://github.com/tschuelia/Pandora.git
-
 
 
 3. In this repo, you will find an example configuration file ``config-example.yaml`` that looks like this:
@@ -149,11 +151,8 @@ However, the colors indicate the assigned labels when applying K-Means clusterin
 samples 0, 3, and 4 form a cluster, while in the second bootstrap, samples 0 and 3 are clustered with sample 2.
 So apparently these little "distortions" in projecting the samples results in different cluster assignments.
 
-
 .. image:: _static/getting_started_clusters.png
    :width: 700
-
-
 
 Pandora further reports some summary statistics of the support values for all samples. The support values are values between
 0 and 1, the higher the better. The lowest support value is 0.94 so we could say that all samples are stable in terms of

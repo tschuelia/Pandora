@@ -193,6 +193,10 @@ class PandoraConfig:
         return self.result_dir / "bootstrap"
 
     @property
+    def convertf_result_dir(self) -> pathlib.Path:
+        return self.result_dir / "converted"
+
+    @property
     def pairwise_bootstrap_result_file(self) -> pathlib.Path:
         """Returns a path to a csv file where all pairwise bootstrap stability results should be written to.
 
@@ -260,34 +264,6 @@ class PandoraConfig:
             raise ValueError(
                 f"verbosity needs to be 0 (ERROR), 1 (INFO), or 2 (DEBUG). Instead got value {self.verbosity}."
             )
-
-    def convert_to_eigenstrat_format(self):
-        """
-        TODO: Docstring und aus PandoraConfig raus nehmen
-
-        Returns
-        -------
-
-        """
-        logger.info(
-            fmt_message(
-                f"Converting dataset from {self.file_format.value} to {FileFormat.EIGENSTRAT.value}"
-            )
-        )
-        convertf_dir = self.result_dir / "convertf"
-        convertf_dir.mkdir(exist_ok=True)
-        convert_prefix = convertf_dir / self.dataset_prefix.name
-
-        run_convertf(
-            convertf=self.convertf,
-            in_prefix=self.dataset_prefix,
-            in_format=self.file_format,
-            out_prefix=convert_prefix,
-            out_format=FileFormat.EIGENSTRAT,
-            redo=self.redo,
-        )
-
-        self.dataset_prefix = convert_prefix
 
     def get_configuration(self) -> Dict[str, Any]:
         """Creates a dictionary mapping of all settings in self.
@@ -756,3 +732,34 @@ def pandora_config_from_configfile(configfile: pathlib.Path) -> PandoraConfig:
             "Initialzing Pandora from your config file failed! Got the following error(s): ",
             error_msg,
         )
+
+
+def convert_to_eigenstrat_format(pandora_config: PandoraConfig):
+    """Converts the dataset in the given PandoraConfig configuration to EIGENSTRAT format that is required
+    for the Pandora analyses.
+
+    Note that this function modifies the pandora_config object as it replaces pandora_config.dataset_prefix
+    such that it points to the converted dataset.
+
+    Returns
+    -------
+    PandoraConfig
+        The modified pandora_config object with the dataset_prefix replaced.
+
+    """
+    pandora_config.convertf_result_dir.mkdir(exist_ok=True)
+    convert_prefix = (
+        pandora_config.convertf_result_dir / pandora_config.dataset_prefix.name
+    )
+
+    run_convertf(
+        convertf=pandora_config.convertf,
+        in_prefix=pandora_config.dataset_prefix,
+        in_format=pandora_config.file_format,
+        out_prefix=convert_prefix,
+        out_format=FileFormat.EIGENSTRAT,
+        redo=pandora_config.redo,
+    )
+
+    pandora_config.dataset_prefix = convert_prefix
+    return pandora_config

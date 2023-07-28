@@ -83,7 +83,12 @@ def main():
 
     # if necessary, convert the input data to EIGENSTRAT file_format required for bootstrapping
     if pandora_config.file_format != FileFormat.EIGENSTRAT:
-        pandora_config.convert_to_eigenstrat_format()
+        logger.info(
+            fmt_message(
+                f"Converting dataset from {self.file_format.value} to {FileFormat.EIGENSTRAT.value}"
+            )
+        )
+        pandora_config = convert_to_eigenstrat_format(pandora_config)
 
     # initialize empty Pandora object that keeps track of all results
     pandora_results = Pandora(pandora_config)

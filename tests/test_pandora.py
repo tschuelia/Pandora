@@ -20,6 +20,28 @@ def test_pandora_config_from_configfile(
     assert pandora_config.threads == pandora_test_config_yaml.get("threads")
 
 
+def test_convert_to_eigenstrat(
+    example_ped_dataset_prefix, pandora_test_config_with_ped_files
+):
+    # make sure the dataset prefix prior to convertion is the unconverted prefix
+    assert (
+        pandora_test_config_with_ped_files.dataset_prefix.absolute()
+        == example_ped_dataset_prefix.absolute()
+    )
+    # now convert
+    convert_to_eigenstrat_format(pandora_test_config_with_ped_files)
+    # the dataset prefix should now be the following
+    expected_prefix = (
+        pandora_test_config_with_ped_files.convertf_result_dir
+        / pandora_test_config_with_ped_files.dataset_prefix.name
+    )
+
+    assert (
+        pandora_test_config_with_ped_files.dataset_prefix.absolute()
+        == expected_prefix.absolute()
+    )
+
+
 class TestPandoraConfig:
     def test_get_configuration(
         self, pandora_test_config_file, pandora_test_config_yaml

@@ -1,0 +1,13 @@
+dataset_prefix: tests/data/converted/example
+file_format: PED
+result_dir: tests/data/results/
+n_bootstraps: 3
+threads: 2
+seed: 1
+plot_results: True
+n_components: 2
+kmeans_k: 3
+result_decimals: 2
+smartpca_optional_settings:
+  shrinkmode: NO
+  numoutlieriter: 0

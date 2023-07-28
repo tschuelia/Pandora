@@ -1,3 +1,4 @@
+import pathlib
 import shutil
 
 import pytest
@@ -23,6 +24,11 @@ def convertf() -> Executable:
 @pytest.fixture
 def example_eigen_dataset_prefix() -> pathlib.Path:
     return pathlib.Path(__file__).parent / "data" / "example"
+
+
+@pytest.fixture
+def example_ped_dataset_prefix() -> pathlib.Path:
+    return pathlib.Path(__file__).parent / "data" / "converted" / "example"
 
 
 @pytest.fixture
@@ -156,6 +162,16 @@ def pandora_test_config_with_embedding_populations_file() -> pathlib.Path:
         / "data"
         / "test_config_with_embedding_populations.yaml"
     )
+
+
+@pytest.fixture
+def pandora_test_config_with_ped_files(smartpca, convertf) -> PandoraConfig:
+    pandora_config = pandora_config_from_configfile(
+        pathlib.Path(__file__).parent / "data" / "test_config_ped_format.yaml"
+    )
+    pandora_config.smartpca = smartpca
+    pandora_config.convertf = convertf
+    return pandora_config
 
 
 @pytest.fixture

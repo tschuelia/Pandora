@@ -32,3 +32,29 @@ jobs:
         run: |
           PYTHONPATH=. pytest
         shell: micromamba-shell {0}
+
+  Install-using-pip:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ ubuntu-latest, macos-latest ]
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v3
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      - name: Setup Conda
+        uses: mamba-org/setup-micromamba@v1
+        with:
+          environment-file: etc/environment.yml
+          cache-environment: true
+          create-args:
+            python=3.11
+      - name: Install Pythia using pip
+        run: |
+          pip install git+https://github.com/tschuelia/Pandora.git --no-deps
+        shell: micromamba-shell {0}
+      - name: Test Pandora installation by running the CLI
+        uses: ./.github/actions/test-pandora-cli

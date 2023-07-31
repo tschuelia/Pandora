@@ -1,0 +1,12 @@
+name: Test Pandora CLI
+inputs:
+  config-file:
+    description: Config file to test Pandora CLI with
+    default: config_example.yaml
+runs:
+  using: composite
+  steps:
+    - name: Run Pandora CLI with a small example config to make sure everything is working
+      run: |
+        pandora -c ${{ inputs.config-file }}
+      shell: micromamba-shell {0}

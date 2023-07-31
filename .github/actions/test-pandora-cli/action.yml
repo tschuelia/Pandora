@@ -9,4 +9,4 @@ runs:
     - name: Run Pandora CLI with a small example config to make sure everything is working
       run: |
         pandora -c ${{ inputs.config-file }}
-      shell: bash -el {0}
+      shell: micromamba-shell {0}

@@ -85,7 +85,7 @@ def main():
     if pandora_config.file_format != FileFormat.EIGENSTRAT:
         logger.info(
             fmt_message(
-                f"Converting dataset from {self.file_format.value} to {FileFormat.EIGENSTRAT.value}"
+                f"Converting dataset from {pandora_config.file_format.value} to {FileFormat.EIGENSTRAT.value}"
             )
         )
         pandora_config = convert_to_eigenstrat_format(pandora_config)

@@ -33,7 +33,7 @@ jobs:
           PYTHONPATH=. pytest
         shell: micromamba-shell {0}
 
-  Run-Pandora-CLI-Example:
+  Install-using-pip:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -52,5 +52,8 @@ jobs:
           cache-environment: true
           create-args:
             python=3.11
+      - name: Install Pythia using pip
+        run: |
+          pip install git+https://github.com/tschuelia/Pandora.git
       - name: Test Pandora installation by running the CLI
         uses: ./.github/actions/test-pandora-cli

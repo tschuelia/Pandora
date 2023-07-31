@@ -678,7 +678,7 @@ class EigenDataset:
             Prefix of the file path where to write the bootstrap dataset to.
                 The resulting files will be  `bootstrap_prefix.geno`, `bootstrap_prefix.ind`, and `bootstrap_prefix.snp`.
         seed: int
-            Seed to initialize the random number generator before drawing the bootstraps.
+            Seed to initialize the random number generator before drawing the replicates.
         redo: bool, default=False
             Whether to redo the bootstrap if all output files are present.
 
@@ -911,7 +911,7 @@ def bootstrap_and_embed_multiple(
     keep_bootstraps: bool = False,
     smartpca_optional_settings: Optional[Dict] = None,
 ) -> List[EigenDataset]:
-    """Draws n_bootstraps bootstrap datasets of the provided EigenDataset and performs PCA/MDS analysis
+    """Draws n_replicates bootstrap datasets of the provided EigenDataset and performs PCA/MDS analysis
     (as specified by embedding) for each bootstrap.
 
     Note that unless threads=1, the computation is performed in parallel.
@@ -950,7 +950,7 @@ def bootstrap_and_embed_multiple(
     Returns
     -------
     List[EigenDataset]
-        List of n_bootstraps boostrap replicates as EigenDataset objects. Each of the resulting
+        List of n_replicates boostrap replicates as EigenDataset objects. Each of the resulting
         datasets will have either bootstrap.pca != None or bootstrap.mds != None depending on the selected
         embedding option.
     """
@@ -980,6 +980,166 @@ def bootstrap_and_embed_multiple(
         bootstraps = list(p.map(_bootstrap_and_embed, args))
 
     return bootstraps
+
+
+def _window_and_embed(args):
+    """
+    Generates a windowed EigenDataset and performs dimensionality reduction using the provided arguments.
+    """
+    (
+        dataset,
+        bootstrap_prefix,
+        smartpca,
+        seed,
+        embedding,
+        n_components,
+        redo,
+        keep_bootstraps,
+        smartpca_optional_settings,
+    ) = args
+    if embedding == EmbeddingAlgorithm.PCA:
+        if smartpca_finished(n_components, bootstrap_prefix) and not redo:
+            bootstrap = EigenDataset(
+                bootstrap_prefix,
+                dataset._embedding_populations_file,
+                dataset.sample_ids,
+                dataset.populations,
+                dataset.n_snps,
+            )
+        else:
+            bootstrap = dataset.bootstrap(bootstrap_prefix, seed, redo)
+        bootstrap.run_pca(
+            smartpca=smartpca,
+            n_components=n_components,
+            redo=redo,
+            smartpca_optional_settings=smartpca_optional_settings,
+        )
+    elif embedding == EmbeddingAlgorithm.MDS:
+        bootstrap = dataset.bootstrap(bootstrap_prefix, seed, redo)
+        bootstrap.run_mds(smartpca=smartpca, n_components=n_components, redo=redo)
+    else:
+        raise PandoraException(
+            f"Unrecognized embedding option {embedding}. Supported are 'pca' and 'mds'."
+        )
+    if not keep_bootstraps:
+        bootstrap.remove_input_files()
+    return bootstrap
+
+
+def _embed_window(args):
+    (
+        window,
+        window_prefix,
+        smartpca,
+        embedding,
+        n_components,
+        redo,
+        keep_windows,
+        smartpca_optional_settings,
+    ) = args
+
+    if embedding == EmbeddingAlgorithm.PCA:
+        window.run_pca(
+            smartpca=smartpca,
+            n_components=n_components,
+            redo=redo,
+            smartpca_optional_settings=smartpca_optional_settings,
+        )
+
+    elif embedding == EmbeddingAlgorithm.MDS:
+        window.run_mds(smartpca=smartpca, n_components=n_components, redo=redo)
+
+    else:
+        raise PandoraException(
+            f"Unrecognized embedding option {embedding}. Supported are 'pca' and 'mds'."
+        )
+
+    if not keep_windows:
+        window.remove_input_files()
+
+    return window
+
+
+def sliding_window_embedding(
+    dataset: EigenDataset,
+    n_windows: int,
+    result_dir: pathlib.Path,
+    smartpca: Executable,
+    embedding: EmbeddingAlgorithm,
+    n_components: int,
+    threads: Optional[int] = None,
+    redo: bool = False,
+    keep_windows: bool = False,
+    smartpca_optional_settings: Optional[Dict] = None,
+) -> List[EigenDataset]:
+    """Separates the given EigenDataset into n_windows sliding-window datasets and performs PCA/MDS analysis
+    (as specified by embedding) for each window.
+
+    Note that unless threads=1, the computation is performed in parallel.
+
+    Parameters
+    ----------
+    dataset: EigenDataset
+        Dataset object separate into windows.
+    n_windows: int
+        Number of sliding-windows to separate the dataset into.
+    result_dir: pathlib.Path
+        Directory where to store all result files.
+    smartpca: Executable
+        Path pointing to an executable of the EIGENSOFT smartpca tool.
+    embedding: EmbeddingAlgorithm
+        Dimensionality reduction technique to apply. Allowed options are
+        EmbeddingAlgorithm.PCA for PCA analysis and EmbeddingAlgorithm.MDS for MDS analysis.
+    n_components: int
+        Number of dimensions to reduce the data to.
+        The recommended number is 10 for PCA and 2 for MDS.
+    seed: int, default=None
+        Seed to initialize the random number generator with.
+    threads: int, default=None
+        Number of threads to use for parallel bootstrap generation.
+        Default is to use all system threads.
+    redo: bool, default=False
+        Whether to rerun analyses in case the result files are already present.
+    keep_windows: bool, default=False
+        Whether to store all intermediate window-dataset ind, geno, and snp files.
+        Note that setting this to True might require a notable amount of disk space.
+    smartpca_optional_settings: Dict, default=None
+        Additional smartpca settings.
+        Not allowed are the following options: genotypename, snpname, indivname,
+        evecoutname, evaloutname, numoutevec, maxpops. Note that this option is only used when embedding == "pca".
+
+    Returns
+    -------
+    List[EigenDataset]
+        List of n_windows subsets as EigenDataset objects. Each of the resulting window
+        datasets will have either window.pca != None or window.mds != None depending on the selected
+        embedding option.
+    """
+    result_dir.mkdir(exist_ok=True, parents=True)
+
+    if threads is None:
+        threads = multiprocessing.cpu_count()
+
+    sliding_windows = dataset.get_windows(result_dir, n_windows)
+
+    args = [
+        (
+            window,
+            result_dir / f"window_{i}",
+            smartpca,
+            embedding,
+            n_components,
+            redo,
+            keep_windows,
+            smartpca_optional_settings,
+        )
+        for i, window in enumerate(sliding_windows)
+    ]
+
+    with Pool(threads) as p:
+        sliding_windows = list(p.map(_embed_window, args))
+
+    return sliding_windows
 
 
 def _euclidean_distance(input_data: npt.NDArray) -> npt.NDArray:
@@ -1191,7 +1351,7 @@ class NumpyDataset:
         Parameters
         ----------
         seed: int
-            Seed to initialize the random number generator before drawing the bootstraps.
+            Seed to initialize the random number generator before drawing the replicates.
 
         Returns
         -------
@@ -1280,7 +1440,7 @@ def bootstrap_and_embed_multiple_numpy(
     missing_value: Union[np.nan, int] = np.nan,
     imputation: str = "mean",
 ) -> List[NumpyDataset]:
-    """Draws n_bootstraps bootstrap datasets of the provided NumpyDataset and performs PCA/MDS analysis
+    """Draws n_replicates bootstrap datasets of the provided NumpyDataset and performs PCA/MDS analysis
     (as specified by embedding) for each bootstrap.
 
     Note that unless threads=1, the computation is performed in parallel.
@@ -1321,7 +1481,7 @@ def bootstrap_and_embed_multiple_numpy(
     Returns
     -------
     List[NumpyDataset]
-        List of n_bootstraps boostrap replicates as NumpyDataset objects. Each of the resulting
+        List of n_replicates boostrap replicates as NumpyDataset objects. Each of the resulting
         datasets will have either bootstrap.pca != None or bootstrap.mds != None depending on the selected
         embedding option.
     """

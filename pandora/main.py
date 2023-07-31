@@ -96,15 +96,16 @@ def main():
     # Run PCA/MDS on the input dataset without any bootstrapping
     pandora_results.embed_dataset()
 
-    if pandora_config.do_bootstrapping:
-        # Bootstrapped PCAs
+    if pandora_config.analysis_mode == AnalysisMode.BOOTSTRAP:
         pandora_results.bootstrap_embeddings()
+    elif pandora_config.analysis_mode == AnalysisMode.SLIDING_WINDOW:
+        pass
 
     logger.info("\n\n========= PANDORA RESULTS =========")
     logger.info(f"> Input dataset: {pandora_config.dataset_prefix.absolute()}")
 
     if pandora_config.do_bootstrapping:
-        pandora_results.log_and_save_bootstrap_results()
+        pandora_results.log_and_save_replicates_results()
 
     pandora_config.log_results_files()
 

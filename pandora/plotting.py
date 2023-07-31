@@ -438,7 +438,7 @@ def plot_support_values(
     _check_plot_dimensions(embedding, dim_x, dim_y)
 
     # next,we have to filter out samples that are either not present in embedding.embedding (detected as outlier)
-    # or not present in sample_support_values (detected as outlier in all bootstraps)
+    # or not present in sample_support_values (detected as outlier in all replicates)
     # if there are such samples, we issue a warning containing the affected IDs and continue to plot only samples
     # present in both embedding.embedding and sample_support_values
     embedding_ids = set(embedding.embedding.sample_id)

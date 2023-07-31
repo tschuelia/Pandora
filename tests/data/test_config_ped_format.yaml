@@ -1,7 +1,7 @@
 dataset_prefix: tests/data/converted/example
 file_format: PED
 result_dir: tests/data/results/
-n_bootstraps: 3
+n_replicates: 3
 threads: 2
 seed: 1
 plot_results: True

@@ -20,7 +20,7 @@ This example demonstrates the basic usage of Pandora using the command line inte
 
     dataset_prefix: example/example
     result_dir: example/results
-    n_bootstraps: 10
+    n_replicates: 10
     threads: 2
     seed: 42
     plot_results: True

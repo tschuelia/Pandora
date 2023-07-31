@@ -332,12 +332,12 @@ class BatchEmbeddingComparison:
         -------
         pd.Series
             Pandas Series containing the pairwise stability scores for all unique pairs of
-            self.embeddings. The resulting Series is named bootstrap_stability and has the indices of the
+            self.embeddings. The resulting Series is named pandora_stability and has the indices of the
             pairwise comparisons as index. So a result looks e.g. like this:
             (0, 1)    0.93
             (0, 2)    0.79
             (1, 2)    0.71
-            Name: bootstrap_stability, dtype: float64
+            Name: pandora_stability, dtype: float64
             Each value is between 0 and 1.
 
         """
@@ -351,7 +351,7 @@ class BatchEmbeddingComparison:
             )
 
         pairwise_stabilities = pd.concat(pairwise_stabilities)
-        pairwise_stabilities.name = "bootstrap_stability"
+        pairwise_stabilities.name = "pandora_stability"
         return pairwise_stabilities
 
     def compare(self) -> float:
@@ -385,7 +385,7 @@ class BatchEmbeddingComparison:
             )
 
         pairwise_cluster_stabilities = pd.concat(pairwise_cluster_stabilities)
-        pairwise_cluster_stabilities.name = "bootstrap_cluster_stability"
+        pairwise_cluster_stabilities.name = "pandora_cluster_stability"
         return pairwise_cluster_stabilities
 
     def compare_clustering(self, kmeans_k: int) -> float:

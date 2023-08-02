@@ -54,12 +54,7 @@ jobs:
             python=3.11
       - name: Install Pythia using pip
         run: |
-          pip install git+https://github.com/tschuelia/Pandora.git --no-deps
-        shell: micromamba-shell {0}
-      - name: Checkout current branch
-        uses: actions/checkout@v3
-        with:
-          ref: ${{ github.ref }}
+          pip install git+https://github.com/tschuelia/Pandora.git@${{ github.ref }} --no-deps
         shell: micromamba-shell {0}
       - name: Test Pandora installation by running the CLI
         uses: ./.github/actions/test-pandora-cli

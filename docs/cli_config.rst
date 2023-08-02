@@ -82,9 +82,16 @@ Running Pandora in the command line will produce a number of (intermediate) outp
 - ``pandora.supportValues.csv``: This file contains the Pandora support value for all samples in the dataset. Each row corresponds to one sample. The csv has two columns: ``average`` and ``standard_deviation`` containing the mean and stdev of support values across all pairwise embedding comparisons.
 - ``pandora.supportValues.pairwise.csv``: This file contains the Pandora support value for all samples in the dataset. Each row corresponds to one sample. For each pairwise comparison there is a column indicating the respective Pandora support value for each sample for this particular comparison.
 - ``pandora.supportValues.projected.csv``: In case you specified a list of populations that should only be used for the PCA embedding, all remaining samples will be projected onto the resulting embedding. This file will contain the same support value data as ``pandora.supportValues.csv``, but only for projected samples.
-- ``bootstrap/``: If you selected the bootstrap analyses, this directory will contain three files for each bootstrap replicate:
+- ``bootstrap/``: If you selected the bootstrap analyses, this directory will contain the following files for each bootstrap replicate:
 
     - ``*.ckp``: Pandora checkpoint file that stores the random seed used for this bootstrap as well as the SNP indices.
-    - ``*.eval``, ``*.evec``: The results of the ``smartpca`` PCA embedding.
-    - In case you specified ``keep_bootstraps: true`` in your config, there will also be the bootstrapped dataset files (``*.geno``, ``*.snp``, ``*.ind``).
+    - ``*.eval``, ``*.evec``: The results of the ``smartpca`` PCA embedding (in case of PCA analyses)
+    - ``*.fst``: The results of ``smartpca`` Fst computation (in case of MDS analyses)
+    - In case you specified ``keep_replicates: true`` in your config, there will also be the bootstrapped dataset files (``*.geno``, ``*.snp``, ``*.ind``).
+- ``windows/``: If you selected the sliding-window analyses, this directory will contain the following files for each window of the dataset:
+
+    - ``*.eval``, ``*.evec``: The results of the ``smartpca`` PCA embedding (in case of PCA analyses)
+    - ``*.fst``: The results of ``smartpca`` Fst computation (in case of MDS analyses)
+    - In case you specified ``keep_replicates: true`` in your config, there will also be the dataset files for the windows (``*.geno``, ``*.snp``, ``*.ind``).
+
 - ``plots/``: If you set ``plot_results: true`` in your config, this directory will contain all plots Pandora generated during the execution. The names of the files should be self-explanatory.

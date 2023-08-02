@@ -56,8 +56,8 @@ You should then see an output similar to this:::
     result_dir: /path/to/example/results
     file_format: EIGENSTRAT
     convertf: convertf
-    n_bootstraps: 10
-    keep_bootstraps: False
+    n_replicates: 10
+    keep_replicates: False
     n_components: 10
     embedding_algorithm: PCA
     smartpca: smartpca
@@ -65,7 +65,7 @@ You should then see an output similar to this:::
     embedding_populations: None
     support_value_rogue_cutoff: 0.5
     kmeans_k: 2
-    do_bootstrapping: True
+    analysis_mode: BOOTSTRAP
     redo: False
     seed: 42
     threads: 2
@@ -110,7 +110,7 @@ You should then see an output similar to this:::
     Result Files
     ------------------
     > Pandora results: /path/to/example/results/pandora.txt
-    > Pairwise bootstrap similarities:  /path/to/example/results/pandora.bootstrap.csv
+    > Pairwise stabilities:  /path/to/example/results/pandora.replicates.csv
     > Sample Support values:  /path/to/example/results/pandora.supportValues.pairwise.csv
     > All plots saved in directory:  /path/to/example/results/plots
 

@@ -1374,6 +1374,10 @@ def _bootstrap_and_embed_numpy(args):
             missing_value,
             imputation,
         )
+    else:
+        raise PandoraException(
+            f"Unrecognized embedding option {embedding}. Supported are 'pca' and 'mds'."
+        )
 
     return bootstrap
 
@@ -1460,3 +1464,107 @@ def bootstrap_and_embed_multiple_numpy(
         bootstraps = list(p.map(_bootstrap_and_embed_numpy, args))
 
     return bootstraps
+
+
+def _embed_window_numpy(args):
+    (
+        window,
+        embedding,
+        n_components,
+        distance_metric,
+        impute_missing,
+        missing_value,
+        imputation,
+    ) = args
+
+    if embedding == EmbeddingAlgorithm.PCA:
+        window.run_pca(n_components, impute_missing, missing_value, imputation)
+    elif embedding == EmbeddingAlgorithm.MDS:
+        window.run_mds(
+            n_components, distance_metric, impute_missing, missing_value, imputation
+        )
+
+    else:
+        raise PandoraException(
+            f"Unrecognized embedding option {embedding}. Supported are 'pca' and 'mds'."
+        )
+
+    return window
+
+
+def sliding_window_embedding_numpy(
+    dataset: NumpyDataset,
+    n_windows: int,
+    embedding: EmbeddingAlgorithm,
+    n_components: int,
+    threads: int = None,
+    distance_metric: Callable[
+        [npt.NDArray, pd.Series], Tuple[npt.NDArray, pd.Series]
+    ] = euclidean_sample_distance,
+    impute_missing: bool = True,
+    missing_value: Union[np.nan, int] = np.nan,
+    imputation: str = "mean",
+) -> List[NumpyDataset]:
+    """Separates the given NumpyDataset into n_windows sliding-window datasets and performs PCA/MDS analysis
+    (as specified by embedding) for each window.
+
+        Note that unless threads=1, the computation is performed in parallel.
+
+        Parameters
+        ----------
+        dataset: NumpyDataset
+            Dataset object separate into windows.
+        n_windows: int
+            Number of sliding-windows to separate the dataset into.
+        embedding: EmbeddingAlgorithm
+            Dimensionality reduction technique to apply. Allowed options are
+            EmbeddingAlgorithm.PCA for PCA analysis and EmbeddingAlgorithm.MDS for MDS analysis.
+        n_components: int
+            Number of dimensions to reduce the data to.
+            The recommended number is 10 for PCA and 2 for MDS.
+        threads: int, default=None
+            Number of threads to use for parallel window embedding.
+            Default is to use all system threads.
+        distance_metric: Callable[[npt.NDArray, pd.Series], Tuple[npt.NDArray, pd.Series]], default=eculidean_sample_distance
+            Distance metric to use for computing the distance matrix input for MDS. This is expected to be a
+            function that receives the numpy array of sequences and the population for each sequence as input
+            and should output the distance matrix and the respective populations for each row.
+            The resulting distance matrix is of size (n, m) and the resulting populations is expected to be
+            of size (n, 1).
+            Default is distance_metrics::eculidean_sample_distance (the pairwise Euclidean distance of all samples)
+        impute_missing: bool, default=True
+            Whether to impute missing values in self.input_data before performing PCA.
+        missing_value: Union[np.nan, int], default=np.nan
+            Value to treat as missing value.
+        imputation: str, default="mean"
+            Imputation method to use. Available options are:\n
+            - mean: Imputes missing values with the average of the respective SNP\n
+            - remove: Removes all SNPs with at least one missing value.
+
+        Returns
+        -------
+        List[NumpyDataset]
+            List of n_windows subsets as NumpyDataset objects. Each of the resulting window
+            datasets will have either window.pca != None or window.mds != None depending on the selected
+            embedding option.
+    """
+    if threads is None:
+        threads = multiprocessing.cpu_count()
+
+    args = [
+        (
+            window,
+            embedding,
+            n_components,
+            distance_metric,
+            impute_missing,
+            missing_value,
+            imputation,
+        )
+        for window in dataset.get_windows(n_windows)
+    ]
+
+    with Pool(threads) as p:
+        sliding_windows = list(p.map(_embed_window_numpy, args))
+
+    return sliding_windows

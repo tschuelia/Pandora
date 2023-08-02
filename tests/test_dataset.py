@@ -509,6 +509,40 @@ class TestNumpyDataset:
             assert all(isinstance(b.mds, MDS) for b in bootstraps)
             assert all(b.pca is None for b in bootstraps)
 
+    @pytest.mark.parametrize(
+        "embedding", [EmbeddingAlgorithm.PCA, EmbeddingAlgorithm.MDS]
+    )
+    @pytest.mark.parametrize("impute_missing", [True, False])
+    def test_sliding_window_embedding_numpy(
+        self, test_numpy_dataset_sliding_window, embedding, impute_missing
+    ):
+        n_windows = 4
+        sliding_windows = sliding_window_embedding_numpy(
+            dataset=test_numpy_dataset_sliding_window,
+            n_windows=n_windows,
+            embedding=embedding,
+            n_components=2,
+            threads=2,
+            impute_missing=impute_missing,
+            missing_value=0,
+            # we don't test for 'remove' here because we have a small dataset and we might end up getting an error
+            # because the windowed datasets contains only nan-columns
+            imputation="mean",
+        )
+
+        assert len(sliding_windows) == n_windows
+
+        if embedding == EmbeddingAlgorithm.PCA:
+            # each window should have embedding.pca != None, but embedding.mds == None
+            assert all(w.pca is not None for w in sliding_windows)
+            assert all(isinstance(w.pca, PCA) for w in sliding_windows)
+            assert all(w.mds is None for w in sliding_windows)
+        elif embedding == EmbeddingAlgorithm.MDS:
+            # each window should have embedding.mds != None, but embedding.pca == None
+            assert all(w.mds is not None for w in sliding_windows)
+            assert all(isinstance(w.mds, MDS) for w in sliding_windows)
+            assert all(w.pca is None for w in sliding_windows)
+
     @pytest.mark.parametrize("distance_metric", DISTANCE_METRICS)
     @pytest.mark.parametrize("impute_missing", [True, False])
     @pytest.mark.parametrize("imputation", ["mean", "remove"])

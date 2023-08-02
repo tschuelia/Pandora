@@ -235,6 +235,21 @@ def test_numpy_dataset():
     return dataset
 
 
+@pytest.fixture
+def test_numpy_dataset_sliding_window():
+    test_data = np.asarray(
+        [
+            [1, 2, 1, 2, 0, 1, 0, 1, 2, 0, 2, 0, 0, 1, 0, 1, 0, 0, 0, 1],
+            [0, 1, 0, 0, 1, 2, 2, 1, 0, 2, 1, 2, 2, 0, 2, 0, 2, 1, 1, 0],
+            [0, 0, 0, 2, 0, 2, 1, 1, 1, 0, 1, 2, 2, 0, 2, 2, 1, 0, 0, 2],
+        ]
+    )
+    sample_ids = pd.Series(["sample1", "sample2", "sample3"])
+    populations = pd.Series(["population1", "population2", "population3"])
+    dataset = NumpyDataset(test_data, sample_ids, populations)
+    return dataset
+
+
 @pytest.fixture(autouse=True)
 def cleanup_pandora_test_results():
     yield

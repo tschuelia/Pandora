@@ -35,5 +35,5 @@ class AnalysisMode(Enum):
     Supported options for analyses to conduct.
     """
 
-    BOOTSTRAP = "Bootstrap"
-    SLIDING_WINDOW = "Sliding window"
+    BOOTSTRAP = "BOOTSTRAP"
+    SLIDING_WINDOW = "SLIDING_WINDOW"

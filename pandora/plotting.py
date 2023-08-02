@@ -299,13 +299,6 @@ def plot_projections(
             "To plot projections provide a non-empty list of populations with which the PCA was performed!"
         )
 
-    if not all(
-        p in embedding.embedding.population.unique() for p in embedding_populations
-    ):
-        raise PandoraException(
-            "Not all of the passed embedding_populations seem to be present in self.embedding."
-        )
-
     populations = embedding.embedding.population.unique()
     projection_colors = get_distinct_colors(populations.shape[0])
 

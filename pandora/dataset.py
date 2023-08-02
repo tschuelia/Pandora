@@ -982,50 +982,6 @@ def bootstrap_and_embed_multiple(
     return bootstraps
 
 
-def _window_and_embed(args):
-    """
-    Generates a windowed EigenDataset and performs dimensionality reduction using the provided arguments.
-    """
-    (
-        dataset,
-        bootstrap_prefix,
-        smartpca,
-        seed,
-        embedding,
-        n_components,
-        redo,
-        keep_bootstraps,
-        smartpca_optional_settings,
-    ) = args
-    if embedding == EmbeddingAlgorithm.PCA:
-        if smartpca_finished(n_components, bootstrap_prefix) and not redo:
-            bootstrap = EigenDataset(
-                bootstrap_prefix,
-                dataset._embedding_populations_file,
-                dataset.sample_ids,
-                dataset.populations,
-                dataset.n_snps,
-            )
-        else:
-            bootstrap = dataset.bootstrap(bootstrap_prefix, seed, redo)
-        bootstrap.run_pca(
-            smartpca=smartpca,
-            n_components=n_components,
-            redo=redo,
-            smartpca_optional_settings=smartpca_optional_settings,
-        )
-    elif embedding == EmbeddingAlgorithm.MDS:
-        bootstrap = dataset.bootstrap(bootstrap_prefix, seed, redo)
-        bootstrap.run_mds(smartpca=smartpca, n_components=n_components, redo=redo)
-    else:
-        raise PandoraException(
-            f"Unrecognized embedding option {embedding}. Supported are 'pca' and 'mds'."
-        )
-    if not keep_bootstraps:
-        bootstrap.remove_input_files()
-    return bootstrap
-
-
 def _embed_window(args):
     (
         window,
@@ -1140,10 +1096,6 @@ def sliding_window_embedding(
         sliding_windows = list(p.map(_embed_window, args))
 
     return sliding_windows
-
-
-def _euclidean_distance(input_data: npt.NDArray) -> npt.NDArray:
-    return euclidean_distances(input_data, input_data)
 
 
 class NumpyDataset:

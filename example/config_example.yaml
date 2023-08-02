@@ -1,5 +1,5 @@
-dataset_prefix: example/example
-result_dir: example/results
+dataset_prefix: example
+result_dir: results
 n_replicates: 10
 threads: 2
 seed: 42
@@ -7,3 +7,5 @@ plot_results: True
 kmeans_k: 2
 smartpca_optional_settings:
   numoutlieriter: 0
+
+smartpca: /Users/julia/micromamba/envs/pca_micromamba/bin/smartpca

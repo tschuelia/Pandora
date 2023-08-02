@@ -1,7 +1,7 @@
 """
 Numpy uses OMP and BLAS for its linear algebra under the hood. Per default, both libraries use all cores on the machine.
-Since we are doing a pairwise comparison of all bootstrap replicates, for a substantial amount of time Pandora would
-require all cores on the machine, which is not an option when working on shared servers/clusters.
+Since we are doing a pairwise comparison of all bootstrap/window replicates, for a substantial amount of time Pandora
+would require all cores on the machine, which is not an option when working on shared servers/clusters.
 Therefore, we set the OMP and BLAS threads manually to 1 to prevent this.
 Setting these variables needs to happen before the first import of numpy.
 """
@@ -81,7 +81,7 @@ def main():
     # =======================================
     logger.info("\n--------- STARTING COMPUTATION ---------")
 
-    # if necessary, convert the input data to EIGENSTRAT file_format required for bootstrapping
+    # if necessary, convert the input data to EIGENSTRAT file_format required for bootstrapping/windowing
     if pandora_config.file_format != FileFormat.EIGENSTRAT:
         logger.info(
             fmt_message(
@@ -93,19 +93,22 @@ def main():
     # initialize empty Pandora object that keeps track of all results
     pandora_results = Pandora(pandora_config)
 
-    # Run PCA/MDS on the input dataset without any bootstrapping
+    # Run PCA/MDS on the input dataset without any bootstrapping or sliding-window
     pandora_results.embed_dataset()
 
     if pandora_config.analysis_mode == AnalysisMode.BOOTSTRAP:
         pandora_results.bootstrap_embeddings()
     elif pandora_config.analysis_mode == AnalysisMode.SLIDING_WINDOW:
-        pass
+        pandora_results.sliding_window()
+    else:
+        raise PandoraConfigException(
+            f"Unrecognized Analaysis mode: {pandora_config.analysis_mode.value}"
+        )
 
     logger.info("\n\n========= PANDORA RESULTS =========")
     logger.info(f"> Input dataset: {pandora_config.dataset_prefix.absolute()}")
 
-    if pandora_config.do_bootstrapping:
-        pandora_results.log_and_save_replicates_results()
+    pandora_results.log_and_save_replicates_results()
 
     pandora_config.log_results_files()
 

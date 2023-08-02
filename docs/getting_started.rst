@@ -14,12 +14,12 @@ This example demonstrates the basic usage of Pandora using the command line inte
     git clone https://github.com/tschuelia/Pandora.git
 
 
-3. In this repo, you will find an example configuration file ``config-example.yaml`` that looks like this:
+3. In this repo, you will find an example configuration file ``example/config-example.yaml`` that looks like this:
 
 .. code-block:: yaml
 
-    dataset_prefix: example/example
-    result_dir: example/results
+    dataset_prefix: example
+    result_dir: results
     n_replicates: 10
     threads: 2
     seed: 42
@@ -28,7 +28,7 @@ This example demonstrates the basic usage of Pandora using the command line inte
     smartpca_optional_settings:
       numoutlieriter: 0
 
-This configuration tells Pandora to use ``example/example.*`` as input data and store the results in ``example/results``.
+This configuration tells Pandora to use ``example.*`` as input data and store the results in ``results``.
 For this small example, we will estimate the stability using 10 bootstrap replicates. We further tell Pandora to use
 2 threads for the parallel bootstrap computation and we set the random seed to 42 to make sure we get the same results
 when rerunning Pandora with the same settings. We further tell Pandora to estimate the cluster stability when using two

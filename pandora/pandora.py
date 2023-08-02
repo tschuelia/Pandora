@@ -18,6 +18,7 @@ from pandora.converter import run_convertf
 from pandora.dataset import (
     EigenDataset,
     bootstrap_and_embed_multiple,
+    sliding_window_embedding,
     smartpca_finished,
 )
 from pandora.embedding_comparison import BatchEmbeddingComparison
@@ -128,7 +129,6 @@ class PandoraConfig:
 
     # Pandora execution mode settings
     analysis_mode: AnalysisMode = AnalysisMode.BOOTSTRAP
-    do_bootstrapping: bool = True
     redo: bool = False
     seed: int = int(datetime.datetime.now().timestamp())
     threads: PositiveInt = multiprocessing.cpu_count()
@@ -521,7 +521,18 @@ class Pandora:
             )
         )
 
-        # TODO: sliding window parallel wrapper
+        self.replicates = sliding_window_embedding(
+            self.dataset,
+            self.pandora_config.n_replicates,
+            self.pandora_config.sliding_window_result_dir,
+            self.pandora_config.smartpca,
+            self.pandora_config.embedding_algorithm,
+            self.pandora_config.n_components,
+            self.pandora_config.threads,
+            self.pandora_config.redo,
+            self.pandora_config.keep_replicates,
+            self.pandora_config.smartpca_optional_settings,
+        )
         self._compare_and_plot_replicates()
 
     def _compare_and_plot_replicates(self) -> None:
@@ -529,12 +540,17 @@ class Pandora:
         # Compare and plot results
         # pairwise comparison between all replicates
         # =======================================
-        logger.info(fmt_message(f"Comparing bootstrap embedding results."))
+        analysis_string = (
+            "bootstrapping"
+            if self.pandora_config.analysis_mode == AnalysisMode.BOOTSTRAP
+            else "sliding window"
+        )
+        logger.info(fmt_message(f"Comparing {analysis_string} embedding results."))
         self._compare_replicates_similarity()
 
         if self.pandora_config.plot_results:
             self.pandora_config.plot_dir.mkdir(exist_ok=True, parents=True)
-            logger.info(fmt_message(f"Plotting bootstrap embedding results."))
+            logger.info(fmt_message(f"Plotting {analysis_string} embedding results."))
             self._plot_replicates()
             self._plot_sample_support_values()
 
@@ -747,6 +763,10 @@ def pandora_config_from_configfile(configfile: pathlib.Path) -> PandoraConfig:
         config_data["embedding_algorithm"] = EmbeddingAlgorithm[
             embedding_algorithm.upper()
         ]
+
+    analysis_mode = config_data.get("analysis_mode")
+    if analysis_mode is not None:
+        config_data["analysis_mode"] = AnalysisMode[analysis_mode.upper()]
 
     try:
         return PandoraConfig(**config_data)

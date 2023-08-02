@@ -203,6 +203,41 @@ class TestPandora:
         assert all(isinstance(bs, EigenDataset) for bs in pandora.replicates)
         assert all(b.mds is not None for b in pandora.replicates)
 
+    def test_sliding_window_with_pca(self, pandora_test_config_sliding_window):
+        pandora = Pandora(pandora_test_config_sliding_window)
+        pandora.pandora_config.keep_replicates = True
+        n_windows_expected = pandora.pandora_config.n_replicates
+
+        assert len(pandora.replicates) == 0
+
+        # for plotting we need the empirical embedding data
+        pandora.embed_dataset()
+        pandora.sliding_window()
+
+        assert len(pandora.replicates) == n_windows_expected
+        assert all(isinstance(bs, EigenDataset) for bs in pandora.replicates)
+        assert all(b.pca is not None for b in pandora.replicates)
+
+    def test_sliding_window_with_mds(self, pandora_test_config_sliding_window_mds):
+        pandora = Pandora(pandora_test_config_sliding_window_mds)
+        pandora.pandora_config.keep_replicates = True
+        n_windows_expected = pandora.pandora_config.n_replicates
+
+        assert len(pandora.replicates) == 0
+
+        # for plotting we need the empirical embedding data
+        pandora.embed_dataset()
+        pandora.sliding_window()
+
+        # since we are asking for MDS analyses, pandora.dataset.mds should be set, but pandora.dataset.pca shouldn't
+        assert pandora.dataset.mds is not None
+        assert isinstance(pandora.dataset.mds, MDS)
+        assert pandora.dataset.pca is None
+
+        assert len(pandora.replicates) == n_windows_expected
+        assert all(isinstance(bs, EigenDataset) for bs in pandora.replicates)
+        assert all(b.mds is not None for b in pandora.replicates)
+
     def test_log_and_save_results_fails_if_no_embedding_run_yet(
         self, pandora_test_config
     ):

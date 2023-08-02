@@ -20,7 +20,7 @@ Configuration options:
 - ``embedding_populations``, default = not set, File containing a new-line separated list of population names. Only these populations will be used for the dimensionality reduction. In case of PCA analyses, all remaining samples in the dataset will be projected onto the PCA results.
 - ``support_value_rogue_cutoff``, default = 0.5, When plotting the support values, only samples with a support value lower than the ``support_value_rogue_cutoff`` will be annotated with their sample IDs. Note that all samples in the respective plot are color-coded according to their support value in any case.
 - ``kmeans_k``, default = not set, Number of clusters k to use for K-Means clustering of the dimensionality reduction embeddings. If not set, the optimal number of clusters will be automatically determined according to the Bayesian Information Criterion (BIC).
-- ``do_bootstrapping``, default = ``True``, Whether to do the stability analysis using bootstrapping.
+- ``analysis_mode``, default = ``BOOTSTRAP``, Whether to run bootstrap analysis or sliding-window analysis. Allowed options are ``BOOTSTRAP`` and ``SLIDING_WINDOW``.
 - ``redo``, default = ``False``, Whether to rerun all analyses in case the results files from a previous run are already present. Careful: this will overwrite existing results!
 - ``seed``, default = current unix timestamp, Seed to initialize the random number generator. This setting is recommended for reproducible analyses.
 - ``threads``, default = number of system threads, Number of threads to use for the analysis.

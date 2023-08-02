@@ -1,0 +1,25 @@
+# PANDORA VERSION 0.0.0
+
+analysis_mode: SLIDING_WINDOW
+convertf: convertf
+dataset_prefix: /Users/julia/Desktop/Promotion/ADNA_Popgen/Pandora/example/example_sliding_window
+embedding_algorithm: PCA
+embedding_populations: null
+file_format: EIGENSTRAT
+keep_replicates: false
+kmeans_k: 2
+n_components: 2
+n_replicates: 10
+plot_dim_x: 0
+plot_dim_y: 1
+plot_results: true
+redo: false
+result_decimals: 2
+result_dir: /Users/julia/Desktop/Promotion/ADNA_Popgen/Pandora/example/results_sliding_window
+seed: 42
+smartpca: /Users/julia/micromamba/envs/pca_micromamba/bin/smartpca
+smartpca_optional_settings:
+  numoutlieriter: 0
+support_value_rogue_cutoff: 0.5
+threads: 2
+verbosity: 1

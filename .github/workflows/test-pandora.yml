@@ -45,9 +45,17 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: '3.11'
+      - name: Setup smartpca
+        uses: mamba-org/setup-micromamba@v1
+        with:
+          environment-name: eigensoft
+          create-args: >-
+            python=3.11
+            eigensoft
+            -c bioconda
       - name: Install Pythia using pip
         run: |
           pip install .
-        shell: bash -el {0}
+        shell: micromamba-shell {0}
       - name: Test Pandora installation by running the CLI
         uses: ./.github/actions/test-pandora-cli

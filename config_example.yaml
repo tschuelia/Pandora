@@ -1,4 +1,4 @@
-dataset_prefix: example
+dataset_prefix: example/example
 result_dir: results
 n_replicates: 10
 threads: 2

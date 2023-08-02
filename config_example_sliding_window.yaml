@@ -1,4 +1,4 @@
-dataset_prefix: example_sliding_window
+dataset_prefix: example/example_sliding_window
 n_components: 2
 result_dir: results_sliding_window
 analysis_mode: sliding_window

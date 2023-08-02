@@ -1,5 +1,5 @@
 dataset_prefix: example/example
-result_dir: results
+result_dir: example/results
 n_replicates: 10
 threads: 2
 seed: 42

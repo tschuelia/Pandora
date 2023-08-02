@@ -1,0 +1,11 @@
+dataset_prefix: example/example_sliding_window
+n_components: 2
+result_dir: results_sliding_window
+analysis_mode: sliding_window
+n_replicates: 10
+threads: 2
+seed: 42
+plot_results: True
+kmeans_k: 2
+smartpca_optional_settings:
+  numoutlieriter: 0

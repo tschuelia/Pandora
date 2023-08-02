@@ -28,3 +28,12 @@ class EmbeddingAlgorithm(Enum):
 
     PCA = "PCA"
     MDS = "MDS"
+
+
+class AnalysisMode(Enum):
+    """
+    Supported options for analyses to conduct.
+    """
+
+    BOOTSTRAP = "BOOTSTRAP"
+    SLIDING_WINDOW = "SLIDING_WINDOW"

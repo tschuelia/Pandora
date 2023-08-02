@@ -16,7 +16,7 @@ def test_pandora_config_from_configfile(
     assert str(pandora_config.dataset_prefix) == str(
         pandora_test_config_yaml.get("dataset_prefix")
     )
-    assert pandora_config.n_bootstraps == pandora_test_config_yaml.get("n_bootstraps")
+    assert pandora_config.n_replicates == pandora_test_config_yaml.get("n_replicates")
     assert pandora_config.threads == pandora_test_config_yaml.get("threads")
 
 
@@ -103,10 +103,10 @@ class TestPandora:
         assert pandora.dataset.file_prefix == pandora_test_config.dataset_prefix
         assert pandora.dataset.files_exist()
 
-        # bootstraps and similarities should be empty
-        assert len(pandora.bootstraps) == 0
-        assert len(pandora.bootstrap_stabilities) == 0
-        assert len(pandora.bootstrap_cluster_stabilities) == 0
+        # replicates and similarities should be empty
+        assert len(pandora.replicates) == 0
+        assert len(pandora.pairwise_stabilities) == 0
+        assert len(pandora.pairwise_cluster_stabilities) == 0
         assert pandora.sample_support_values.empty
 
     def test_init_with_embedding_populations(
@@ -170,25 +170,25 @@ class TestPandora:
 
     def test_bootstrap_embeddings_with_pca(self, pandora_test_config):
         pandora = Pandora(pandora_test_config)
-        pandora.pandora_config.keep_bootstraps = True
-        n_bootstraps_expected = pandora.pandora_config.n_bootstraps
+        pandora.pandora_config.keep_replicates = True
+        n_bootstraps_expected = pandora.pandora_config.n_replicates
 
-        assert len(pandora.bootstraps) == 0
+        assert len(pandora.replicates) == 0
 
         # for plotting we need the empirical embedding data
         pandora.embed_dataset()
         pandora.bootstrap_embeddings()
 
-        assert len(pandora.bootstraps) == n_bootstraps_expected
-        assert all(isinstance(bs, EigenDataset) for bs in pandora.bootstraps)
-        assert all(b.pca is not None for b in pandora.bootstraps)
+        assert len(pandora.replicates) == n_bootstraps_expected
+        assert all(isinstance(bs, EigenDataset) for bs in pandora.replicates)
+        assert all(b.pca is not None for b in pandora.replicates)
 
     def test_bootstrap_embedding_with_mds(self, pandora_test_config_mds):
         pandora = Pandora(pandora_test_config_mds)
-        pandora.pandora_config.keep_bootstraps = True
-        n_bootstraps_expected = pandora.pandora_config.n_bootstraps
+        pandora.pandora_config.keep_replicates = True
+        n_bootstraps_expected = pandora.pandora_config.n_replicates
 
-        assert len(pandora.bootstraps) == 0
+        assert len(pandora.replicates) == 0
 
         # for plotting we need the empirical embedding data
         pandora.embed_dataset()
@@ -199,16 +199,51 @@ class TestPandora:
         assert isinstance(pandora.dataset.mds, MDS)
         assert pandora.dataset.pca is None
 
-        assert len(pandora.bootstraps) == n_bootstraps_expected
-        assert all(isinstance(bs, EigenDataset) for bs in pandora.bootstraps)
-        assert all(b.mds is not None for b in pandora.bootstraps)
+        assert len(pandora.replicates) == n_bootstraps_expected
+        assert all(isinstance(bs, EigenDataset) for bs in pandora.replicates)
+        assert all(b.mds is not None for b in pandora.replicates)
+
+    def test_sliding_window_with_pca(self, pandora_test_config_sliding_window):
+        pandora = Pandora(pandora_test_config_sliding_window)
+        pandora.pandora_config.keep_replicates = True
+        n_windows_expected = pandora.pandora_config.n_replicates
+
+        assert len(pandora.replicates) == 0
+
+        # for plotting we need the empirical embedding data
+        pandora.embed_dataset()
+        pandora.sliding_window()
+
+        assert len(pandora.replicates) == n_windows_expected
+        assert all(isinstance(bs, EigenDataset) for bs in pandora.replicates)
+        assert all(b.pca is not None for b in pandora.replicates)
+
+    def test_sliding_window_with_mds(self, pandora_test_config_sliding_window_mds):
+        pandora = Pandora(pandora_test_config_sliding_window_mds)
+        pandora.pandora_config.keep_replicates = True
+        n_windows_expected = pandora.pandora_config.n_replicates
+
+        assert len(pandora.replicates) == 0
+
+        # for plotting we need the empirical embedding data
+        pandora.embed_dataset()
+        pandora.sliding_window()
+
+        # since we are asking for MDS analyses, pandora.dataset.mds should be set, but pandora.dataset.pca shouldn't
+        assert pandora.dataset.mds is not None
+        assert isinstance(pandora.dataset.mds, MDS)
+        assert pandora.dataset.pca is None
+
+        assert len(pandora.replicates) == n_windows_expected
+        assert all(isinstance(bs, EigenDataset) for bs in pandora.replicates)
+        assert all(b.mds is not None for b in pandora.replicates)
 
     def test_log_and_save_results_fails_if_no_embedding_run_yet(
         self, pandora_test_config
     ):
         pandora = Pandora(pandora_test_config)
-        with pytest.raises(PandoraException, match="No bootstrap results to log!"):
-            pandora.log_and_save_bootstrap_results()
+        with pytest.raises(PandoraException, match="No results to log!"):
+            pandora.log_and_save_replicates_results()
 
     def test_log_and_save_results(self, pandora_test_config_with_embedding_populations):
         # modify the config to not plot anything for these tests
@@ -219,10 +254,11 @@ class TestPandora:
         pandora.bootstrap_embeddings()
 
         # next log the results and check if the expected files exist
-        pandora.log_and_save_bootstrap_results()
+        pandora.log_and_save_replicates_results()
 
         expected_files = [
-            pandora.pandora_config.pairwise_bootstrap_result_file,  # csv with pairwise Pandora stabilities
+            pandora.pandora_config.pairwise_stability_result_file,  # csv with pairwise Pandora stabilities
+            pandora.pandora_config.pairwise_sample_support_values_csv,  # csv with pairwise pandora support values
             pandora.pandora_config.sample_support_values_csv,  # csv with pandora support values
             pandora.pandora_config.projected_sample_support_values_csv,  # support values for projected samples only
         ]
@@ -230,7 +266,7 @@ class TestPandora:
         assert all(f.exists() for f in expected_files)
 
         # also check if the file contents are what we expect in terms of number of rows and columns
-        n_bootstraps = pandora.pandora_config.n_bootstraps
+        n_bootstraps = pandora.pandora_config.n_replicates
         n_bootstrap_combinations = n_bootstraps * (n_bootstraps - 1) / 2
 
         n_samples = pandora.dataset.sample_ids.shape[0]
@@ -240,23 +276,32 @@ class TestPandora:
         assert n_projected_samples < n_samples
 
         pairwise_bootstrap_results = pd.read_csv(
-            pandora.pandora_config.pairwise_bootstrap_result_file, index_col=0
+            pandora.pandora_config.pairwise_stability_result_file, index_col=0
         )
         # we expect one row for each pairwise combination and two columns (PS and PCS)
         assert pairwise_bootstrap_results.shape == (n_bootstrap_combinations, 2)
 
+        pairwise_sample_support_values = pd.read_csv(
+            pandora.pandora_config.pairwise_sample_support_values_csv, index_col=0
+        )
+        # we expect one row per sample and n_bootstrap_combinations columns
+        assert pairwise_sample_support_values.shape == (
+            n_samples,
+            n_bootstrap_combinations,
+        )
+
         sample_support_values = pd.read_csv(
             pandora.pandora_config.sample_support_values_csv, index_col=0
         )
-        # we expect one row per sample and n_bootstrap_combinations columns + 2 for the average and stdev
-        assert sample_support_values.shape == (n_samples, n_bootstrap_combinations + 2)
+        # we expect one row per sample and 2 columns the average and stdev
+        assert sample_support_values.shape == (n_samples, 2)
 
         projected_sample_support_values = pd.read_csv(
             pandora.pandora_config.projected_sample_support_values_csv, index_col=0
         )
         print(projected_sample_support_values)
-        # we expect one row per projected sample and again n_bootstrap_combinations + 2 columns
+        # we expect one row per projected sample, but for projected samples only two columns (average, stdev)
         assert projected_sample_support_values.shape == (
             n_projected_samples,
-            n_bootstrap_combinations + 2,
+            2,
         )

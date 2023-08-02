@@ -332,13 +332,15 @@ class BatchEmbeddingComparison:
         -------
         pd.Series
             Pandas Series containing the pairwise stability scores for all unique pairs of
-            self.embeddings. The resulting Series is named bootstrap_stability and has the indices of the
-            pairwise comparisons as index. So a result looks e.g. like this:
-            (0, 1)    0.93
-            (0, 2)    0.79
-            (1, 2)    0.71
-            Name: bootstrap_stability, dtype: float64
-            Each value is between 0 and 1.
+            self.embeddings. The resulting Series is named pandora_stability and has the indices of the
+            pairwise comparisons as index. So a result looks e.g. like this::
+
+                (0, 1)    0.93
+                (0, 2)    0.79
+                (1, 2)    0.71
+                Name: pandora_stability, dtype: float64
+
+            Each value is between 0 and 1 with higher values indicating a higher stability.
 
         """
         pairwise_stabilities = []
@@ -351,28 +353,43 @@ class BatchEmbeddingComparison:
             )
 
         pairwise_stabilities = pd.concat(pairwise_stabilities)
-        pairwise_stabilities.name = "bootstrap_stability"
+        pairwise_stabilities.name = "pandora_stability"
         return pairwise_stabilities
 
     def compare(self) -> float:
         """Compares all embeddings pairwise and returns the average of the resulting pairwise Pandora stability scores.
 
+        See EmbeddingComparison::compare for more details on how the pairwise Pandora stability is computed.
+
         Returns
         -------
         float
-            Average of pairwise Pandora stability scores.
+            Average of pairwise Pandora stability scores. This value is between 0 and 1 with higher values indicating
+            a higher stability.
 
         """
         return self.get_pairwise_stabilities().mean()
 
     def get_pairwise_cluster_stabilities(self, kmeans_k: int) -> pd.DataFrame:
-        """
-        TODO
+        """Computes the pairwise Pandora cluster stability scores for all unique pairs of self.embedding and stores them in a
+        pandas Series.
 
-        Args:
-            kmeans_k:
+        Parameters
+        ----------
+        kmeans_k: int
+            Number k of clusters to use for K-Means clustering.
 
-        Returns:
+        Returns
+        -------
+        pd.Series
+            Pandas Series containing the pairwise cluster stability scores for all unique pairs of
+            self.embeddings. The resulting Series is named pandora_cluster_stability and has the indices of the
+            pairwise comparisons as index. So a result looks e.g. like this:
+            (0, 1)    0.93
+            (0, 2)    0.79
+            (1, 2)    0.71
+            Name: pandora_cluster_stability, dtype: float64
+            Each value is between 0 and 1 with higher values indicating a higher stability.
 
         """
         pairwise_cluster_stabilities = []
@@ -385,40 +402,67 @@ class BatchEmbeddingComparison:
             )
 
         pairwise_cluster_stabilities = pd.concat(pairwise_cluster_stabilities)
-        pairwise_cluster_stabilities.name = "bootstrap_cluster_stability"
+        pairwise_cluster_stabilities.name = "pandora_cluster_stability"
         return pairwise_cluster_stabilities
 
     def compare_clustering(self, kmeans_k: int) -> float:
-        """
-        TODO
+        """Compares all embeddings pairwise and returns the average of the resulting pairwise Pandora cluster stability scores.
+
+        See EmbeddingComparison::compare_clustering for more details on how the pairwise Pandora cluster stability is computed.
 
         Parameters
         ----------
-        kmeans_k
+        kmeans_k: int
+            Number k of clusters to use for K-Means clustering.
 
         Returns
         -------
+        float
+            Average of pairwise Pandora cluster stability scores. This value is between 0 and 1 with higher values indicating
+            a higher stability.
 
         """
         return self.get_pairwise_cluster_stabilities(kmeans_k).mean()
 
-    def get_sample_support_values(self) -> pd.DataFrame:
-        """TODO
+    def get_pairwise_sample_support_values(self) -> pd.DataFrame:
+        """Computes the sample support value for each sample respective all unique pairwise comparisons
 
         Returns
         -------
+        pd.DataFrame
+            Pandas Dataframe containing the support values for all samples across all pairwise embedding comparisons.
+            Each row corresponds to a sample, with the sample IDs as indices. The dataframe has one column for each
+            of the unique pairwise comparisons entitled '(i, j)' when comparing the i-th embedding to the j-th embedding.
+            Each value in the dataframe is a float between 0 and 1. Higher values indicate a higher support.
 
         """
         sample_supports = []
-        for (i1, embedding1), (i2, embedding2) in itertools.combinations(
+        for (i, embedding1), (j, embedding2) in itertools.combinations(
             enumerate(self.embeddings), r=2
         ):
             comparison = EmbeddingComparison(embedding1, embedding2)
             support_values = comparison.get_sample_support_values()
-            support_values.name = f"({i1}, {i2})"
+            support_values.name = f"({i}, {j})"
             sample_supports.append(support_values)
 
         return pd.concat(sample_supports, axis=1)
+
+    def get_sample_support_values(self) -> pd.DataFrame:
+        """Computes the sample support value for each sample respective all pairwise embedding comparisons.
+
+        Returns
+        -------
+        pd.DataFrame
+            Pandas Dataframe containing the support values for all samples across all pairwise embedding comparisons.
+            Each row corresponds to a sample, with the sample IDs as indices. The dataframe has two columns:
+            'average' and 'standard_deviation' containing the mean and stdev of all pairwise support values per sample.
+            Each value in the dataframe is a float between 0 and 1. Higher values indicate a higher support.
+
+        """
+        support_values = self.get_pairwise_sample_support_values()
+        support_values["average"] = support_values.mean(axis=1)
+        support_values["standard_deviation"] = support_values.std(axis=1)
+        return support_values[["average", "standard_deviation"]]
 
 
 def _numpy_to_dataframe(

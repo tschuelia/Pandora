@@ -18,6 +18,7 @@ from pandora.converter import run_convertf
 from pandora.dataset import (
     EigenDataset,
     bootstrap_and_embed_multiple,
+    sliding_window_embedding,
     smartpca_finished,
 )
 from pandora.embedding_comparison import BatchEmbeddingComparison
@@ -43,10 +44,10 @@ class PandoraConfig:
         File path pointing to an executable of Eigensoft's convertf tool. Convertf is used
         if the provided dataset is not in EIGENSTRAT format. Default is 'convertf'. This will only work if
         convertf is installed systemwide.
-    n_bootstraps: PositiveInt, default=100
-        Number of bootstrap replicates to compute. Default is 100,
-    keep_bootstraps: bool, default=False
-        Whether to store all bootstrap datasets files (.geno, .snp, .ind). Note that this will
+    n_replicates: PositiveInt, default=100
+        Number of bootstrap replicates or sliding windows to compute.
+    keep_replicates: bool, default=False
+        Whether to store all intermediate datasets files (.geno, .snp, .ind). Note that this will
         result in a substantial storage consumption. Default is False. Note that the bootstrapped indicies are
         stored as checkpoints for full reproducibility in any case.
     n_components: PositiveInt, deafault=10
@@ -63,7 +64,7 @@ class PandoraConfig:
         smartpca. Pandora has full support for all smartpca options. Not allowed are the following options:
         genotypename, snpname, indivname, evecoutname, evaloutname, numoutevec, maxpops.
         Use the following schema to set the options: dict(shrinkmode=True, numoutlieriter=1)
-    embedding_populations: pathlib.Pathm, default=None
+    embedding_populations: pathlib.Path, default=None
         File containing a new-line separated list of population names.
         Only these populations will be used for the dimensionality reduction. In case of PCA analyses, all remaining
         samples in the dataset will be projected onto the PCA results.
@@ -75,8 +76,8 @@ class PandoraConfig:
         Number of clusters k to use for K-Means clustering of the dimensionality reduction embeddings.
         If not set, the optimal number of clusters will be automatically determined according to the
         Bayesian Information Criterion (BIC).
-    do_bootstrapping: bool, default=True
-        Whether to do the stability analysis using bootstrapping.
+    analysis_mode: AnalysisMode, default=AnalysisMode.BOOTSTRAP
+        Whether Pandora should do bootstrap analysis or sliding-window analysis.
     redo: bool, default=False
         Whether to rerun all analyses in case the results files from a previous run are already present.
         Careful: this will overwrite existing results!
@@ -109,9 +110,9 @@ class PandoraConfig:
     file_format: FileFormat = FileFormat.EIGENSTRAT
     convertf: Executable = "convertf"
 
-    # Bootstrap related settings
-    n_bootstraps: NonNegativeInt = 100
-    keep_bootstraps: bool = False
+    # Repliactes related settings
+    n_replicates: NonNegativeInt = 100
+    keep_replicates: bool = False
 
     # Embedding related
     n_components: NonNegativeInt = 10
@@ -127,7 +128,7 @@ class PandoraConfig:
     kmeans_k: Optional[int] = None
 
     # Pandora execution mode settings
-    do_bootstrapping: bool = True
+    analysis_mode: AnalysisMode = AnalysisMode.BOOTSTRAP
     redo: bool = False
     seed: int = int(datetime.datetime.now().timestamp())
     threads: PositiveInt = multiprocessing.cpu_count()
@@ -193,20 +194,46 @@ class PandoraConfig:
         return self.result_dir / "bootstrap"
 
     @property
-    def convertf_result_dir(self) -> pathlib.Path:
-        return self.result_dir / "converted"
-
-    @property
-    def pairwise_bootstrap_result_file(self) -> pathlib.Path:
-        """Returns a path to a csv file where all pairwise bootstrap stability results should be written to.
+    def sliding_window_result_dir(self) -> pathlib.Path:
+        """Path where to store all sliding-window (intermediate) results in.
 
         Returns
         -------
         pathlib.Path
-            Filepath to a csv file for pairwise bootstrap stability results.
+            Filepath to the sliding-window results directory.
 
         """
-        return self.result_dir / "pandora.bootstrap.csv"
+        return self.result_dir / "windows"
+
+    @property
+    def convertf_result_dir(self) -> pathlib.Path:
+        return self.result_dir / "converted"
+
+    @property
+    def pairwise_stability_result_file(self) -> pathlib.Path:
+        """Returns a path to a csv file where all pairwise stability results should be written to.
+
+        Returns
+        -------
+        pathlib.Path
+            Filepath to a csv file for pairwise stability results.
+
+        """
+        return self.result_dir / "pandora.replicates.csv"
+
+    @property
+    def pairwise_sample_support_values_csv(self) -> pathlib.Path:
+        """Returns a path to a csv file where all sample support values should be written to.
+        This csv contains the support values in very verbose mode, meaning the support value respective all
+        pairwise comparisons are logged.
+
+        Returns
+        -------
+        pathlib.Path
+            Filepath to a csv file for pairwise support value results for all samples.
+
+        """
+        return self.result_dir / "pandora.supportValues.pairwise.csv"
 
     @property
     def sample_support_values_csv(self) -> pathlib.Path:
@@ -218,7 +245,7 @@ class PandoraConfig:
             Filepath to a csv file for support value results for all samples.
 
         """
-        return self.result_dir / "pandora.supportValues.pairwise.csv"
+        return self.result_dir / "pandora.supportValues.csv"
 
     @property
     def projected_sample_support_values_csv(self) -> pathlib.Path:
@@ -310,18 +337,17 @@ class PandoraConfig:
             )
         )
         logger.info(f"> Pandora results: {self.result_file.absolute()}")
-        if self.do_bootstrapping:
-            logger.info(
-                f"> Pairwise bootstrap similarities: {self.pairwise_bootstrap_result_file.absolute()}"
-            )
-            logger.info(
-                f"> Sample Support values: {self.sample_support_values_csv.absolute()}"
-            )
+        logger.info(
+            f"> Pairwise stabilities: {self.pairwise_stability_result_file.absolute()}"
+        )
+        logger.info(
+            f"> Sample Support values: {self.sample_support_values_csv.absolute()}"
+        )
 
-            if self.embedding_populations is not None:
-                logger.info(
-                    f"> Projected Sample Support values: {self.projected_sample_support_values_csv.absolute()}"
-                )
+        if self.embedding_populations is not None:
+            logger.info(
+                f"> Projected Sample Support values: {self.projected_sample_support_values_csv.absolute()}"
+            )
         if self.plot_results:
             logger.info(f"> All plots saved in directory: {self.plot_dir.absolute()}")
 
@@ -340,23 +366,25 @@ class Pandora:
         PandoraConfig object used to determine the analyses to run
     dataset: EigenDataset
         EigenDataset object that contains the input data provided by the user
-    bootstraps: List[EigenDataset]
-        List of bootstrap replicates of self.dataset. This is empty until self.bootstrap_embeddings() was called.
-    bootstrap_stabilities: pd.DataFrame
-        Pandas dataframe containing the Pandora stability scores for all pairwise bootstrap replicate comparisons.
-         This is empty until self.bootstrap_embeddings() was called.
-    bootstrap_stability: float
-        Overall Pandora stability of the dataset under bootstrapping.
-        This is None until self.bootstrap_embeddings() was called.
-    bootstrap_stabilities: pd.DataFrame
-        Pandas dataframe containing the Pandora cluster stability scores for all pairwise bootstrap replicate comparisons.
-         This is empty until self.bootstrap_embeddings() was called.
-    bootstrap_cluster_stability: float
-        Overall Pandora cluster stability of the dataset under bootstrapping.
-        This is None until self.bootstrap_embeddings() was called.
+    replicates: List[EigenDataset]
+        List of bootstrap replicates / sliding-windows of self.dataset.
+        This is empty until self.bootstrap_embeddings() or self.sliding_window() was called.
+    pairwise_stabilities: pd.DataFrame
+        Pandas dataframe containing the Pandora stability scores for all pairwise replicate comparisons.
+         This is empty until self.bootstrap_embeddings() or self.sliding_window() was called.
+    pandora_stability: float
+        Overall Pandora stability of the dataset under bootstrapping or sliding-window analysis.
+        This is None until self.bootstrap_embeddings() or self.sliding_window() was called.
+    pairwise_stabilities: pd.DataFrame
+        Pandas dataframe containing the Pandora cluster stability scores for all pairwise replicate comparisons.
+         This is empty until self.bootstrap_embeddings() or self.sliding_window() was called.
+    pandora_cluster_stability: float
+        Overall Pandora cluster stability of the dataset under bootstrapping or sliding-window analysis.
+        This is None until self.bootstrap_embeddings() or self.sliding_window() was called.
     sample_support_values: pd.DataFrame
-        Pandas dataframe containing the support values for all samples of self.dataset for all pairwise bootstrap
-        replicate comparisons. This is empty until self.bootstrap_embeddings() was called.
+        Pandas dataframe containing the support values for all samples of self.dataset for all pairwise
+        replicate comparisons.
+        This is empty until self.bootstrap_embeddings() or self.sliding_window() was called.
     """
 
     def __init__(self, pandora_config: PandoraConfig):
@@ -365,14 +393,15 @@ class Pandora:
             file_prefix=pandora_config.dataset_prefix,
             embedding_populations=pandora_config.embedding_populations,
         )
-        self.bootstraps: List[EigenDataset] = []
+        self.replicates: List[EigenDataset] = []
 
-        self.bootstrap_stabilities: pd.DataFrame = pd.DataFrame()
-        self.bootstrap_stability: float = None
+        self.pairwise_stabilities: pd.DataFrame = pd.DataFrame()
+        self.pandora_stability: float = None
 
-        self.bootstrap_cluster_stabilities: pd.DataFrame = pd.DataFrame()
-        self.bootstrap_cluster_stability: float = None
+        self.pairwise_cluster_stabilities: pd.DataFrame = pd.DataFrame()
+        self.pandora_cluster_stability: float = None
 
+        self.pairwise_sample_support_values: pd.DataFrame = pd.DataFrame()
         self.sample_support_values: pd.DataFrame = pd.DataFrame()
 
     def embed_dataset(self) -> None:
@@ -456,9 +485,6 @@ class Pandora:
                 self.pandora_config.plot_dir / f"{plot_prefix}_projections.pdf"
             )
 
-    # ===========================
-    # BOOTSTRAP RELATED FUNCTIONS
-    # ===========================
     def bootstrap_embeddings(self) -> None:
         """Draws bootstrap replicates of self.dataset and computes and compares the respective embedding for
         all bootstrap replicates.
@@ -466,23 +492,24 @@ class Pandora:
         The parameters (e.g. what method to use) is determined based on the configured settings in self.pandora_config.
         On successfull run, the following parameters of self will be set:
 
-            - self.bootstraps
-            - self.bootstrap_stabilities
-            - self.bootstrap_stability
-            - self.bootstrap_cluster_stabilities
-            - self.bootstrap_cluster_stability
+            - self.replicates
+            - self.pairwise_stabilities
+            - self.pandora_stability
+            - self.pairwise_cluster_stabilities
+            - self.pandora_cluster_stability
+            - self.pairwise_sample_support_values
             - self.sample_support_values
 
         """
         logger.info(
             fmt_message(
-                f"Drawing {self.pandora_config.n_bootstraps} bootstrapped datasets and "
+                f"Drawing {self.pandora_config.n_replicates} bootstrapped datasets and "
                 f"running {self.pandora_config.embedding_algorithm.value}."
             )
         )
-        self.bootstraps = bootstrap_and_embed_multiple(
+        self.replicates = bootstrap_and_embed_multiple(
             self.dataset,
-            self.pandora_config.n_bootstraps,
+            self.pandora_config.n_replicates,
             self.pandora_config.bootstrap_result_dir,
             self.pandora_config.smartpca,
             self.pandora_config.embedding_algorithm,
@@ -490,29 +517,74 @@ class Pandora:
             self.pandora_config.seed,
             self.pandora_config.threads,
             self.pandora_config.redo,
-            self.pandora_config.keep_bootstraps,
+            self.pandora_config.keep_replicates,
             self.pandora_config.smartpca_optional_settings,
         )
 
+        self._compare_and_plot_replicates()
+
+    def sliding_window(self) -> None:
+        """Separates self.dataset into self.pandora_config.n_replicates overlapping windows and and computes and compares
+        the respective embedding for all of these windows.
+
+        The parameters (e.g. what method to use) is determined based on the configured settings in self.pandora_config.
+        On successfull run, the following parameters of self will be set:
+
+            - self.replicates
+            - self.pairwise_stabilities
+            - self.pandora_stability
+            - self.pairwise_cluster_stabilities
+            - self.pandora_cluster_stability
+            - self.pairwise_sample_support_values
+            - self.sample_support_values
+
+        """
+        logger.info(
+            fmt_message(
+                f"Separating the dataset into {self.pandora_config.n_replicates} sliding-windows "
+                f"running {self.pandora_config.embedding_algorithm.value}."
+            )
+        )
+
+        self.replicates = sliding_window_embedding(
+            self.dataset,
+            self.pandora_config.n_replicates,
+            self.pandora_config.sliding_window_result_dir,
+            self.pandora_config.smartpca,
+            self.pandora_config.embedding_algorithm,
+            self.pandora_config.n_components,
+            self.pandora_config.threads,
+            self.pandora_config.redo,
+            self.pandora_config.keep_replicates,
+            self.pandora_config.smartpca_optional_settings,
+        )
+        self._compare_and_plot_replicates()
+
+    def _compare_and_plot_replicates(self) -> None:
         # =======================================
-        # Compare results
-        # pairwise comparison between all bootstraps
+        # Compare and plot results
+        # pairwise comparison between all replicates
         # =======================================
-        logger.info(fmt_message(f"Comparing bootstrap embedding results."))
-        self._compare_bootstrap_similarity()
+        analysis_string = (
+            "bootstrapping"
+            if self.pandora_config.analysis_mode == AnalysisMode.BOOTSTRAP
+            else "sliding window"
+        )
+        logger.info(fmt_message(f"Comparing {analysis_string} embedding results."))
+        self._compare_replicates_similarity()
 
         if self.pandora_config.plot_results:
             self.pandora_config.plot_dir.mkdir(exist_ok=True, parents=True)
-            logger.info(fmt_message(f"Plotting bootstrap embedding results."))
-            self._plot_bootstraps()
+            logger.info(fmt_message(f"Plotting {analysis_string} embedding results."))
+            self._plot_replicates()
             self._plot_sample_support_values()
 
             if self.pandora_config.embedding_populations is not None:
                 self._plot_sample_support_values(projected_samples_only=True)
 
-    def _plot_bootstraps(self) -> None:
-        for i, bootstrap in enumerate(self.bootstraps):
-            self._plot_dataset(bootstrap, f"bootstrap_{i}")
+    def _plot_replicates(self) -> None:
+        for i, replicate in enumerate(self.replicates):
+            self._plot_dataset(replicate, f"replicate_{i}")
 
     def _plot_sample_support_values(self, projected_samples_only: bool = False) -> None:
         if self.pandora_config.embedding_algorithm == EmbeddingAlgorithm.PCA:
@@ -538,7 +610,7 @@ class Pandora:
 
         fig = plot_support_values(
             embedding,
-            self.sample_support_values.mean(axis=1),
+            self.sample_support_values.average,
             self.pandora_config.support_value_rogue_cutoff,
             pcx,
             pcy,
@@ -553,17 +625,17 @@ class Pandora:
         fig.write_image(self.pandora_config.plot_dir / fig_name)
         return fig
 
-    def _compare_bootstrap_similarity(self) -> None:
-        # Compare all bootstraps pairwise
+    def _compare_replicates_similarity(self) -> None:
+        # Compare all replicates pairwise
         if self.pandora_config.embedding_algorithm == EmbeddingAlgorithm.PCA:
             embedding = self.dataset.pca
             batch_comparison = BatchEmbeddingComparison(
-                [b.pca for b in self.bootstraps]
+                [b.pca for b in self.replicates]
             )
         elif self.pandora_config.embedding_algorithm == EmbeddingAlgorithm.MDS:
             embedding = self.dataset.mds
             batch_comparison = BatchEmbeddingComparison(
-                [b.mds for b in self.bootstraps]
+                [b.mds for b in self.replicates]
             )
         else:
             raise PandoraConfigException(
@@ -575,50 +647,54 @@ class Pandora:
         else:
             kmeans_k = embedding.get_optimal_kmeans_k()
 
-        if len(self.bootstraps) == 0:
-            raise PandoraException("No bootstrap replicates to compare!")
+        if len(self.replicates) == 0:
+            raise PandoraException("No replicates to compare!")
 
-        self.bootstrap_stability = batch_comparison.compare()
-        self.bootstrap_stabilities = batch_comparison.get_pairwise_stabilities()
-        self.bootstrap_cluster_stability = batch_comparison.compare_clustering(kmeans_k)
-        self.bootstrap_cluster_stabilities = (
+        self.pandora_stability = batch_comparison.compare()
+        self.pairwise_stabilities = batch_comparison.get_pairwise_stabilities()
+        self.pandora_cluster_stability = batch_comparison.compare_clustering(kmeans_k)
+        self.pairwise_cluster_stabilities = (
             batch_comparison.get_pairwise_cluster_stabilities(kmeans_k)
+        )
+        self.pairwise_sample_support_values = (
+            batch_comparison.get_pairwise_sample_support_values()
         )
         self.sample_support_values = batch_comparison.get_sample_support_values()
 
-    def log_and_save_bootstrap_results(self) -> None:
-        """Logs the results of the bootstrap analyses using pandora.logging.logger and also saves the results of the
-        bootstrap analysis to the respective files as specified by self.pandora_config.
+    def log_and_save_replicates_results(self) -> None:
+        """Logs the results of the bootstrap/sliding-window analyses using pandora.logging.logger and also saves the
+        results of the analyses to the respective files as specified by self.pandora_config.
 
         """
-        if self.bootstrap_stability is None or self.bootstrap_cluster_stability is None:
-            raise PandoraException("No bootstrap results to log!")
+        if self.pandora_stability is None or self.pandora_cluster_stability is None:
+            raise PandoraException("No results to log!")
 
         # store the pairwise results in a file
         _rd = self.pandora_config.result_decimals
 
         pairwise_stability_results = pd.concat(
-            [self.bootstrap_stabilities, self.bootstrap_cluster_stabilities], axis=1
+            [self.pairwise_stabilities, self.pairwise_cluster_stabilities], axis=1
         )
         pairwise_stability_results.to_csv(
-            self.pandora_config.pairwise_bootstrap_result_file
+            self.pandora_config.pairwise_stability_result_file
         )
 
         # log the summary and save it in a file
-        bootstrap_results_string = textwrap.dedent(
+        results_string = textwrap.dedent(
             f"""
-            > Number of Bootstrap replicates computed: {self.pandora_config.n_bootstraps}
+            > Performed Analysis: {self.pandora_config.analysis_mode.value}
+            > Number of replicates computed: {self.pandora_config.n_replicates}
             > Number of Kmeans clusters: {self.pandora_config.kmeans_k}
 
             ------------------
-            Bootstrapping Results
+            Results
             ------------------
-            Pandora Stability: {round(self.bootstrap_stability, _rd)}
-            Pandora Cluster Stability: {round(self.bootstrap_cluster_stability, _rd)}"""
+            Pandora Stability: {round(self.pandora_stability, _rd)}
+            Pandora Cluster Stability: {round(self.pandora_cluster_stability, _rd)}"""
         )
 
-        self.pandora_config.result_file.open(mode="w").write(bootstrap_results_string)
-        logger.info(bootstrap_results_string)
+        self.pandora_config.result_file.open(mode="w").write(results_string)
+        logger.info(results_string)
 
         self._log_and_save_sample_support_values()
 
@@ -645,32 +721,27 @@ class Pandora:
 
     def _log_and_save_sample_support_values(self) -> None:
         if self.sample_support_values.empty:
-            raise PandoraException("No bootstrap results to log!")
+            raise PandoraException("No results to log!")
 
-        support_values = self.sample_support_values.copy()
-        support_values["mean"] = support_values.mean(axis=1)
-        support_values["stdev"] = support_values.std(axis=1)
+        self.sample_support_values.to_csv(self.pandora_config.sample_support_values_csv)
+        self.pairwise_sample_support_values.to_csv(
+            self.pandora_config.pairwise_sample_support_values_csv
+        )
 
-        support_values.to_csv(self.pandora_config.sample_support_values_csv)
-
-        self._log_support_values("All Samples", self.sample_support_values.mean(axis=1))
+        self._log_support_values("All Samples", self.sample_support_values.average)
 
         if self.dataset.projected_samples.empty:
             return
 
         projected_support_values = self.sample_support_values.loc[
             lambda x: x.index.isin(self.dataset.projected_samples)
-        ].copy()
-        projected_support_values["mean"] = projected_support_values.mean(axis=1)
-        projected_support_values["stdev"] = projected_support_values.std(axis=1)
+        ]
 
         projected_support_values.to_csv(
             self.pandora_config.projected_sample_support_values_csv
         )
 
-        self._log_support_values(
-            "Projected Samples", projected_support_values.mean(axis=1)
-        )
+        self._log_support_values("Projected Samples", projected_support_values.average)
 
 
 def pandora_config_from_configfile(configfile: pathlib.Path) -> PandoraConfig:
@@ -715,6 +786,10 @@ def pandora_config_from_configfile(configfile: pathlib.Path) -> PandoraConfig:
         config_data["embedding_algorithm"] = EmbeddingAlgorithm[
             embedding_algorithm.upper()
         ]
+
+    analysis_mode = config_data.get("analysis_mode")
+    if analysis_mode is not None:
+        config_data["analysis_mode"] = AnalysisMode[analysis_mode.upper()]
 
     try:
         return PandoraConfig(**config_data)

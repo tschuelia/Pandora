@@ -1,0 +1,10 @@
+
+> Performed Analysis: SLIDING_WINDOW
+> Number of replicates computed: 10
+> Number of Kmeans clusters: 2
+
+------------------
+Results
+------------------
+Pandora Stability: 0.61
+Pandora Cluster Stability: 0.36

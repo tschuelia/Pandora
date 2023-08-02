@@ -27,6 +27,11 @@ def example_eigen_dataset_prefix() -> pathlib.Path:
 
 
 @pytest.fixture
+def example_eigen_sliding_window_dataset_prefix() -> pathlib.Path:
+    return pathlib.Path(__file__).parent / "data" / "example_sliding_window"
+
+
+@pytest.fixture
 def example_ped_dataset_prefix() -> pathlib.Path:
     return pathlib.Path(__file__).parent / "data" / "converted" / "example"
 
@@ -39,6 +44,13 @@ def example_population_list() -> pathlib.Path:
 @pytest.fixture
 def example_dataset(example_eigen_dataset_prefix) -> EigenDataset:
     return EigenDataset(example_eigen_dataset_prefix)
+
+
+@pytest.fixture
+def example_sliding_window_dataset(
+    example_eigen_sliding_window_dataset_prefix,
+) -> EigenDataset:
+    return EigenDataset(example_eigen_sliding_window_dataset_prefix)
 
 
 @pytest.fixture
@@ -136,6 +148,11 @@ def pandora_test_config_file() -> pathlib.Path:
 
 
 @pytest.fixture
+def pandora_test_config_file_sliding_window() -> pathlib.Path:
+    return pathlib.Path(__file__).parent / "data" / "test_config_sliding_window.yaml"
+
+
+@pytest.fixture
 def pandora_test_config(pandora_test_config_file, smartpca, convertf) -> PandoraConfig:
     # load the config file and manually set smartpca and convertf options based on the test_config
     pandora_config = pandora_config_from_configfile(pandora_test_config_file)
@@ -148,6 +165,26 @@ def pandora_test_config(pandora_test_config_file, smartpca, convertf) -> Pandora
 def pandora_test_config_mds(pandora_test_config):
     pandora_test_config.embedding_algorithm = EmbeddingAlgorithm.MDS
     return pandora_test_config
+
+
+@pytest.fixture
+def pandora_test_config_sliding_window(
+    pandora_test_config_file_sliding_window, smartpca, convertf
+) -> PandoraConfig:
+    pandora_config = pandora_config_from_configfile(
+        pandora_test_config_file_sliding_window
+    )
+    pandora_config.smartpca = smartpca
+    pandora_config.convertf = convertf
+    return pandora_config
+
+
+@pytest.fixture
+def pandora_test_config_sliding_window_mds(
+    pandora_test_config_sliding_window,
+) -> PandoraConfig:
+    pandora_test_config_sliding_window.embedding_algorithm = EmbeddingAlgorithm.MDS
+    return pandora_test_config_sliding_window
 
 
 @pytest.fixture
@@ -191,6 +228,21 @@ def pandora_test_config_with_embedding_populations(
 def test_numpy_dataset():
     test_data = np.asarray(
         [[0, 1, 1, 1, 1, 1, 1], [2, 2, 0, 2, 2, 2, 2], [3, 3, 3, 0, 3, 3, 3]]
+    )
+    sample_ids = pd.Series(["sample1", "sample2", "sample3"])
+    populations = pd.Series(["population1", "population2", "population3"])
+    dataset = NumpyDataset(test_data, sample_ids, populations)
+    return dataset
+
+
+@pytest.fixture
+def test_numpy_dataset_sliding_window():
+    test_data = np.asarray(
+        [
+            [1, 2, 1, 2, 0, 1, 0, 1, 2, 0, 2, 0, 0, 1, 0, 1, 0, 0, 0, 1],
+            [0, 1, 0, 0, 1, 2, 2, 1, 0, 2, 1, 2, 2, 0, 2, 0, 2, 1, 1, 0],
+            [0, 0, 0, 2, 0, 2, 1, 1, 1, 0, 1, 2, 2, 0, 2, 2, 1, 0, 0, 2],
+        ]
     )
     sample_ids = pd.Series(["sample1", "sample2", "sample3"])
     populations = pd.Series(["population1", "population2", "population3"])

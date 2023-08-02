@@ -347,15 +347,25 @@ def from_sklearn_mds(
     for all samples of one population. The resulting MDS object however will duplicate the results for each sample
     given in sample_ids to match the original input data.
 
-    TODO: finish docstring
+    Parameters
+    ----------
+    embedding: pd.DataFrame
+        MDS embedding data as pandas DataFrame. Each row corresponds to a single sample or population.
+        The embedding is expected to  have a column entitled 'population' denoting the respective population of the row.
+    sample_ids: pd.Series
+        Pandas Series containing IDs of samples the embedding data is for. Note that the number of sample IDs can be
+        larger than the number of rows in the embedding. This is the case if the embedding was computed per population
+        but the data should be mapped for each sample. The number of sample IDs needs to match the number of populations.
+    populations: pd.Series
+        Pandas Series containing the population for each sample in sample_ids. The number of populations needs to match
+        the number of sample IDs.
+    stress: float
+        Goodness of the MDS fit for the data.
 
-    Args:
-        embedding:
-        sample_ids:
-        populations:
-        stress:
-
-    Returns:
+    Returns
+    -------
+    MDS:
+        MDS object encapsulating the MDS data
 
     """
     if "population" not in embedding.columns:

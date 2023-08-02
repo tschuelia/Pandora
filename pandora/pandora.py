@@ -222,6 +222,20 @@ class PandoraConfig:
         return self.result_dir / "pandora.replicates.csv"
 
     @property
+    def pairwise_sample_support_values_csv(self) -> pathlib.Path:
+        """Returns a path to a csv file where all sample support values should be written to.
+        This csv contains the support values in very verbose mode, meaning the support value respective all
+        pairwise comparisons are logged.
+
+        Returns
+        -------
+        pathlib.Path
+            Filepath to a csv file for pairwise support value results for all samples.
+
+        """
+        return self.result_dir / "pandora.supportValues.pairwise.csv"
+
+    @property
     def sample_support_values_csv(self) -> pathlib.Path:
         """Returns a path to a csv file where all sample support values should be written to.
 
@@ -231,7 +245,7 @@ class PandoraConfig:
             Filepath to a csv file for support value results for all samples.
 
         """
-        return self.result_dir / "pandora.supportValues.pairwise.csv"
+        return self.result_dir / "pandora.supportValues.csv"
 
     @property
     def projected_sample_support_values_csv(self) -> pathlib.Path:
@@ -387,6 +401,7 @@ class Pandora:
         self.pairwise_cluster_stabilities: pd.DataFrame = pd.DataFrame()
         self.pandora_cluster_stability: float = None
 
+        self.pairwise_sample_support_values: pd.DataFrame = pd.DataFrame()
         self.sample_support_values: pd.DataFrame = pd.DataFrame()
 
     def embed_dataset(self) -> None:
@@ -482,6 +497,7 @@ class Pandora:
             - self.pandora_stability
             - self.pairwise_cluster_stabilities
             - self.pandora_cluster_stability
+            - self.pairwise_sample_support_values
             - self.sample_support_values
 
         """
@@ -508,10 +524,19 @@ class Pandora:
         self._compare_and_plot_replicates()
 
     def sliding_window(self) -> None:
-        """
-        TODO
-        Returns
-        -------
+        """Separates self.dataset into self.pandora_config.n_replicates overlapping windows and and computes and compares
+        the respective embedding for all of these windows.
+
+        The parameters (e.g. what method to use) is determined based on the configured settings in self.pandora_config.
+        On successfull run, the following parameters of self will be set:
+
+            - self.replicates
+            - self.pairwise_stabilities
+            - self.pandora_stability
+            - self.pairwise_cluster_stabilities
+            - self.pandora_cluster_stability
+            - self.pairwise_sample_support_values
+            - self.sample_support_values
 
         """
         logger.info(
@@ -585,7 +610,7 @@ class Pandora:
 
         fig = plot_support_values(
             embedding,
-            self.sample_support_values.mean(axis=1),
+            self.sample_support_values.average,
             self.pandora_config.support_value_rogue_cutoff,
             pcx,
             pcy,
@@ -630,6 +655,9 @@ class Pandora:
         self.pandora_cluster_stability = batch_comparison.compare_clustering(kmeans_k)
         self.pairwise_cluster_stabilities = (
             batch_comparison.get_pairwise_cluster_stabilities(kmeans_k)
+        )
+        self.pairwise_sample_support_values = (
+            batch_comparison.get_pairwise_sample_support_values()
         )
         self.sample_support_values = batch_comparison.get_sample_support_values()
 
@@ -695,30 +723,25 @@ class Pandora:
         if self.sample_support_values.empty:
             raise PandoraException("No results to log!")
 
-        support_values = self.sample_support_values.copy()
-        support_values["mean"] = support_values.mean(axis=1)
-        support_values["stdev"] = support_values.std(axis=1)
+        self.sample_support_values.to_csv(self.pandora_config.sample_support_values_csv)
+        self.pairwise_sample_support_values.to_csv(
+            self.pandora_config.pairwise_sample_support_values_csv
+        )
 
-        support_values.to_csv(self.pandora_config.sample_support_values_csv)
-
-        self._log_support_values("All Samples", self.sample_support_values.mean(axis=1))
+        self._log_support_values("All Samples", self.sample_support_values.average)
 
         if self.dataset.projected_samples.empty:
             return
 
         projected_support_values = self.sample_support_values.loc[
             lambda x: x.index.isin(self.dataset.projected_samples)
-        ].copy()
-        projected_support_values["mean"] = projected_support_values.mean(axis=1)
-        projected_support_values["stdev"] = projected_support_values.std(axis=1)
+        ]
 
         projected_support_values.to_csv(
             self.pandora_config.projected_sample_support_values_csv
         )
 
-        self._log_support_values(
-            "Projected Samples", projected_support_values.mean(axis=1)
-        )
+        self._log_support_values("Projected Samples", projected_support_values.average)
 
 
 def pandora_config_from_configfile(configfile: pathlib.Path) -> PandoraConfig:

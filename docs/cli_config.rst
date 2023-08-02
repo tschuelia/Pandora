@@ -69,6 +69,8 @@ PackedAncestrymap ``.geno``, ``.ind``, ``.snp``
 
 Pandora performs its bootstrapping and sliding-window analyses file-based and makes use of the Eigenstrat format. Thus, all other file formats are automatically converted to Eigenstrat prior to the analyses using the ``convertf`` tool. Make sure to correctly set the ``convertf`` option in your config file before running Pandora.
 
+Note that Pandora does **not** apply any kind of preprocessing to your data. Make sure to run any appropriate preprocessing (e.g. LD-pruning) prior to Pandora.
+
 
 Output files
 ------------

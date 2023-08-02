@@ -7,6 +7,5 @@ threads: 2
 seed: 42
 plot_results: True
 kmeans_k: 2
-smartpca: /Users/julia/micromamba/envs/pca_micromamba/bin/smartpca
 smartpca_optional_settings:
   numoutlieriter: 0

@@ -7,5 +7,3 @@ plot_results: True
 kmeans_k: 2
 smartpca_optional_settings:
   numoutlieriter: 0
-
-smartpca: /Users/julia/micromamba/envs/pca_micromamba/bin/smartpca

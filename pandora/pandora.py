@@ -477,7 +477,7 @@ class Pandora:
         if len(self.dataset.embedding_populations) > 0:
             fig = plot_projections(
                 embedding,
-                embedding_populations=list(self.dataset.embedding_populations),
+                embedding_populations=self.dataset.embedding_populations,
                 dim_x=pcx,
                 dim_y=pcy,
             )

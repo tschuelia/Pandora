@@ -1,5 +1,6 @@
 import warnings
 
+import pandas as pd
 from plotly import graph_objects as go
 
 from pandora.custom_errors import *
@@ -63,6 +64,12 @@ def improve_plotly_text_position(x_values: pd.Series) -> List[str]:
         "bottom right",
     ]
     return [positions[i % len(positions)] for i in range(len(x_values))]
+
+
+def _get_hovertemplate(hover_params):
+    return "<br>".join(
+        [param + f": %{{customdata[{i}]}}" for i, param in enumerate(hover_params)]
+    )
 
 
 def _check_plot_dimensions(embedding: Embedding, dim_x: int, dim_y: int) -> None:
@@ -237,15 +244,23 @@ def plot_populations(
     populations = embedding.embedding.population.unique()
     colors = get_distinct_colors(len(populations))
 
+    xcol = f"D{dim_x}"
+    ycol = f"D{dim_y}"
+
+    hover_cols = ["sample_id", "population", xcol, ycol]
+    hover_cols_display = ["Sample", "Population", f"D{dim_x + 1}", f"D{dim_y + 1}"]
+
     for i, population in enumerate(populations):
         _data = embedding.embedding.loc[embedding.embedding.population == population]
         fig.add_trace(
             go.Scatter(
-                x=_data[f"D{dim_x}"],
-                y=_data[f"D{dim_y}"],
+                x=_data[xcol],
+                y=_data[ycol],
                 mode="markers",
                 marker_color=colors[i],
                 name=population,
+                customdata=_data[hover_cols].values,
+                hovertemplate=_get_hovertemplate(hover_cols_display),
                 **kwargs,
             )
         )
@@ -255,7 +270,7 @@ def plot_populations(
 
 def plot_projections(
     embedding: Embedding,
-    embedding_populations: List[str],
+    embedding_populations: pd.Series,
     dim_x: int = 0,
     dim_y: int = 1,
     fig: Optional[go.Figure] = None,
@@ -271,8 +286,8 @@ def plot_projections(
     ----------
     embedding: Embedding
         Embedding data to plot.
-    embedding_populations: List[str]
-        List of population names used to compute the Embedding. Samples belonging to
+    embedding_populations: pd.Series
+        Pandas Series of population names used to compute the Embedding. Samples belonging to
         these populations are plotted in lightgray.
     dim_x: int
         Index of the dimension plotted on the x-axis (zero-indexed).
@@ -293,7 +308,7 @@ def plot_projections(
     show_variance_in_axes = fig is None
     fig = go.Figure() if fig is None else fig
 
-    if len(embedding_populations) == 0:
+    if embedding_populations.empty:
         raise PandoraException(
             "It appears that all populations were used for the PCA. "
             "To plot projections provide a non-empty list of populations with which the PCA was performed!"
@@ -302,20 +317,29 @@ def plot_projections(
     populations = embedding.embedding.population.unique()
     projection_colors = get_distinct_colors(populations.shape[0])
 
+    xcol = f"D{dim_x}"
+    ycol = f"D{dim_y}"
+
+    hover_cols = ["sample_id", "population", xcol, ycol]
+    hover_cols_display = ["Sample", "Population", f"D{dim_x + 1}", f"D{dim_y + 1}"]
+
     for i, population in enumerate(populations):
         _data = embedding.embedding.loc[lambda x: x.population == population]
         marker_color = (
             projection_colors[i]
-            if population not in embedding_populations
+            if population not in embedding_populations.values
             else "lightgray"
         )
         fig.add_trace(
             go.Scatter(
-                x=_data[f"D{dim_x}"],
-                y=_data[f"D{dim_y}"],
+                x=_data[xcol],
+                y=_data[ycol],
                 mode="markers",
                 marker_color=marker_color,
                 name=population,
+                showlegend=population not in embedding_populations.values,
+                customdata=_data[hover_cols].values,
+                hovertemplate=_get_hovertemplate(hover_cols_display),
                 **kwargs,
             )
         )
@@ -369,15 +393,23 @@ def plot_clusters(
 
     colors = get_distinct_colors(kmeans_k)
 
+    xcol = f"D{dim_x}"
+    ycol = f"D{dim_y}"
+
+    hover_cols = ["sample_id", "population", xcol, ycol]
+    hover_cols_display = ["Sample", "Population", f"D{dim_x + 1}", f"D{dim_y + 1}"]
+
     for i in range(kmeans_k):
         _data = _embedding_data.loc[_embedding_data.cluster == i]
         fig.add_trace(
             go.Scatter(
-                x=_data[f"D{dim_x}"],
-                y=_data[f"D{dim_y}"],
+                x=_data[xcol],
+                y=_data[ycol],
                 mode="markers",
                 marker_color=colors[i],
                 name=f"Cluster {i + 1}",
+                customdata=_data[hover_cols].values,
+                hovertemplate=_get_hovertemplate(hover_cols_display),
                 **kwargs,
             )
         )
@@ -391,7 +423,7 @@ def plot_support_values(
     support_value_rogue_cutoff: float = 0.5,
     dim_x: int = 0,
     dim_y: int = 1,
-    projected_samples: Optional[List[str]] = None,
+    projected_samples: Optional[pd.Series] = None,
     **kwargs,
 ) -> go.Figure:
     """Plots the data for the provided Embedding data using the given dimension indices, color-coding the support value
@@ -406,7 +438,7 @@ def plot_support_values(
     embedding: Embedding
         Embedding data to plot.
     sample_support_values: pd.Series
-        Bootstrap support value for each sample in embedding.embedding.
+        Pandora support value for each sample in embedding.embedding.
         Note: The index of the Series is expected to contain the sample IDs and
         to be identical to the embedding.embedding.sample_id column.
     support_value_rogue_cutoff: float
@@ -416,8 +448,8 @@ def plot_support_values(
         Index of the dimension plotted on the x-axis (zero-indexed).
     dim_y: int
         Index of the dimension plotted on the y-axis (zero-indexed).
-    projected_samples: List[str]
-        List of sample IDs. If set, only samples in this list are color-coded according
+    projected_samples: pd.Series
+        Pandas series of sample IDs. If set, only samples in this list are color-coded according
         to their support value. All other samples are shown in gray.
     **kwargs
         Optional plot arguments passed to go.Scatter. Refer to the plotly documentation for options.
@@ -470,15 +502,27 @@ def plot_support_values(
     # the embedding and support value data
     embedding = embedding.sort_values(by="sample_id").reset_index(drop=True)
     sample_support_values = sample_support_values.sort_index()
-    x_data = embedding[f"D{dim_x}"]
-    y_data = embedding[f"D{dim_y}"]
+    embedding = embedding.copy()
+    embedding["support"] = sample_support_values.values
+
+    xcol = f"D{dim_x}"
+    ycol = f"D{dim_y}"
+
+    hover_cols = ["sample_id", "population", "support", xcol, ycol]
+    hover_cols_display = [
+        "Sample",
+        "Population",
+        "Support Value",
+        f"D{dim_x + 1}",
+        f"D{dim_y + 1}",
+    ]
 
     if projected_samples is not None:
         marker_colors = []
         marker_text = []
 
         for idx, row in embedding.iterrows():
-            if row.sample_id in projected_samples:
+            if row.sample_id in projected_samples.values:
                 # check if the sample is projected, if so the marker color should be according to it's support
                 support = sample_support_values.loc[
                     lambda x: x.index == row.sample_id
@@ -508,23 +552,25 @@ def plot_support_values(
 
     fig = go.Figure(
         go.Scatter(
-            x=x_data,
-            y=y_data,
+            x=embedding[xcol],
+            y=embedding[ycol],
             mode="markers+text",
             text=marker_text,
             textposition="bottom center",
             marker=dict(
                 color=marker_colors,
                 colorscale=get_rdylgr_color_scale(),
-                colorbar=dict(title="Bootstrap support"),
+                colorbar=dict(title="Pandora support value"),
                 showscale=True,
                 cmin=0,
                 cmax=1,
             ),
+            customdata=embedding[hover_cols].values,
+            hovertemplate=_get_hovertemplate(hover_cols_display),
             **kwargs,
         )
     )
-    fig.update_traces(textposition=improve_plotly_text_position(x_data))
+    fig.update_traces(textposition=improve_plotly_text_position(embedding[xcol]))
 
     fig.update_xaxes(title=f"PC {dim_x + 1}")
     fig.update_yaxes(title=f"PC {dim_y + 1}")
@@ -558,23 +604,33 @@ def plot_embedding_comparison(
     _check_plot_dimensions(embedding_comparison.reference, dim_x, dim_y)
     _check_plot_dimensions(embedding_comparison.comparable, dim_x, dim_y)
 
+    xcol = f"D{dim_x}"
+    ycol = f"D{dim_y}"
+
+    hover_cols = ["sample_id", "population", xcol, ycol]
+    hover_cols_display = ["Sample", "Population", f"D{dim_x + 1}", f"D{dim_y + 1}"]
+
     fig = go.Figure(
         [
             go.Scatter(
-                x=embedding_comparison.reference.embedding[f"D{dim_x}"],
-                y=embedding_comparison.reference.embedding[f"D{dim_y}"],
+                x=embedding_comparison.reference.embedding[xcol],
+                y=embedding_comparison.reference.embedding[ycol],
                 marker_color="darkblue",
                 name="Standardized reference PCA",
                 mode="markers",
+                customdata=embedding_comparison.reference.embedding[hover_cols].values,
+                hovertemplate=_get_hovertemplate(hover_cols_display),
                 **kwargs,
             ),
             go.Scatter(
-                x=embedding_comparison.comparable.embedding[f"D{dim_x}"],
-                y=embedding_comparison.comparable.embedding[f"D{dim_y}"],
+                x=embedding_comparison.comparable.embedding[xcol],
+                y=embedding_comparison.comparable.embedding[ycol],
                 marker_color="orange",
                 marker_symbol="star",
                 name="Transformed comparable PCA",
                 mode="markers",
+                customdata=embedding_comparison.comparable.embedding[hover_cols].values,
+                hovertemplate=_get_hovertemplate(hover_cols_display),
                 **kwargs,
             ),
         ]
@@ -590,18 +646,23 @@ def plot_embedding_comparison(
 
 def plot_embedding_comparison_rogue_samples(
     embedding_comparison: EmbeddingComparison,
+    support_values: pd.Series,
     support_value_rogue_cutoff: float = 0.5,
     dim_x: int = 0,
     dim_y: int = 1,
     **kwargs,
 ) -> go.Figure:
     """Method to plot the closest match between two Embeddings. Plots the transformed Embeddings based on the
-    EmbeddingComparison object.
+    EmbeddingComparison object. Additionally all samples with a support value below support_value_rogue_cutoff are
+    highlighted.
 
     Parameters
     ----------
     embedding_comparison: EmbeddingComparison
         EmbeddingComparison object containing the two Embeddings to plot.
+    support_values: pd.Series
+        Pandora support values for all samples in the embedding data. The series' indices should be the sample IDs and
+        the values the respective support value.
     support_value_rogue_cutoff: float
         Samples with a support value below this threshold are considered rogue and
         are highlighted by color, their sample ID and support value.
@@ -616,14 +677,19 @@ def plot_embedding_comparison_rogue_samples(
     Returns
     -------
     go.Figure
-        Plotly figure depicting both Embeddings in EmbeddingComparison.
+        Plotly figure depicting both Embeddings in EmbeddingComparison and highlighting rouge samples.
     """
     _check_plot_dimensions(embedding_comparison.reference, dim_x, dim_y)
     _check_plot_dimensions(embedding_comparison.comparable, dim_x, dim_y)
 
-    rogue_samples = embedding_comparison.detect_rogue_samples(
-        support_value_rogue_cutoff=support_value_rogue_cutoff
-    )
+    xcol = f"D{dim_x}"
+    ycol = f"D{dim_y}"
+
+    hover_cols = ["sample_id", "population", xcol, ycol]
+    hover_cols_display = ["Sample", "Population", f"D{dim_x + 1}", f"D{dim_y + 1}"]
+
+    rogue_samples = support_values.loc[lambda x: x < support_value_rogue_cutoff]
+
     rogue_colors = get_distinct_colors(rogue_samples.shape[0])
     rogue_text = [
         f"{sample_id}<br>({round(support, 2)})"
@@ -641,41 +707,49 @@ def plot_embedding_comparison_rogue_samples(
         [
             # all samples
             go.Scatter(
-                x=embedding_comparison.reference.embedding[f"D{dim_x}"],
-                y=embedding_comparison.reference.embedding[f"D{dim_y}"],
+                x=embedding_comparison.reference.embedding[xcol],
+                y=embedding_comparison.reference.embedding[ycol],
                 marker_color="lightgray",
                 name="Standardized reference PCA",
                 mode="markers",
+                customdata=embedding_comparison.reference.embedding[hover_cols].values,
+                hovertemplate=_get_hovertemplate(hover_cols_display),
                 **kwargs,
             ),
             go.Scatter(
-                x=embedding_comparison.comparable.embedding[f"D{dim_x}"],
-                y=embedding_comparison.comparable.embedding[f"D{dim_y}"],
+                x=embedding_comparison.comparable.embedding[xcol],
+                y=embedding_comparison.comparable.embedding[ycol],
                 marker_color="lightgray",
                 marker_symbol="star",
                 name="Transformed comparable PCA",
                 mode="markers",
+                customdata=embedding_comparison.comparable.embedding[hover_cols].values,
+                hovertemplate=_get_hovertemplate(hover_cols_display),
                 **kwargs,
             ),
             # Rogue samples
             go.Scatter(
-                x=rogue_reference[f"D{dim_x}"],
-                y=rogue_reference[f"D{dim_y}"],
+                x=rogue_reference[xcol],
+                y=rogue_reference[ycol],
                 marker_color=rogue_colors,
                 text=rogue_text,
                 textposition="bottom center",
                 mode="markers+text",
                 showlegend=False,
+                customdata=rogue_reference[hover_cols].values,
+                hovertemplate=_get_hovertemplate(hover_cols_display),
             ),
             go.Scatter(
-                x=rogue_comparable[f"D{dim_x}"],
-                y=rogue_comparable[f"D{dim_y}"],
+                x=rogue_comparable[xcol],
+                y=rogue_comparable[ycol],
                 marker_color=rogue_colors,
                 marker_symbol="star",
                 text=rogue_text,
                 textposition="bottom center",
                 mode="markers+text",
                 showlegend=False,
+                customdata=rogue_comparable[hover_cols].values,
+                hovertemplate=_get_hovertemplate(hover_cols_display),
             ),
         ]
     )

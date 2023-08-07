@@ -1352,6 +1352,49 @@ class NumpyDataset:
         return windows
 
 
+def numpy_dataset_from_eigenfiles(eigen_prefix: pathlib.Path):
+    """
+    TODO: docstring und tests
+
+    Parameters
+    ----------
+    eigen_prefix: pathlib.Path
+
+    Returns
+    -------
+
+    """
+    ind_file = pathlib.Path(f"{eigen_prefix}.ind")
+    geno_file = pathlib.Path(f"{eigen_prefix}.geno")
+
+    if not ind_file.exists() or not geno_file.exists():
+        raise PandoraException(
+            f"Not all required input files (.ind, .geno) for eigen_prefix {eigen_prefix} present."
+        )
+
+    _check_ind_file(ind_file)
+    _check_geno_file(geno_file)
+
+    geno_data = []
+
+    for line in geno_file.open():
+        geno_data.append([int(c) for c in line.strip()])
+
+    geno_data = np.asarray(geno_data).T
+    geno_data = geno_data.astype(float)
+    geno_data[geno_data == 9] = np.nan
+
+    sample_ids = []
+    populations = []
+
+    for line in ind_file.open():
+        sid, _, pop = line.strip().split()
+        sample_ids.append(sid.strip())
+        populations.append(pop.strip())
+
+    return NumpyDataset(geno_data, pd.Series(sample_ids), pd.Series(populations))
+
+
 def _bootstrap_and_embed_numpy(args):
     (
         dataset,

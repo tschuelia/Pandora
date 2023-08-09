@@ -60,6 +60,7 @@ def main():
     logger.setLevel(pandora_config.loglevel)
 
     # hook up the logfile to the logger to also store the output
+    pandora_config.result_dir.mkdir(exist_ok=True, parents=True)
     pandora_config.pandora_logfile.open(mode="w").write(get_header())
     logger.addHandler(logging.FileHandler(pandora_config.pandora_logfile))
 

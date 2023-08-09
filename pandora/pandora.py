@@ -820,7 +820,7 @@ def convert_to_eigenstrat_format(pandora_config: PandoraConfig):
         The modified pandora_config object with the dataset_prefix replaced.
 
     """
-    pandora_config.convertf_result_dir.mkdir(exist_ok=True)
+    pandora_config.convertf_result_dir.mkdir(exist_ok=True, parents=True)
     convert_prefix = (
         pandora_config.convertf_result_dir / pandora_config.dataset_prefix.name
     )

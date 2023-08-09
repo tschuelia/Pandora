@@ -10,7 +10,7 @@ import textwrap
 
 import pandas as pd
 import yaml
-from pydantic import NonNegativeInt, PositiveInt, ValidationError
+from pydantic import BaseModel, ConfigDict, NonNegativeInt, PositiveInt, ValidationError
 from pydantic.dataclasses import dataclass
 
 from pandora import __version__
@@ -27,7 +27,7 @@ from pandora.plotting import *
 
 
 @dataclass
-class PandoraConfig:
+class PandoraConfig(BaseModel):
     """Pydantic dataclass encapsulating the settings required to run Pandora.
 
     Parameters
@@ -103,6 +103,8 @@ class PandoraConfig:
         Dimension to plot on the y-axis. Note that the dimensions are zero-indexed. To plot the second
         dimension set plot_dim_y = 1
     """
+
+    model_config = ConfigDict(extra="forbid")
 
     # EigenDataset related
     dataset_prefix: pathlib.Path
@@ -791,14 +793,10 @@ def pandora_config_from_configfile(configfile: pathlib.Path) -> PandoraConfig:
     if analysis_mode is not None:
         config_data["analysis_mode"] = AnalysisMode[analysis_mode.upper()]
 
+    print(config_data)
+
     try:
-        return PandoraConfig(**config_data)
-    except TypeError as e:
-        raise PandoraConfigException(
-            "Got an unrecognized init argument for PandoraConfig. Make sure you are only passing "
-            "parameters specified in the Pandora wiki and don't have any spelling errors!",
-            e.args,
-        )
+        return PandoraConfig.model_validate(config_data)
     except ValidationError as e:
         error_msg = ""
         for error in e.errors():

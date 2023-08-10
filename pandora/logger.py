@@ -1,8 +1,6 @@
-import logging
 import time
 
-logging.basicConfig(level=logging.WARNING, format="%(message)s")
-logger = logging.getLogger(__name__)
+from loguru import logger
 
 SCRIPT_START = time.perf_counter()
 

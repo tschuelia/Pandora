@@ -793,8 +793,6 @@ def pandora_config_from_configfile(configfile: pathlib.Path) -> PandoraConfig:
     if analysis_mode is not None:
         config_data["analysis_mode"] = AnalysisMode[analysis_mode.upper()]
 
-    print(config_data)
-
     try:
         return PandoraConfig.model_validate(config_data)
     except ValidationError as e:

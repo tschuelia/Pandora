@@ -16,3 +16,4 @@ dependencies:
   - pip
   - eigensoft
   - pydantic >= 2
+  - loguru

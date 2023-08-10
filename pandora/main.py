@@ -44,8 +44,10 @@ def argument_parser():
     return parser.parse_args()
 
 
+@logger.catch
 def main():
     print(get_header())
+    logger.add(sys.stderr, format="{message}")
     args = argument_parser()
 
     """
@@ -57,12 +59,17 @@ def main():
     pandora_config = pandora_config_from_configfile(args.config)
 
     # set the log verbosity according to the pandora config
-    logger.setLevel(pandora_config.loglevel)
+    logger.remove()
+    logger.add(sys.stderr, level=pandora_config.loglevel, format="{message}")
 
     # hook up the logfile to the logger to also store the output
     pandora_config.result_dir.mkdir(exist_ok=True, parents=True)
     pandora_config.pandora_logfile.open(mode="w").write(get_header())
-    logger.addHandler(logging.FileHandler(pandora_config.pandora_logfile))
+    logger.add(
+        pandora_config.pandora_logfile,
+        level=pandora_config.loglevel,
+        format="{message}",
+    )
 
     # log the run configuration
     _arguments_str = [

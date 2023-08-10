@@ -57,5 +57,11 @@ jobs:
         run: |
           pip install .
         shell: micromamba-shell {0}
-      - name: Test Pandora installation by running the CLI
+      - name: Test Pandora installation by running the CLI (Bootstrap)
         uses: ./.github/actions/test-pandora-cli
+        with:
+          config-file: config_example.yaml
+      - name: Test Pandora installation by running the CLI (sliding-window)
+        uses: ./.github/actions/test-pandora-cli
+        with:
+          config-file: config_example_sliding_window.yaml

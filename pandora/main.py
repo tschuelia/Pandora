@@ -71,15 +71,17 @@ def main():
         format="{message}",
     )
 
+    # log program start and run configuration
+    _start_time_str = START_TIME.strftime("%d-%b-%Y %H:%M:%S")
+    logger.info(f"Pandora was called at {_start_time_str} as follows:\n")
+    logger.info(" ".join(sys.argv))
+
     # log the run configuration
     _arguments_str = [
         f"{k}: {v}" for k, v in pandora_config.get_configuration().items()
     ]
-    _command_line = " ".join(sys.argv)
-
-    logger.info("--------- PANDORA CONFIGURATION ---------")
+    logger.info("\n--------- PANDORA CONFIGURATION ---------")
     logger.info("\n".join(_arguments_str))
-    logger.info(f"\nCommand line: {_command_line}")
 
     # store pandora config in a verbose config file for reproducibility
     pandora_config.save_config()
@@ -120,7 +122,7 @@ def main():
 
     pandora_config.log_results_files()
 
-    total_runtime = math.ceil(time.perf_counter() - SCRIPT_START)
+    total_runtime = math.ceil(time.perf_counter() - SCRIPT_CLOCK_START)
     logger.info(
         f"\nTotal runtime: {datetime.timedelta(seconds=total_runtime)} ({total_runtime} seconds)"
     )

@@ -17,3 +17,8 @@ dependencies:
   - eigensoft
   - pydantic >= 2
   - loguru
+  - make
+  - numpydoc
+  - sphinx
+  - sphinxcontrib-apidoc
+  - sphinx_rtd_theme

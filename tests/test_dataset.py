@@ -1,5 +1,6 @@
 import tempfile
 
+import pandas as pd
 import pytest
 
 from pandora.dataset import *
@@ -606,3 +607,45 @@ class TestNumpyDataset:
         dataset = NumpyDataset(test_data, sample_ids, populations)
         with pytest.raises(PandoraException, match="No data left after imputation."):
             dataset._get_imputed_data(missing_value=np.nan, imputation="remove")
+
+    def test_numpy_dataset_from_eigenfiles(self, example_eigen_dataset_prefix):
+        np_dataset = numpy_dataset_from_eigenfiles(example_eigen_dataset_prefix)
+
+        assert isinstance(np_dataset, NumpyDataset)
+
+        expected_geno = np.asarray(
+            [
+                [1.0, 0.0, 2.0, 0.0, 2.0, 0.0, 2.0],
+                [1.0, 1.0, 1.0, 0.0, 1.0, 0.0, 2.0],
+                [1.0, 2.0, 1.0, 1.0, 1.0, 1.0, 1.0],
+                [0.0, 1.0, 0.0, 2.0, 0.0, 1.0, 1.0],
+                [0.0, 2.0, 1.0, 2.0, 0.0, 1.0, 0.0],
+            ]
+        )
+        np.testing.assert_equal(expected_geno, np_dataset.input_data)
+
+        expected_sample_ids = pd.Series(
+            ["SAMPLE0", "SAMPLE1", "SAMPLE2", "SAMPLE3", "SAMPLE4"]
+        )
+        pd.testing.assert_series_equal(np_dataset.sample_ids, expected_sample_ids)
+
+        expected_populations = pd.Series(["Pop1", "Pop2", "Pop3", "Pop4", "Pop4"])
+        pd.testing.assert_series_equal(np_dataset.populations, expected_populations)
+
+        assert np_dataset.pca is None
+        assert np_dataset.mds is None
+
+    def test_numpy_dataset_from_eigenfiles_fails_for_packed_eigen_dataset(
+        self, example_packed_eigen_dataset_prefix
+    ):
+        with pytest.raises(
+            PandoraException,
+            match="The provided dataset does not seem to be in EIGENSTRAT format.",
+        ):
+            numpy_dataset_from_eigenfiles(example_packed_eigen_dataset_prefix)
+
+    def test_numpy_dataset_from_eigenfiles_fails_for_plink_dataset(
+        self, example_ped_dataset_prefix
+    ):
+        with pytest.raises(PandoraException, match="Not all required input files"):
+            numpy_dataset_from_eigenfiles(example_ped_dataset_prefix)

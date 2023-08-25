@@ -28,8 +28,16 @@ def _check_geno_file(geno_file: pathlib.Path):
     allowed_genos = {0, 1, 2, 9}
     seen_genos = set()
 
+    try:
+        geno_content = geno_file.open().readlines()
+    except UnicodeDecodeError:
+        raise PandoraException(
+            "The provided dataset does not seem to be in EIGENSTRAT format. "
+            "Make sure to convert it using convertf or the provided method in conversion.py."
+        )
+
     line_lengths = set()
-    for line in geno_file.open():
+    for line in geno_content:
         line = line.strip()
         line_lengths.add(len(line))
         try:
@@ -1352,16 +1360,24 @@ class NumpyDataset:
         return windows
 
 
-def numpy_dataset_from_eigenfiles(eigen_prefix: pathlib.Path):
-    """
-    TODO: docstring und tests
+def numpy_dataset_from_eigenfiles(eigen_prefix: pathlib.Path) -> NumpyDataset:
+    """Loads a genotype dataset in EIGENSTRAT format as NumpyDataset.
+
+    This method only requires the genotye and individual files as the metadata of the SNPs present in the `.snp` file is
+    not used. Note that the dataset needs to be in EIGENSTRAT format with a similar file prefix and need to have file
+    endings `.geno` and `.ind` for the respective file type.
 
     Parameters
     ----------
     eigen_prefix: pathlib.Path
+        File path prefix pointing to the ind and geno genotype files in EIGENSTRAT format.
+        This method assumes that all EIGEn files have the same prefix and have the file endings
+        `.geno` and `.ind`. (Note that the `.snp` file is not required.)
 
     Returns
     -------
+    NumpyDataset
+        NumpyDataset containing the genotype data provided in the EIGEN files located at eigen_prefix.
 
     """
     ind_file = pathlib.Path(f"{eigen_prefix}.ind")

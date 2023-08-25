@@ -1,0 +1,8 @@
+
+genotypename: Pandora/tests/data/example.geno
+snpname: Pandora/tests/data/example.snp
+indivname: Pandora/tests/data/example.ind
+outputformat: PACKEDANCESTRYMAP
+genotypeoutname: Pandora/tests/data/converted/example.packed.geno
+snpoutname: Pandora/tests/data/converted/example.packed.snp
+indivoutname: Pandora/tests/data/converted/example.packed.ind

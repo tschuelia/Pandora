@@ -37,6 +37,11 @@ def example_ped_dataset_prefix() -> pathlib.Path:
 
 
 @pytest.fixture
+def example_packed_eigen_dataset_prefix() -> pathlib.Path:
+    return pathlib.Path(__file__).parent / "data" / "converted" / "example.packed"
+
+
+@pytest.fixture
 def example_population_list() -> pathlib.Path:
     return pathlib.Path(__file__).parent / "data" / "example_populations.txt"
 

@@ -1,5 +1,6 @@
 import tempfile
 
+import pandas as pd
 import pytest
 
 from pandora.converter import *
@@ -68,6 +69,4 @@ def test_convert_forth_and_back_should_result_in_identical_files(
             delimiter=" ",
             names=["sample_id", "sex", "population"],
         )
-        print(content_in)
-        print(content_out)
-        assert (content_in.sample_id == content_out.sample_id).all()
+        pd.testing.assert_series_equal(content_in.sample_id, content_out.sample_id)

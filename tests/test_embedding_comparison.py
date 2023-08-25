@@ -15,7 +15,7 @@ def test_match_and_transform_identical_pcas(pca_reference):
     testing.assert_allclose(pca1.embedding_matrix, pca2.embedding_matrix)
 
     # pca1 and pca2 should have identical sample IDs
-    assert all(pca1.embedding.sample_id == pca2.embedding.sample_id)
+    pd.testing.assert_series_equal(pca1.embedding.sample_id, pca2.embedding.sample_id)
 
 
 def test_clip_missing_samples_for_comparison(

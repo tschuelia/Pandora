@@ -12,7 +12,7 @@ from pandora.embedding import PCA
 class TestEigenDataset:
     def test_get_embedding_populations(self, example_population_list):
         populations = get_embedding_populations(example_population_list)
-        assert (populations == pd.Series(["Pop1", "Pop2", "Pop3"])).all()
+        pd.testing.assert_series_equal(populations, pd.Series(["Pop1", "Pop2", "Pop3"]))
 
     def test_get_windows(self, example_dataset):
         n_snps = example_dataset.get_sequence_length()
@@ -383,9 +383,9 @@ class TestNumpyDataset:
 
         # everything should work fine with no error
         dataset = NumpyDataset(test_data, sample_ids, populations)
-        assert np.all(dataset.input_data == test_data)
-        assert (dataset.sample_ids == sample_ids).all()
-        assert (dataset.populations == populations).all()
+        np.testing.assert_equal(dataset.input_data, test_data)
+        pd.testing.assert_series_equal(dataset.sample_ids, sample_ids)
+        pd.testing.assert_series_equal(dataset.populations, populations)
         assert dataset.pca is None
         assert dataset.mds is None
 
@@ -418,13 +418,16 @@ class TestNumpyDataset:
             test_numpy_dataset.input_data.shape[0],
             n_pcs,
         )
-        assert (
-            test_numpy_dataset.pca.embedding.sample_id == test_numpy_dataset.sample_ids
-        ).all()
-        assert (
-            test_numpy_dataset.pca.embedding.population
-            == test_numpy_dataset.populations
-        ).all()
+        pd.testing.assert_series_equal(
+            test_numpy_dataset.pca.embedding.sample_id,
+            test_numpy_dataset.sample_ids,
+            check_names=False,
+        )
+        pd.testing.assert_series_equal(
+            test_numpy_dataset.pca.embedding.population,
+            test_numpy_dataset.populations,
+            check_names=False,
+        )
 
     def test_run_pca_fails_for_too_many_pcs(self, test_numpy_dataset):
         n_pcs = test_numpy_dataset.input_data.shape[1] + 10
@@ -439,8 +442,12 @@ class TestNumpyDataset:
 
         assert isinstance(bootstrap, NumpyDataset)
         assert bootstrap.input_data.shape == test_numpy_dataset.input_data.shape
-        assert (bootstrap.sample_ids == test_numpy_dataset.sample_ids).all()
-        assert (bootstrap.populations == test_numpy_dataset.populations).all()
+        pd.testing.assert_series_equal(
+            bootstrap.sample_ids, test_numpy_dataset.sample_ids
+        )
+        pd.testing.assert_series_equal(
+            bootstrap.populations, test_numpy_dataset.populations
+        )
 
     def test_get_windows(self, test_numpy_dataset):
         n_snps = test_numpy_dataset.input_data.shape[1]
@@ -571,13 +578,16 @@ class TestNumpyDataset:
             test_numpy_dataset.input_data.shape[0],
             n_components,
         )
-        assert (
-            test_numpy_dataset.mds.embedding.sample_id == test_numpy_dataset.sample_ids
-        ).all()
-        assert (
-            test_numpy_dataset.mds.embedding.population
-            == test_numpy_dataset.populations
-        ).all()
+        pd.testing.assert_series_equal(
+            test_numpy_dataset.mds.embedding.sample_id,
+            test_numpy_dataset.sample_ids,
+            check_names=False,
+        )
+        pd.testing.assert_series_equal(
+            test_numpy_dataset.mds.embedding.population,
+            test_numpy_dataset.populations,
+            check_names=False,
+        )
 
     def test_data_imputation(self):
         test_data = np.asarray([[np.nan, 1, 1], [2, np.nan, 2], [3, 3, 3]])

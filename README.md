@@ -1,5 +1,7 @@
 # Pandora
 [![Build and test Pandora](https://github.com/tschuelia/Pandora/actions/workflows/test-pandora.yml/badge.svg)](https://github.com/tschuelia/Pandora/actions/workflows/test-pandora.yml)
+[![Documentation](https://readthedocs.org/projects/pandorageno/badge/?version=latest)](https://pandorageno.readthedocs.io/en/latest/?badge=latest)
+
 
 <hr>
 

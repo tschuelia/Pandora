@@ -434,6 +434,13 @@ class Pandora:
                 f"Unrecognized embedding algorithm: {self.pandora_config.embedding_algorithm}."
             )
 
+        # determine the optimal number of clusters if not manually set by user
+        if self.pandora_config.kmeans_k is None:
+            if self.pandora_config.embedding_algorithm == EmbeddingAlgorithm.PCA:
+                self.pandora_config.kmeans_k = self.dataset.pca.get_optimal_kmeans_k()
+            else:
+                self.pandora_config.kmeans_k = self.dataset.mds.get_optimal_kmeans_k()
+
         if self.pandora_config.plot_results:
             self.pandora_config.plot_dir.mkdir(exist_ok=True, parents=True)
             logger.info(

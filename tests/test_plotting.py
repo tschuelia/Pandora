@@ -18,25 +18,25 @@ def test_get_distinct_colors():
         assert all(c.startswith("hsv(") for c in colors)
 
 
-def test_plot_pca_populations(pca_reference):
-    plot_populations(pca_reference)
+def test_plot_pca_populations(pca_example):
+    plot_populations(pca_example)
 
 
-def test_plot_pca_projections(pca_reference):
-    pca_populations = pd.Series(pca_reference.populations.unique()).head(1)
-    plot_projections(pca_reference, pca_populations)
+def test_plot_pca_projections(pca_example):
+    pca_populations = pd.Series(pca_example.populations.unique()).head(1)
+    plot_projections(pca_example, pca_populations)
 
 
-def test_plot_pca_clusters(pca_reference):
-    plot_clusters(pca_reference, kmeans_k=2)
+def test_plot_pca_clusters(pca_example):
+    plot_clusters(pca_example, kmeans_k=2)
 
 
-def test_plot_support_values(pca_reference):
+def test_plot_support_values(pca_example):
     support_values = pd.Series(
-        [0.0] * pca_reference.embedding.shape[0],
-        index=pca_reference.sample_ids,
+        [0.0] * pca_example.embedding.shape[0],
+        index=pca_example.sample_ids,
     )
-    plot_support_values(pca_reference, support_values)
+    plot_support_values(pca_example, support_values)
 
 
 def test_plot_support_values_with_different_sample_sets_issues_warnings():
@@ -110,14 +110,14 @@ def test_plot_support_values_with_disjoint_sample_ids_raises_pandora_exception()
         plot_support_values(pca, support_values)
 
 
-def test_plot_pca_comparison(pca_reference):
-    comparison = EmbeddingComparison(pca_reference, pca_reference)
+def test_plot_pca_comparison(pca_example):
+    comparison = EmbeddingComparison(pca_example, pca_example)
     plot_embedding_comparison(comparison)
 
 
-def test_plot_pca_comparison_rogue_samples(pca_reference):
-    comparison = EmbeddingComparison(pca_reference, pca_reference)
-    sample_ids = pca_reference.sample_ids
+def test_plot_pca_comparison_rogue_samples(pca_example):
+    comparison = EmbeddingComparison(pca_example, pca_example)
+    sample_ids = pca_example.sample_ids
     support_values = pd.Series([1.0] * sample_ids.shape[0], index=sample_ids)
     plot_embedding_comparison_rogue_samples(
         comparison, support_values=support_values, support_value_rogue_cutoff=1.0

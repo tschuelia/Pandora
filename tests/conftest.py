@@ -95,56 +95,11 @@ def missing_smartpca_result_prefix() -> pathlib.Path:
 
 
 @pytest.fixture
-def pca_reference(correct_smartpca_result_prefix) -> PCA:
+def pca_example(correct_smartpca_result_prefix) -> PCA:
     return from_smartpca(
         evec=pathlib.Path(f"{correct_smartpca_result_prefix}.evec"),
         eval=pathlib.Path(f"{correct_smartpca_result_prefix}.eval"),
     )
-
-
-@pytest.fixture
-def pca_comparable_fewer_samples(pca_reference) -> PCA:
-    # use only four of the samples from pca_reference
-    pca_data = pca_reference.embedding.copy()[:4]
-    return PCA(pca_data, pca_reference.n_components, pca_reference.explained_variances)
-
-
-@pytest.fixture
-def pca_comparable_with_different_sample_ids(pca_reference) -> PCA:
-    pca_data = pca_reference.embedding.copy()
-    pca_data.sample_id = pca_data.sample_id + "_foo"
-    return PCA(pca_data, pca_reference.n_components, pca_reference.explained_variances)
-
-
-@pytest.fixture
-def pca_reference_and_comparable_with_score_lower_than_one() -> Tuple[PCA, PCA]:
-    pca1 = PCA(
-        pd.DataFrame(
-            data={
-                "sample_id": ["sample1", "sample2", "sample3"],
-                "population": ["population1", "population2", "population3"],
-                "D0": [1, 2, 3],
-                "D1": [1, 2, 3],
-            }
-        ),
-        2,
-        np.asarray([0.0, 0.0]),
-    )
-
-    pca2 = PCA(
-        pd.DataFrame(
-            data={
-                "sample_id": ["sample1", "sample2", "sample3"],
-                "population": ["population1", "population2", "population3  "],
-                "D0": [1, 1, 2],
-                "D1": [1, 2, 1],
-            }
-        ),
-        2,
-        np.asarray([0.0, 0.0]),
-    )
-
-    return pca1, pca2
 
 
 @pytest.fixture

@@ -659,11 +659,17 @@ class Pandora:
         if len(self.replicates) == 0:
             raise PandoraException("No replicates to compare!")
 
-        self.pandora_stability = batch_comparison.compare()
-        self.pairwise_stabilities = batch_comparison.get_pairwise_stabilities()
-        self.pandora_cluster_stability = batch_comparison.compare_clustering(kmeans_k)
+        self.pandora_stability = batch_comparison.compare(self.pandora_config.threads)
+        self.pairwise_stabilities = batch_comparison.get_pairwise_stabilities(
+            self.pandora_config.threads
+        )
+        self.pandora_cluster_stability = batch_comparison.compare_clustering(
+            kmeans_k, self.pandora_config.threads
+        )
         self.pairwise_cluster_stabilities = (
-            batch_comparison.get_pairwise_cluster_stabilities(kmeans_k)
+            batch_comparison.get_pairwise_cluster_stabilities(
+                kmeans_k, self.pandora_config.threads
+            )
         )
         self.pairwise_sample_support_values = (
             batch_comparison.get_pairwise_sample_support_values()

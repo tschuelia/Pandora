@@ -5,6 +5,7 @@ from __future__ import (  # allows type hint EmbeddingComparison inside Embeddin
 import itertools
 import statistics
 import warnings
+from multiprocessing import Pool
 
 import pandas as pd
 from scipy.spatial import procrustes
@@ -110,6 +111,18 @@ def _clip_missing_samples_for_comparison(
     _check_sample_clipping(reference, reference_clipped)
 
     return comparable_clipped, reference_clipped
+
+
+def _cluster_stability_for_pair(args):
+    i1, embedding1, i2, embedding2, kmeans_k = args
+    comparison = EmbeddingComparison(embedding1, embedding2)
+    return pd.Series([comparison.compare_clustering(kmeans_k)], index=[(i1, i2)])
+
+
+def _stability_for_pair(args):
+    (i1, embedding1), (i2, embedding2) = args
+    comparison = EmbeddingComparison(embedding1, embedding2)
+    return pd.Series([comparison.compare()], index=[(i1, i2)])
 
 
 class EmbeddingComparison:
@@ -324,9 +337,14 @@ class BatchEmbeddingComparison:
             )
         self.embeddings = embeddings
 
-    def get_pairwise_stabilities(self) -> pd.Series:
+    def get_pairwise_stabilities(self, threads: Optional[int] = None) -> pd.Series:
         """Computes the pairwise Pandora stability scores for all unique pairs of self.embedding and stores them in a
         pandas Series.
+
+        Parameters
+        ----------
+        threads: int, default=None
+            Number of threads to use for the computation. Default is to use all available system threads.
 
         Returns
         -------
@@ -343,23 +361,27 @@ class BatchEmbeddingComparison:
             Each value is between 0 and 1 with higher values indicating a higher stability.
 
         """
-        pairwise_stabilities = []
-        for (i1, embedding1), (i2, embedding2) in itertools.combinations(
-            enumerate(self.embeddings), r=2
-        ):
-            comparison = EmbeddingComparison(embedding1, embedding2)
-            pairwise_stabilities.append(
-                pd.Series([comparison.compare()], index=[(i1, i2)])
+        with Pool(threads) as p:
+            pairwise_stabilities = list(
+                p.map(
+                    _stability_for_pair,
+                    itertools.combinations(enumerate(self.embeddings), r=2),
+                )
             )
 
         pairwise_stabilities = pd.concat(pairwise_stabilities)
         pairwise_stabilities.name = "pandora_stability"
         return pairwise_stabilities
 
-    def compare(self) -> float:
+    def compare(self, threads: Optional[int] = None) -> float:
         """Compares all embeddings pairwise and returns the average of the resulting pairwise Pandora stability scores.
 
         See EmbeddingComparison::compare for more details on how the pairwise Pandora stability is computed.
+
+        Parameters
+        ----------
+        threads: int, default=None
+            Number of threads to use for the computation. Default is to use all available system threads.
 
         Returns
         -------
@@ -368,9 +390,11 @@ class BatchEmbeddingComparison:
             a higher stability.
 
         """
-        return self.get_pairwise_stabilities().mean()
+        return self.get_pairwise_stabilities(threads).mean()
 
-    def get_pairwise_cluster_stabilities(self, kmeans_k: int) -> pd.DataFrame:
+    def get_pairwise_cluster_stabilities(
+        self, kmeans_k: int, threads: Optional[int] = None
+    ) -> pd.DataFrame:
         """Computes the pairwise Pandora cluster stability scores for all unique pairs of self.embedding and stores them in a
         pandas Series.
 
@@ -378,6 +402,8 @@ class BatchEmbeddingComparison:
         ----------
         kmeans_k: int
             Number k of clusters to use for K-Means clustering.
+        threads: int, default=None
+            Number of threads to use for the computation. Default is to use all available system threads.
 
         Returns
         -------
@@ -392,20 +418,22 @@ class BatchEmbeddingComparison:
             Each value is between 0 and 1 with higher values indicating a higher stability.
 
         """
-        pairwise_cluster_stabilities = []
-        for (i1, embedding1), (i2, embedding2) in itertools.combinations(
-            enumerate(self.embeddings), r=2
-        ):
-            comparison = EmbeddingComparison(embedding1, embedding2)
-            pairwise_cluster_stabilities.append(
-                pd.Series([comparison.compare_clustering(kmeans_k)], index=[(i1, i2)])
+        args = [
+            (i1, embedding1, i2, embedding2, kmeans_k)
+            for (i1, embedding1), (i2, embedding2) in itertools.combinations(
+                enumerate(self.embeddings), r=2
+            )
+        ]
+        with Pool(threads) as p:
+            pairwise_cluster_stabilities = list(
+                p.map(_cluster_stability_for_pair, args)
             )
 
         pairwise_cluster_stabilities = pd.concat(pairwise_cluster_stabilities)
         pairwise_cluster_stabilities.name = "pandora_cluster_stability"
         return pairwise_cluster_stabilities
 
-    def compare_clustering(self, kmeans_k: int) -> float:
+    def compare_clustering(self, kmeans_k: int, threads: Optional[int] = None) -> float:
         """Compares all embeddings pairwise and returns the average of the resulting pairwise Pandora cluster stability scores.
 
         See EmbeddingComparison::compare_clustering for more details on how the pairwise Pandora cluster stability is computed.
@@ -414,15 +442,17 @@ class BatchEmbeddingComparison:
         ----------
         kmeans_k: int
             Number k of clusters to use for K-Means clustering.
+        threads: int, default=None
+            Number of threads to use for the computation. Default is to use all available system threads.
 
         Returns
         -------
         float
-            Average of pairwise Pandora cluster stability scores. This value is between 0 and 1 with higher values indicating
-            a higher stability.
+            Average of pairwise Pandora cluster stability scores. This value is between 0 and 1 with higher values
+            indicating a higher stability.
 
         """
-        return self.get_pairwise_cluster_stabilities(kmeans_k).mean()
+        return self.get_pairwise_cluster_stabilities(kmeans_k, threads).mean()
 
     def get_pairwise_sample_support_values(self) -> pd.DataFrame:
         """Computes the sample support value for each sample respective all unique pairwise comparisons

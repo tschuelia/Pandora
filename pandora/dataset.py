@@ -967,9 +967,6 @@ def bootstrap_and_embed_multiple(
     if seed is not None:
         random.seed(seed)
 
-    if threads is None:
-        threads = multiprocessing.cpu_count()
-
     args = [
         (
             dataset,
@@ -1080,9 +1077,6 @@ def sliding_window_embedding(
         embedding option.
     """
     result_dir.mkdir(exist_ok=True, parents=True)
-
-    if threads is None:
-        threads = multiprocessing.cpu_count()
 
     sliding_windows = dataset.get_windows(result_dir, n_windows)
 
@@ -1503,9 +1497,6 @@ def bootstrap_and_embed_multiple_numpy(
     if seed is not None:
         random.seed(seed)
 
-    if threads is None:
-        threads = multiprocessing.cpu_count()
-
     args = [
         (
             dataset,
@@ -1556,13 +1547,13 @@ def sliding_window_embedding_numpy(
     n_windows: int,
     embedding: EmbeddingAlgorithm,
     n_components: int,
-    threads: int = None,
+    threads: Optional[int] = None,
     distance_metric: Callable[
         [npt.NDArray, pd.Series], Tuple[npt.NDArray, pd.Series]
     ] = euclidean_sample_distance,
-    impute_missing: bool = True,
+    impute_missing: Optional[bool] = True,
     missing_value: Union[np.nan, int] = np.nan,
-    imputation: str = "mean",
+    imputation: Optional[str] = "mean",
 ) -> List[NumpyDataset]:
     """Separates the given NumpyDataset into n_windows sliding-window datasets and performs PCA/MDS analysis
     (as specified by embedding) for each window.
@@ -1607,8 +1598,6 @@ def sliding_window_embedding_numpy(
             datasets will have either window.pca != None or window.mds != None depending on the selected
             embedding option.
     """
-    if threads is None:
-        threads = multiprocessing.cpu_count()
 
     args = [
         (

@@ -58,12 +58,6 @@ class TestEmbeddingComparison:
 
         assert comparison.compare() == pytest.approx(1.0, abs=1e-6)
 
-    def test_get_sample_support_values_for_identical_pcas(self, pca_reference):
-        comparison = EmbeddingComparison(pca_reference, pca_reference)
-        support_values = comparison.get_sample_support_values()
-
-        assert all(sv == pytest.approx(1.0, abs=1e-6) for sv in support_values)
-
     def test_with_transformations(self, pca_reference):
         # REFLECTION
         # when multiplying pca_reference with -1 we should still get a similarity of 1.0

@@ -224,20 +224,6 @@ class PandoraConfig(BaseModel):
         return self.result_dir / "pandora.replicates.csv"
 
     @property
-    def pairwise_sample_support_values_csv(self) -> pathlib.Path:
-        """Returns a path to a csv file where all sample support values should be written to.
-        This csv contains the support values in very verbose mode, meaning the support value respective all
-        pairwise comparisons are logged.
-
-        Returns
-        -------
-        pathlib.Path
-            Filepath to a csv file for pairwise support value results for all samples.
-
-        """
-        return self.result_dir / "pandora.supportValues.pairwise.csv"
-
-    @property
     def sample_support_values_csv(self) -> pathlib.Path:
         """Returns a path to a csv file where all sample support values should be written to.
 
@@ -403,8 +389,7 @@ class Pandora:
         self.pairwise_cluster_stabilities: pd.DataFrame = pd.DataFrame()
         self.pandora_cluster_stability: float = None
 
-        self.pairwise_sample_support_values: pd.DataFrame = pd.DataFrame()
-        self.sample_support_values: pd.DataFrame = pd.DataFrame()
+        self.sample_support_values: pd.Series = pd.Series()
 
     def embed_dataset(self) -> None:
         """Perfoms dimensionality reduction on self.dataset.
@@ -506,7 +491,6 @@ class Pandora:
             - self.pandora_stability
             - self.pairwise_cluster_stabilities
             - self.pandora_cluster_stability
-            - self.pairwise_sample_support_values
             - self.sample_support_values
 
         """
@@ -544,7 +528,6 @@ class Pandora:
             - self.pandora_stability
             - self.pairwise_cluster_stabilities
             - self.pandora_cluster_stability
-            - self.pairwise_sample_support_values
             - self.sample_support_values
 
         """
@@ -619,7 +602,7 @@ class Pandora:
 
         fig = plot_support_values(
             embedding,
-            self.sample_support_values.average,
+            self.sample_support_values,
             self.pandora_config.support_value_rogue_cutoff,
             pcx,
             pcy,
@@ -671,10 +654,9 @@ class Pandora:
                 kmeans_k, self.pandora_config.threads
             )
         )
-        self.pairwise_sample_support_values = (
-            batch_comparison.get_pairwise_sample_support_values()
+        self.sample_support_values = batch_comparison.get_sample_support_values(
+            self.pandora_config.threads
         )
-        self.sample_support_values = batch_comparison.get_sample_support_values()
 
     def log_and_save_replicates_results(self) -> None:
         """Logs the results of the bootstrap/sliding-window analyses using pandora.logging.logger and also saves the
@@ -739,11 +721,8 @@ class Pandora:
             raise PandoraException("No results to log!")
 
         self.sample_support_values.to_csv(self.pandora_config.sample_support_values_csv)
-        self.pairwise_sample_support_values.to_csv(
-            self.pandora_config.pairwise_sample_support_values_csv
-        )
 
-        self._log_support_values("All Samples", self.sample_support_values.average)
+        self._log_support_values("All Samples", self.sample_support_values)
 
         if self.dataset.projected_samples.empty:
             return
@@ -756,7 +735,7 @@ class Pandora:
             self.pandora_config.projected_sample_support_values_csv
         )
 
-        self._log_support_values("Projected Samples", projected_support_values.average)
+        self._log_support_values("Projected Samples", projected_support_values)
 
 
 def pandora_config_from_configfile(configfile: pathlib.Path) -> PandoraConfig:

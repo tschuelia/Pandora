@@ -113,6 +113,43 @@ def _clip_missing_samples_for_comparison(
     return comparable_clipped, reference_clipped
 
 
+def _pad_missing_samples(all_sample_ids: pd.Series, embedding: Embedding) -> Embedding:
+    missing_samples = [
+        sid for sid in all_sample_ids if sid not in embedding.sample_ids.values
+    ]
+    if len(missing_samples) == 0:
+        return embedding
+
+    _missing_data = [np.zeros(shape=embedding.n_components)] * len(missing_samples)
+    embedding_matrix = np.append(embedding.embedding_matrix, _missing_data, axis=0)
+
+    sample_ids = pd.concat(
+        [embedding.sample_ids, pd.Series(missing_samples)], ignore_index=True
+    )
+
+    _dummy_populations = pd.Series(["_dummy"] * len(missing_samples))
+    populations = pd.concat(
+        [embedding.populations, _dummy_populations], ignore_index=True
+    )
+
+    embedding_matrix = _numpy_to_dataframe(embedding_matrix, sample_ids, populations)
+
+    if isinstance(embedding, PCA):
+        return PCA(
+            embedding=embedding_matrix,
+            n_components=embedding.n_components,
+            explained_variances=embedding.explained_variances,
+        )
+    elif isinstance(embedding, MDS):
+        return MDS(
+            embedding=embedding_matrix,
+            n_components=embedding.n_components,
+            stress=embedding.stress,
+        )
+    else:
+        raise PandoraException(f"Unrecognized Embedding type {type(embedding)}.")
+
+
 def _cluster_stability_for_pair(args):
     i1, embedding1, i2, embedding2, kmeans_k = args
     comparison = EmbeddingComparison(embedding1, embedding2)
@@ -123,6 +160,25 @@ def _stability_for_pair(args):
     (i1, embedding1), (i2, embedding2) = args
     comparison = EmbeddingComparison(embedding1, embedding2)
     return pd.Series([comparison.compare()], index=[(i1, i2)])
+
+
+def _difference_for_pair(args):
+    embedding1, embedding2, sample_ids = args
+    comp = EmbeddingComparison(embedding1, embedding2)
+    embedding1 = _pad_missing_samples(sample_ids, comp.comparable)
+    embedding2 = _pad_missing_samples(sample_ids, comp.reference)
+
+    assert (embedding1.sample_ids == embedding2.sample_ids).all()
+    return np.linalg.norm(
+        embedding1.embedding_matrix - embedding2.embedding_matrix, axis=1
+    )
+
+
+def _get_embedding_norm(args):
+    embedding, sample_ids = args
+    embedding = _pad_missing_samples(sample_ids, embedding).embedding_matrix
+    normalized = normalize(embedding)
+    return np.linalg.norm(normalized, axis=1)
 
 
 class EmbeddingComparison:
@@ -230,66 +286,6 @@ class EmbeddingComparison:
         ref_cluster_labels = ref_kmeans.predict(self.reference.embedding_matrix)
 
         return fowlkes_mallows_score(ref_cluster_labels, comp_cluster_labels)
-
-    def _get_sample_distances(self) -> pd.Series[float]:
-        """Computes the euclidean distances between pairs of samples in self.reference and self.comparable.
-
-        Returns
-        -------
-        pd.Series[float]
-            Euclidean distance between projections for each sample in self.reference and self.comparable.
-            Contains one value for each sample in self.sample_ids
-
-        """
-        # make sure we are comparing the correct PC-vectors in the following
-        assert np.all(
-            self.comparable.embedding.sample_id == self.reference.embedding.sample_id
-        )
-
-        sample_distances = euclidean_distances(
-            self.reference.embedding_matrix, self.comparable.embedding_matrix
-        ).diagonal()
-        return pd.Series(sample_distances, index=self.sample_ids)
-
-    def get_sample_support_values(self) -> pd.Series[float]:
-        """Computes the sample support value for each sample in self.sample_id using the euclidean distance
-        between projections in self.reference and self.comparable.
-
-        The euclidean distance d is normalized to [0, 1] by computing ` 1 / (1 + d)`.
-        The higher the support the closer the projections are in euclidean space in self.reference and self.comparable.
-
-        Returns
-        -------
-        pd.Series[float]
-            Support value when comparing self.reference and self.comparable for each sample in self.sample_id
-
-        """
-        sample_distances = self._get_sample_distances()
-        support_values = 1 / (1 + sample_distances)
-        return support_values
-
-    def detect_rogue_samples(
-        self, support_value_rogue_cutoff: float = 0.5
-    ) -> pd.Series[float]:
-        """Returns the support values for all samples with a support value below support_value_rogue_cutoff.
-
-        Parameters
-        ----------
-        support_value_rogue_cutoff: float
-            Threshold flagging samples as rogue. Default is 0.5.
-
-        Returns
-        -------
-        pd.Series[float]
-            Support values for all samples with a support value below support_value_rogue_cutoff.
-            The indices of the pandas Series correspond to the sample IDs.
-
-        """
-        support_values = self.get_sample_support_values()
-
-        rogue = support_values.loc[lambda x: (x < support_value_rogue_cutoff)]
-
-        return rogue
 
 
 class BatchEmbeddingComparison:
@@ -454,30 +450,18 @@ class BatchEmbeddingComparison:
         """
         return self.get_pairwise_cluster_stabilities(kmeans_k, threads).mean()
 
-    def get_pairwise_sample_support_values(self) -> pd.DataFrame:
-        """Computes the sample support value for each sample respective all unique pairwise comparisons
+    def _get_pairwise_difference(
+        self, sample_ids: pd.Series, threads: Optional[int] = None
+    ):
+        args = [
+            (embedding1, embedding2, sample_ids)
+            for embedding1, embedding2 in itertools.permutations(self.embeddings, r=2)
+        ]
+        with Pool(threads) as p:
+            diffs = list(p.map(_difference_for_pair, args))
+        return diffs
 
-        Returns
-        -------
-        pd.DataFrame
-            Pandas Dataframe containing the support values for all samples across all pairwise embedding comparisons.
-            Each row corresponds to a sample, with the sample IDs as indices. The dataframe has one column for each
-            of the unique pairwise comparisons entitled '(i, j)' when comparing the i-th embedding to the j-th embedding.
-            Each value in the dataframe is a float between 0 and 1. Higher values indicate a higher support.
-
-        """
-        sample_supports = []
-        for (i, embedding1), (j, embedding2) in itertools.combinations(
-            enumerate(self.embeddings), r=2
-        ):
-            comparison = EmbeddingComparison(embedding1, embedding2)
-            support_values = comparison.get_sample_support_values()
-            support_values.name = f"({i}, {j})"
-            sample_supports.append(support_values)
-
-        return pd.concat(sample_supports, axis=1)
-
-    def get_sample_support_values(self) -> pd.DataFrame:
+    def get_sample_support_values(self, threads: Optional[int] = None) -> pd.Series:
         """Computes the sample support value for each sample respective all self.embeddings.
 
         The sample support value per sample is computed as the `1 - dispertion` across all embeddings where dispertion
@@ -486,17 +470,29 @@ class BatchEmbeddingComparison:
 
         Returns
         -------
-        pd.DataFrame
-            Pandas Dataframe containing the support values for all samples across all pairwise embedding comparisons.
-            Each row corresponds to a sample, with the sample IDs as indices. The dataframe has two columns:
-            'average' and 'standard_deviation' containing the mean and stdev of all pairwise support values per sample.
-            Each value in the dataframe is a float between 0 and 1. Higher values indicate a higher support.
+        pd.Series
+            Pandas Series containing the support values for all samples across all pairwise embedding comparisons.
+            Each row corresponds to a sample, with the sample IDs as indices and the PSV as value. The name of the series
+            is set to `PSV`.
 
         """
-        support_values = self.get_pairwise_sample_support_values()
-        support_values["average"] = support_values.mean(axis=1)
-        support_values["standard_deviation"] = support_values.std(axis=1)
-        return support_values[["average", "standard_deviation"]]
+        sample_ids_superset = set(
+            [sid for embedding in self.embeddings for sid in embedding.sample_ids]
+        )
+
+        numerator = np.sum(
+            self._get_pairwise_difference(sample_ids_superset, threads), axis=0
+        )
+
+        args = [(embedding, sample_ids_superset) for embedding in self.embeddings]
+        with Pool(threads) as p:
+            embedding_norms = list(p.map(_get_embedding_norm, args))
+
+        denominator = 2 * len(self.embeddings) * np.sum(embedding_norms, axis=0) + 1e-6
+        gini_coefficients = pd.Series(
+            numerator / denominator, index=sample_ids_superset, name="PSV"
+        ).sort_index()
+        return 1 - gini_coefficients
 
 
 def _numpy_to_dataframe(

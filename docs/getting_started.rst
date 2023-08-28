@@ -111,7 +111,7 @@ You should then see an output similar to this:::
     ------------------
     > Pandora results: /path/to/example/results/pandora.txt
     > Pairwise stabilities:  /path/to/example/results/pandora.replicates.csv
-    > Sample Support values:  /path/to/example/results/pandora.supportValues.pairwise.csv
+    > Sample Support values:  /path/to/example/results/pandora.supportValues.csv
     > All plots saved in directory:  /path/to/example/results/plots
 
     Total runtime: 0:00:06 (6 seconds)

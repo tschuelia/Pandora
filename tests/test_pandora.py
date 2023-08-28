@@ -258,7 +258,6 @@ class TestPandora:
 
         expected_files = [
             pandora.pandora_config.pairwise_stability_result_file,  # csv with pairwise Pandora stabilities
-            pandora.pandora_config.pairwise_sample_support_values_csv,  # csv with pairwise pandora support values
             pandora.pandora_config.sample_support_values_csv,  # csv with pandora support values
             pandora.pandora_config.projected_sample_support_values_csv,  # support values for projected samples only
         ]
@@ -281,27 +280,18 @@ class TestPandora:
         # we expect one row for each pairwise combination and two columns (PS and PCS)
         assert pairwise_bootstrap_results.shape == (n_bootstrap_combinations, 2)
 
-        pairwise_sample_support_values = pd.read_csv(
-            pandora.pandora_config.pairwise_sample_support_values_csv, index_col=0
-        )
-        # we expect one row per sample and n_bootstrap_combinations columns
-        assert pairwise_sample_support_values.shape == (
-            n_samples,
-            n_bootstrap_combinations,
-        )
-
         sample_support_values = pd.read_csv(
             pandora.pandora_config.sample_support_values_csv, index_col=0
         )
-        # we expect one row per sample and 2 columns the average and stdev
-        assert sample_support_values.shape == (n_samples, 2)
+        # we expect one row per sample and 1 column (PSV)
+        assert sample_support_values.shape == (n_samples, 1)
 
         projected_sample_support_values = pd.read_csv(
             pandora.pandora_config.projected_sample_support_values_csv, index_col=0
         )
         print(projected_sample_support_values)
-        # we expect one row per projected sample, but for projected samples only two columns (average, stdev)
+        # we expect one row per projected sample and one column
         assert projected_sample_support_values.shape == (
             n_projected_samples,
-            2,
+            1,
         )

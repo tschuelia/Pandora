@@ -440,7 +440,7 @@ def plot_support_values(
     sample_support_values: pd.Series
         Pandora support value for each sample in embedding.embedding.
         Note: The index of the Series is expected to contain the sample IDs and
-        to be identical to the embedding.embedding.sample_id column.
+        to be identical to embedding.sample_ids.
     support_value_rogue_cutoff: float
         Samples with a support value below this threshold are annotated with
         the sample ID and the support value. All other samples are only color-coded.
@@ -466,7 +466,7 @@ def plot_support_values(
     # or not present in sample_support_values (detected as outlier in all replicates)
     # if there are such samples, we issue a warning containing the affected IDs and continue to plot only samples
     # present in both embedding.embedding and sample_support_values
-    embedding_ids = set(embedding.embedding.sample_id)
+    embedding_ids = set(embedding.sample_ids)
     support_ids = set(sample_support_values.index)
 
     not_in_embedding = support_ids - embedding_ids

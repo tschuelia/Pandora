@@ -170,7 +170,7 @@ class EmbeddingComparison:
         self.comparable, self.reference, self.disparity = match_and_transform(
             comparable=comparable, reference=reference
         )
-        self.sample_ids = self.comparable.embedding.sample_id
+        self.sample_ids = self.comparable.sample_ids
 
     def compare(self) -> float:
         """Computes the Pandora stability between self.comparable to self.reference using Procrustes Analysis.
@@ -448,7 +448,11 @@ class BatchEmbeddingComparison:
         return pd.concat(sample_supports, axis=1)
 
     def get_sample_support_values(self) -> pd.DataFrame:
-        """Computes the sample support value for each sample respective all pairwise embedding comparisons.
+        """Computes the sample support value for each sample respective all self.embeddings.
+
+        The sample support value per sample is computed as the `1 - dispertion` across all embeddings where dispertion
+        is computed using the Gini Coefficient.
+        The support values are computed for all samples in the union of all sample IDs of all self.embeddings.
 
         Returns
         -------
@@ -544,7 +548,7 @@ def match_and_transform(
     """
     comparable, reference = _clip_missing_samples_for_comparison(comparable, reference)
 
-    if not all(comparable.embedding.sample_id == reference.embedding.sample_id):
+    if not all(comparable.sample_ids == reference.sample_ids):
         raise PandoraException(
             "Sample IDS between reference and comparable don't match but is required for comparing PCA results. "
         )
@@ -574,14 +578,14 @@ def match_and_transform(
 
     standardized_reference = _numpy_to_dataframe(
         standardized_reference,
-        reference.embedding.sample_id,
-        reference.embedding.population,
+        reference.sample_ids,
+        reference.populations,
     )
 
     transformed_comparable = _numpy_to_dataframe(
         transformed_comparable,
-        comparable.embedding.sample_id,
-        comparable.embedding.population,
+        comparable.sample_ids,
+        comparable.populations,
     )
 
     if isinstance(reference, PCA) and isinstance(comparable, PCA):
@@ -615,10 +619,7 @@ def match_and_transform(
             "comparable and reference need to be of type PCA or MDS."
         )
 
-    if not all(
-        standardized_reference.embedding.sample_id
-        == transformed_comparable.embedding.sample_id
-    ):
+    if not all(standardized_reference.sample_ids == transformed_comparable.sample_ids):
         raise PandoraException(
             "Sample IDS between reference and comparable don't match but is required for comparing PCA results. "
         )

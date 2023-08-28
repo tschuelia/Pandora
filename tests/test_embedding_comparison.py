@@ -1,5 +1,4 @@
 import pytest
-from numpy import testing
 
 from pandora.embedding_comparison import *
 from pandora.embedding_comparison import _clip_missing_samples_for_comparison
@@ -12,10 +11,10 @@ def test_match_and_transform_identical_pcas(pca_reference):
     assert disparity == pytest.approx(0.0, abs=1e-6)
 
     # pca1 and pca2 should have identical data
-    testing.assert_allclose(pca1.embedding_matrix, pca2.embedding_matrix)
+    np.testing.assert_allclose(pca1.embedding_matrix, pca2.embedding_matrix)
 
     # pca1 and pca2 should have identical sample IDs
-    pd.testing.assert_series_equal(pca1.embedding.sample_id, pca2.embedding.sample_id)
+    pd.testing.assert_series_equal(pca1.sample_ids, pca2.sample_ids)
 
 
 def test_clip_missing_samples_for_comparison(
@@ -28,16 +27,16 @@ def test_clip_missing_samples_for_comparison(
         )
 
     # both PCAs should now contain only the sample_ids present in both PCAs
-    present_in_both = set(pca_reference.embedding.sample_id).intersection(
-        set(pca_comparable_fewer_samples.embedding.sample_id)
+    present_in_both = set(pca_reference.sample_ids).intersection(
+        set(pca_comparable_fewer_samples.sample_ids)
     )
     n_samples = len(present_in_both)
 
     assert comparable_clipped.embedding.shape[0] == n_samples
     assert reference_clipped.embedding.shape[0] == n_samples
 
-    assert set(comparable_clipped.embedding.sample_id) == present_in_both
-    assert set(reference_clipped.embedding.sample_id) == present_in_both
+    assert set(comparable_clipped.sample_ids) == present_in_both
+    assert set(reference_clipped.sample_ids) == present_in_both
 
 
 def test_match_and_transform_fails_for_different_sample_ids(
@@ -109,8 +108,8 @@ class TestEmbeddingComparison:
 
         pca_data_rotated = pd.DataFrame(
             data={
-                "sample_id": pca_reference.embedding.sample_id.values,
-                "population": pca_reference.embedding.population.values,
+                "sample_id": pca_reference.sample_ids.values,
+                "population": pca_reference.populations.values,
                 "D0": rotated_embedding_vector[:, 0],
                 "D1": rotated_embedding_vector[:, 1],
             }

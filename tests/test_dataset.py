@@ -419,12 +419,12 @@ class TestNumpyDataset:
             n_pcs,
         )
         pd.testing.assert_series_equal(
-            test_numpy_dataset.pca.embedding.sample_id,
+            test_numpy_dataset.pca.sample_ids,
             test_numpy_dataset.sample_ids,
             check_names=False,
         )
         pd.testing.assert_series_equal(
-            test_numpy_dataset.pca.embedding.population,
+            test_numpy_dataset.pca.populations,
             test_numpy_dataset.populations,
             check_names=False,
         )
@@ -579,12 +579,12 @@ class TestNumpyDataset:
             n_components,
         )
         pd.testing.assert_series_equal(
-            test_numpy_dataset.mds.embedding.sample_id,
+            test_numpy_dataset.mds.sample_ids,
             test_numpy_dataset.sample_ids,
             check_names=False,
         )
         pd.testing.assert_series_equal(
-            test_numpy_dataset.mds.embedding.population,
+            test_numpy_dataset.mds.populations,
             test_numpy_dataset.populations,
             check_names=False,
         )

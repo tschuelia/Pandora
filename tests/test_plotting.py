@@ -23,7 +23,7 @@ def test_plot_pca_populations(pca_reference):
 
 
 def test_plot_pca_projections(pca_reference):
-    pca_populations = pd.Series(pca_reference.embedding.population.unique()).head(1)
+    pca_populations = pd.Series(pca_reference.populations.unique()).head(1)
     plot_projections(pca_reference, pca_populations)
 
 
@@ -34,7 +34,7 @@ def test_plot_pca_clusters(pca_reference):
 def test_plot_support_values(pca_reference):
     support_values = pd.Series(
         [0.0] * pca_reference.embedding.shape[0],
-        index=pca_reference.embedding.sample_id,
+        index=pca_reference.sample_ids,
     )
     plot_support_values(pca_reference, support_values)
 
@@ -117,7 +117,7 @@ def test_plot_pca_comparison(pca_reference):
 
 def test_plot_pca_comparison_rogue_samples(pca_reference):
     comparison = EmbeddingComparison(pca_reference, pca_reference)
-    sample_ids = pca_reference.embedding.sample_id
+    sample_ids = pca_reference.sample_ids
     support_values = pd.Series([1.0] * sample_ids.shape[0], index=sample_ids)
     plot_embedding_comparison_rogue_samples(
         comparison, support_values=support_values, support_value_rogue_cutoff=1.0

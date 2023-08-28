@@ -37,6 +37,8 @@ class Embedding:
         self.embedding = embedding.sort_values(by="sample_id").reset_index(drop=True)
         self.n_components = n_components
         self.embedding_matrix = self._get_embedding_numpy_array()
+        self.sample_ids = self.embedding.sample_id
+        self.populations = self.embedding.population
 
     def _get_embedding_numpy_array(self) -> np.ndarray:
         """
@@ -144,6 +146,10 @@ class PCA(Embedding):
         number of principal components
     embedding_matrix: npt.NDArray[float]
         Numpy ndarray of shape (n_samples, n_components) containing the PCA result matrix.
+    sample_ids: pd.Series[str]
+        Pandas series containing the IDs of all samples.
+    populations: pd.Series[str]
+        Pandas series containing the population for each sample in sample_ids.
 
     Raises
     ------
@@ -211,6 +217,10 @@ class MDS(Embedding):
         Stress of the fitted MDS.
     embedding_matrix: npt.NDArray[float]
         Numpy ndarray of shape (n_samples, n_components) containing the MDS result matrix.
+    sample_ids: pd.Series[str]
+        Pandas series containing the IDs of all samples.
+    populations: pd.Series[str]
+        Pandas series containing the population for each sample in sample_ids.
 
     Raises
     ------

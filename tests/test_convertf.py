@@ -1,9 +1,11 @@
+import pathlib
 import tempfile
 
 import pandas as pd
 import pytest
 
-from pandora.converter import *
+from pandora.converter import get_filenames, run_convertf
+from pandora.custom_types import FileFormat
 
 
 @pytest.mark.parametrize("out_format", FileFormat._member_names_)

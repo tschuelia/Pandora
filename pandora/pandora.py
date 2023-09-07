@@ -1,12 +1,11 @@
 import dataclasses
 import datetime
-import itertools
 import logging
 import multiprocessing
 import pathlib
-import random
-import statistics
 import textwrap
+from enum import Enum
+from typing import Any, Dict, List, Optional
 
 import pandas as pd
 import yaml
@@ -15,15 +14,26 @@ from pydantic.dataclasses import dataclass
 
 from pandora import __version__
 from pandora.converter import run_convertf
+from pandora.custom_errors import PandoraConfigException, PandoraException
+from pandora.custom_types import (
+    AnalysisMode,
+    EmbeddingAlgorithm,
+    Executable,
+    FileFormat,
+)
 from pandora.dataset import (
     EigenDataset,
     bootstrap_and_embed_multiple,
     sliding_window_embedding,
-    smartpca_finished,
 )
 from pandora.embedding_comparison import BatchEmbeddingComparison
 from pandora.logger import fmt_message, logger
-from pandora.plotting import *
+from pandora.plotting import (
+    plot_clusters,
+    plot_populations,
+    plot_projections,
+    plot_support_values,
+)
 
 
 @dataclass

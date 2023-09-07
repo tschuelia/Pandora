@@ -1,13 +1,27 @@
+import pathlib
+import shutil
 import tempfile
 
 import numpy as np
 import pandas as pd
 import pytest
 
-from pandora.dataset import *
-from pandora.dataset import _deduplicate_snp_id
+from pandora.custom_errors import PandoraException
+from pandora.custom_types import EmbeddingAlgorithm
+from pandora.dataset import (
+    EigenDataset,
+    NumpyDataset,
+    _deduplicate_snp_id,
+    bootstrap_and_embed_multiple,
+    bootstrap_and_embed_multiple_numpy,
+    get_embedding_populations,
+    numpy_dataset_from_eigenfiles,
+    sliding_window_embedding,
+    sliding_window_embedding_numpy,
+    smartpca_finished,
+)
 from pandora.distance_metrics import DISTANCE_METRICS
-from pandora.embedding import PCA
+from pandora.embedding import MDS, PCA
 
 
 class TestEigenDataset:

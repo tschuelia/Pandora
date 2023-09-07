@@ -2,7 +2,6 @@ from __future__ import (  # allows type hint EigenDataset inside EigenDataset cl
     annotations,
 )
 
-import multiprocessing
 import pathlib
 import random
 import shutil
@@ -10,15 +9,17 @@ import subprocess
 import tempfile
 import textwrap
 from multiprocessing import Pool
+from typing import Callable, Dict, List, Optional, Set, Tuple, Union
 
+import numpy as np
 import pandas as pd
+from numpy import typing as npt
 from sklearn.decomposition import PCA as sklearnPCA
 from sklearn.impute import SimpleImputer
 from sklearn.manifold import MDS as sklearnMDS
-from sklearn.metrics.pairwise import euclidean_distances
 
-from pandora.custom_errors import *
-from pandora.custom_types import *
+from pandora.custom_errors import PandoraConfigException, PandoraException
+from pandora.custom_types import EmbeddingAlgorithm, Executable
 from pandora.distance_metrics import euclidean_sample_distance
 from pandora.embedding import MDS, PCA, from_sklearn_mds, from_smartpca
 

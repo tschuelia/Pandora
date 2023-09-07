@@ -1,16 +1,17 @@
 from __future__ import annotations  # allows type hint PCA inside PCA class
 
 import math
+import pathlib
+from typing import Tuple
 
 import numpy as np
 import pandas as pd
+from numpy import typing as npt
 from sklearn.cluster import KMeans
-from sklearn.manifold import MDS as sklearnMDS
 from sklearn.mixture import GaussianMixture
 from sklearn.model_selection import GridSearchCV
 
-from pandora.custom_errors import *
-from pandora.custom_types import *
+from pandora.custom_errors import PandoraException
 
 
 class Embedding:

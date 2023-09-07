@@ -1,10 +1,13 @@
 import datetime
 import time
 
-from loguru import logger
+import loguru
 
 SCRIPT_CLOCK_START = time.perf_counter()
 START_TIME = datetime.datetime.now()
+
+
+logger = loguru.logger
 
 
 def fmt_message(message):

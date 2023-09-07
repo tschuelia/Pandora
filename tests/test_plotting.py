@@ -1,7 +1,19 @@
+import numpy as np
 import pandas as pd
 import pytest
 
-from pandora.plotting import *
+from pandora.custom_errors import PandoraException
+from pandora.embedding import PCA
+from pandora.embedding_comparison import EmbeddingComparison
+from pandora.plotting import (
+    get_distinct_colors,
+    plot_clusters,
+    plot_embedding_comparison,
+    plot_embedding_comparison_rogue_samples,
+    plot_populations,
+    plot_projections,
+    plot_support_values,
+)
 
 # NOTE: the tests in this file mostly just call the respective plotting function
 # comparing plots is a bit difficult, and we just want to make sure the code does not crash
@@ -59,7 +71,8 @@ def test_plot_support_values_with_different_sample_sets_issues_warnings():
     # in this case we expect the warning message for otherSample2 and the embedding.embedding data
     with pytest.warns(
         UserWarning,
-        match=r"Some of the provided sample_support_values sample IDs are not present in the embedding.embedding data.[\s\w{:'.]+otherSample2",
+        match=r"Some of the provided sample_support_values sample IDs are not present in the "
+        r"embedding.embedding data.[\s\w{:'.]+otherSample2",
     ):
         plot_support_values(pca, support_values)
 
@@ -80,7 +93,8 @@ def test_plot_support_values_with_different_sample_sets_issues_warnings():
 
     with pytest.warns(
         UserWarning,
-        match=r"Not all samples in embedding.embedding data have a support value in sample_support_values.[\s\w{:'.]+sample3",
+        match=r"Not all samples in embedding.embedding data have a support value in "
+        r"sample_support_values.[\s\w{:'.]+sample3",
     ):
         plot_support_values(pca, support_values)
 

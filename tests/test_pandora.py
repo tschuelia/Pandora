@@ -4,7 +4,14 @@ import tempfile
 import pandas as pd
 import pytest
 
-from pandora.pandora import *
+from pandora.custom_errors import PandoraException
+from pandora.dataset import EigenDataset
+from pandora.embedding import MDS, PCA
+from pandora.pandora import (
+    Pandora,
+    convert_to_eigenstrat_format,
+    pandora_config_from_configfile,
+)
 
 
 def test_pandora_config_from_configfile(
@@ -115,7 +122,9 @@ class TestPandora:
         pandora = Pandora(pandora_test_config_with_embedding_populations)
 
         # check that the embedding_populations were initialized correctly
-        pca_populations_expected = {l.strip() for l in example_population_list.open()}
+        pca_populations_expected = {
+            line.strip() for line in example_population_list.open()
+        }
         assert set(pandora.dataset.embedding_populations) == pca_populations_expected
 
     def test_do_pca(self, pandora_test_config):

@@ -2,11 +2,16 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from pandora.embedding_comparison import *
+from pandora.custom_errors import PandoraException
+from pandora.custom_types import EmbeddingAlgorithm
+from pandora.embedding import MDS, PCA
 from pandora.embedding_comparison import (
+    BatchEmbeddingComparison,
+    EmbeddingComparison,
     _clip_missing_samples_for_comparison,
     _numpy_to_dataframe,
     _pad_missing_samples,
+    match_and_transform,
 )
 
 

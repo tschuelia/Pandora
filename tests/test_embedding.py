@@ -5,7 +5,7 @@ import pandas as pd
 import pytest
 
 from pandora.custom_errors import PandoraException
-from pandora.embedding import *
+from pandora.embedding import PCA, check_smartpca_results
 
 
 class TestPCA:

@@ -3,18 +3,18 @@ from __future__ import (  # allows type hint EmbeddingComparison inside Embeddin
 )
 
 import itertools
-import statistics
 import warnings
 from multiprocessing import Pool
+from typing import List, Optional, Tuple
 
+import numpy as np
 import pandas as pd
+from numpy import typing as npt
 from scipy.spatial import procrustes
 from sklearn.metrics import fowlkes_mallows_score
-from sklearn.metrics.pairwise import euclidean_distances
 from sklearn.preprocessing import normalize
 
-from pandora.custom_errors import *
-from pandora.custom_types import *
+from pandora.custom_errors import PandoraException
 from pandora.embedding import MDS, PCA, Embedding
 
 
@@ -230,7 +230,7 @@ class EmbeddingComparison:
                 f"Instead got {type(comparable)} and {type(reference)}."
             )
 
-        if type(comparable) != type(reference):
+        if type(comparable) is not type(reference):
             raise PandoraException(
                 f"comparable and reference need to be of the same Embedding type. "
                 f"Instead got {type(comparable)} and {type(reference)}."

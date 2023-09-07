@@ -1,10 +1,11 @@
 import warnings
+from typing import List, Optional, Tuple
 
+import numpy as np
 import pandas as pd
 from plotly import graph_objects as go
 
-from pandora.custom_errors import *
-from pandora.custom_types import *
+from pandora.custom_errors import PandoraException
 from pandora.embedding import MDS, PCA, Embedding
 from pandora.embedding_comparison import EmbeddingComparison
 
@@ -92,7 +93,7 @@ def _check_plot_dimensions(embedding: Embedding, dim_x: int, dim_y: int) -> None
 
     """
     if dim_x == dim_y:
-        raise PandoraException(f"dim_x and dim_y cannot be identical.")
+        raise PandoraException("dim_x and dim_y cannot be identical.")
     dim_x = f"D{dim_x}"
     if dim_x not in embedding.embedding.columns:
         raise PandoraException(f"Requested plot PC {dim_x} for x-axis does not exist.")

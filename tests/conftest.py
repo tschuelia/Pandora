@@ -1,11 +1,15 @@
 import pathlib
 import shutil
+from typing import Dict
 
+import numpy as np
+import pandas as pd
 import pytest
 import yaml
 
+from pandora.custom_types import EmbeddingAlgorithm, Executable
 from pandora.dataset import EigenDataset, NumpyDataset
-from pandora.embedding import *
+from pandora.embedding import PCA, from_smartpca
 from pandora.pandora import PandoraConfig, pandora_config_from_configfile
 
 from .test_config import CONVERTF, SMARTPCA

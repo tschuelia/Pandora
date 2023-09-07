@@ -1,8 +1,10 @@
+import pathlib
 import subprocess
 import textwrap
+from typing import Tuple
 
-from pandora.custom_errors import *
-from pandora.custom_types import *
+from pandora.custom_errors import PandoraException
+from pandora.custom_types import Executable, FileFormat
 
 FILE_SUFFIXES = {
     # Format: (geno, snp, ind)

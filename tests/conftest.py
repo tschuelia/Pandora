@@ -191,7 +191,7 @@ def test_numpy_dataset():
     )
     sample_ids = pd.Series(["sample1", "sample2", "sample3"])
     populations = pd.Series(["population1", "population2", "population3"])
-    dataset = NumpyDataset(test_data, sample_ids, populations)
+    dataset = NumpyDataset(test_data, sample_ids, populations, missing_value=0)
     return dataset
 
 

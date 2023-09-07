@@ -119,6 +119,37 @@ def _check_snp_file(snp_file: pathlib.Path):
         )
 
 
+def _parse_smartpca_fst_results(
+    result_prefix: pathlib.Path,
+) -> Tuple[npt.NDArray, pd.Series]:
+    fst_file = pathlib.Path(f"{result_prefix}.fst")
+    smartpca_log = pathlib.Path(f"{result_prefix}.smartpca.log")
+
+    fst_content = fst_file.open().read()
+    fst_content = fst_content.replace("-", " -")
+    fst_file.open("w").write(fst_content)
+
+    with fst_file.open() as f:
+        shape = int(f.readline())
+        cols = [f"dist{i}" for i in range(shape)]
+        fst_results = pd.read_table(
+            f, delimiter=" ", skipinitialspace=True, names=["_"] + cols
+        )
+        fst_results = fst_results[cols].to_numpy()
+
+    # extract correct population names as smartpca truncates them in the output if they are too long
+    populations = []
+    for line in smartpca_log.open():
+        line = line.strip()
+        if not line.startswith("population:"):
+            continue
+        # population:   0   population   11
+        _, _, population, *_ = line.split()
+        populations.append(population.strip())
+
+    return fst_results, pd.Series(populations)
+
+
 def smartpca_finished(n_components: int, result_prefix: pathlib.Path) -> bool:
     """Checks whether existing smartPCA results are correct.
 
@@ -549,23 +580,38 @@ class EigenDataset:
 
         self.pca = from_smartpca(evec_out, eval_out)
 
-    def _compute_fst_matrix(
-        self, smartpca: Executable, fst_file: pathlib.Path, smartpca_log: pathlib.Path
-    ) -> None:
+    def _fst_population_distance(
+        self, smartpca: Executable, result_prefix: pathlib.Path, redo: bool = False
+    ) -> Tuple[npt.NDArray, pd.Series]:
         """Computes the FST genetic distance matrix using EIGENSOFT's smartpca tool.
 
-        The resulting FST matrix will be stored in fst_file.
+        The resulting FST matrix will be stored in fst_file and returned as numpy array.
 
         Parameters
         ----------
         smartpca: Executable
             Path pointing to an executable of the EIGENSOFT smartpca tool.
-        fst_file: pathlib.Path
-            Path to a file where the resulting FST matrix should be stored in.
-        smartpca_log: pathlib.Path
-            Path to a file where the smartpca log should be written to.
+        result_prefix: pathlib.Path
+            Prefix where to store the results of the smartpca FST computation. On successfull execution, two files will
+            be created: the FST result ({prefix}.fst) and a smartpca log file ({prefix}.smartpca.log).
+        redo: bool
+            Whether to recompute the FST matrix in case the result file is already present.
+
+        Returns
+        -------
+        npt.NDArray
+            The resulting FST distance matrix. The shape of this matrix is (n_unique_populations, n_unique_populations).
 
         """
+        fst_file = pathlib.Path(f"{result_prefix}.fst")
+        smartpca_log = pathlib.Path(f"{result_prefix}.smartpca.log")
+
+        if fst_file.exists() and smartpca_log.exists() and not redo:
+            # TODO: check if results exist and are correct
+            return _parse_smartpca_fst_results(result_prefix)
+
+        result_prefix.parent.mkdir(parents=True, exist_ok=True)
+
         with tempfile.NamedTemporaryFile(mode="w") as tmpfile:
             smartpca_fst_params = f"""
                 genotypename: {self._geno_file}
@@ -593,6 +639,8 @@ class EigenDataset:
                         f"Error computing FST matrix using smartPCA. "
                         f"Check the smartPCA logfile {smartpca_log.absolute()} for details."
                     )
+
+        return _parse_smartpca_fst_results(result_prefix)
 
     def run_mds(
         self,
@@ -630,40 +678,16 @@ class EigenDataset:
         if result_dir is None:
             result_dir = self._file_dir
 
-        fst_file = result_dir / (self.name + ".fst")
-        smartpca_log = result_dir / (self.name + ".smartpca.log")
-
-        if not fst_file.exists() or not smartpca_log.exists() or redo:
-            # TODO: check if results exist and are correct
-            self._compute_fst_matrix(smartpca, fst_file, smartpca_log)
-
-        fst_content = fst_file.open().read()
-        fst_content = fst_content.replace("-", " -")
-        fst_file.open("w").write(fst_content)
-
-        with fst_file.open() as f:
-            shape = int(f.readline())
-            cols = [f"dist{i}" for i in range(shape)]
-            fst_results = pd.read_table(
-                f, delimiter=" ", skipinitialspace=True, names=["_"] + cols
-            )
-
-        # extract correct population names as smartpca truncates them in the output if they are too long
-        populations = []
-        for line in smartpca_log.open():
-            line = line.strip()
-            if not line.startswith("population:"):
-                continue
-            # population:   0   population   11
-            _, _, population, *_ = line.split()
-            populations.append(population.strip())
+        fst_matrix, populations = self._fst_population_distance(
+            smartpca=smartpca, result_prefix=result_dir / self.name
+        )
 
         mds = sklearnMDS(
             n_components=n_components,
             dissimilarity="precomputed",
             normalized_stress=False,
         )
-        embedding = mds.fit_transform(fst_results[cols])
+        embedding = mds.fit_transform(fst_matrix)
         embedding = pd.DataFrame(
             data=embedding, columns=[f"D{i}" for i in range(n_components)]
         )
@@ -1117,6 +1141,8 @@ class NumpyDataset:
     populations: pd.Series[str]
         Pandas Series containing the populations of the sequences contained in input_data.
         Expects the number of populations to matche the first dimension of input_data.
+    missing_value: Union[np.nan, int], default=np.nan
+            Value to treat as missing value. All missing values in input_data will be replaced with np.nan
 
     Attributes
     ----------
@@ -1135,7 +1161,11 @@ class NumpyDataset:
     """
 
     def __init__(
-        self, input_data: npt.NDArray, sample_ids: pd.Series, populations: pd.Series
+        self,
+        input_data: npt.NDArray,
+        sample_ids: pd.Series,
+        populations: pd.Series,
+        missing_value: Union[np.nan, int] = np.nan,
     ):
         if sample_ids.shape[0] != populations.shape[0]:
             raise PandoraException(
@@ -1147,6 +1177,8 @@ class NumpyDataset:
                 f"Provide a sample ID for each sample in input_data. "
                 f"Got {sample_ids.shape[0]} sample_ids but input_data has shape {input_data.shape}"
             )
+        input_data = input_data.astype("float")
+        input_data[input_data == missing_value] = np.nan
         self.input_data = input_data
         self.sample_ids = sample_ids
         self.populations = populations
@@ -1154,18 +1186,13 @@ class NumpyDataset:
         self.pca: Union[None, PCA] = None
         self.mds: Union[None, MDS] = None
 
-    def _get_imputed_data(
-        self, missing_value: Union[np.nan, int] = np.nan, imputation: str = "mean"
-    ) -> npt.NDArray:
+    def _get_imputed_data(self, imputation: str = "mean") -> npt.NDArray:
         if imputation == "mean":
-            imputer = SimpleImputer(missing_values=missing_value, strategy="mean")
+            imputer = SimpleImputer()
             return imputer.fit_transform(self.input_data)
         elif imputation == "remove":
             # remove all columns containing at least one missing value
-            # to do so, we first replace all missing_value occurrences with np.nan
-            imputed_data = self.input_data.astype("float", copy=True)
-            imputed_data[imputed_data == missing_value] = np.nan
-            imputed_data = imputed_data[:, ~np.isnan(imputed_data).any(axis=0)]
+            imputed_data = self.input_data[:, ~np.isnan(self.input_data).any(axis=0)]
 
             if imputed_data.size == 0:
                 raise PandoraException(
@@ -1183,8 +1210,6 @@ class NumpyDataset:
     def run_pca(
         self,
         n_components: int = 10,
-        impute_missing: bool = True,
-        missing_value: Union[np.nan, int] = np.nan,
         imputation: str = "mean",
     ) -> None:
         """Performs PCA analysis on self.input_data reducing the data to n_components dimensions.
@@ -1196,10 +1221,6 @@ class NumpyDataset:
         ----------
         n_components: int, default=10
             Number of components to reduce the data to. Default is 10.
-        impute_missing: bool, default=True
-            Whether to impute missing values in self.input_data before performing PCA.
-        missing_value: Union[np.nan, int], default=np.nan
-            Value to treat as missing value.
         imputation: str, default="mean"
             Imputation method to use. Available options are:\n
             - mean: Imputes missing values with the average of the respective SNP\n
@@ -1213,10 +1234,7 @@ class NumpyDataset:
                 f"Got {n_snps} SNPs, but asked for {n_components}."
             )
 
-        if impute_missing:
-            pca_input = self._get_imputed_data(missing_value, imputation)
-        else:
-            pca_input = self.input_data
+        pca_input = self._get_imputed_data(imputation)
 
         pca = sklearnPCA(n_components)
         embedding = pca.fit_transform(pca_input)
@@ -1233,8 +1251,6 @@ class NumpyDataset:
         distance_metric: Callable[
             [npt.NDArray, pd.Series], Tuple[npt.NDArray, pd.Series]
         ] = euclidean_sample_distance,
-        impute_missing: bool = True,
-        missing_value: Union[np.nan, int] = np.nan,
         imputation: str = "mean",
     ) -> None:
         """Performs MDS analysis using the data provided in this class.
@@ -1254,20 +1270,13 @@ class NumpyDataset:
             The resulting distance matrix is of size (n, m) and the resulting populations is expected to be
             of size (n, 1).
             Default is distance_metrics::eculidean_sample_distance (the pairwise Euclidean distance of all samples)
-        impute_missing: bool, default=True
-            Whether to impute missing values in self.input_data before performing PCA.
-        missing_value: Union[np.nan, int], default=np.nan
-            Value to treat as missing value.
         imputation: str, default="mean"
             Imputation method to use. Available options are:\n
             - mean: Imputes missing values with the average of the respective SNP\n
             - remove: Removes all SNPs with at least one missing value.
 
         """
-        if impute_missing:
-            input_data = self._get_imputed_data(missing_value, imputation)
-        else:
-            input_data = self.input_data
+        input_data = self._get_imputed_data(imputation)
 
         distance_matrix, populations = distance_metric(input_data, self.populations)
         if distance_matrix.shape[0] != populations.shape[0]:
@@ -1412,19 +1421,15 @@ def _bootstrap_and_embed_numpy(args):
         embedding,
         n_components,
         distance_metric,
-        impute_missing,
-        missing_value,
         imputation,
     ) = args
     bootstrap = dataset.bootstrap(seed)
     if embedding == EmbeddingAlgorithm.PCA:
-        bootstrap.run_pca(n_components, impute_missing, missing_value, imputation)
+        bootstrap.run_pca(n_components, imputation)
     elif embedding == EmbeddingAlgorithm.MDS:
         bootstrap.run_mds(
             n_components,
             distance_metric,
-            impute_missing,
-            missing_value,
             imputation,
         )
     else:
@@ -1445,8 +1450,6 @@ def bootstrap_and_embed_multiple_numpy(
     distance_metric: Callable[
         [npt.NDArray, pd.Series], Tuple[npt.NDArray, pd.Series]
     ] = euclidean_sample_distance,
-    impute_missing: bool = True,
-    missing_value: Union[np.nan, int] = np.nan,
     imputation: str = "mean",
 ) -> List[NumpyDataset]:
     """Draws n_replicates bootstrap datasets of the provided NumpyDataset and performs PCA/MDS analysis
@@ -1478,10 +1481,6 @@ def bootstrap_and_embed_multiple_numpy(
         The resulting distance matrix is of size (n, m) and the resulting populations is expected to be
         of size (n, 1).
         Default is distance_metrics::eculidean_sample_distance (the pairwise Euclidean distance of all samples)
-    impute_missing: bool, default=True
-        Whether to impute missing values in self.input_data before performing PCA.
-    missing_value: Union[np.nan, int], default=np.nan
-        Value to treat as missing value.
     imputation: str, default="mean"
         Imputation method to use. Available options are:\n
         - mean: Imputes missing values with the average of the respective SNP\n
@@ -1504,8 +1503,6 @@ def bootstrap_and_embed_multiple_numpy(
             embedding,
             n_components,
             distance_metric,
-            impute_missing,
-            missing_value,
             imputation,
         )
         for _ in range(n_bootstraps)
@@ -1522,17 +1519,13 @@ def _embed_window_numpy(args):
         embedding,
         n_components,
         distance_metric,
-        impute_missing,
-        missing_value,
         imputation,
     ) = args
 
     if embedding == EmbeddingAlgorithm.PCA:
-        window.run_pca(n_components, impute_missing, missing_value, imputation)
+        window.run_pca(n_components, imputation)
     elif embedding == EmbeddingAlgorithm.MDS:
-        window.run_mds(
-            n_components, distance_metric, impute_missing, missing_value, imputation
-        )
+        window.run_mds(n_components, distance_metric, imputation)
 
     else:
         raise PandoraException(
@@ -1551,8 +1544,6 @@ def sliding_window_embedding_numpy(
     distance_metric: Callable[
         [npt.NDArray, pd.Series], Tuple[npt.NDArray, pd.Series]
     ] = euclidean_sample_distance,
-    impute_missing: Optional[bool] = True,
-    missing_value: Union[np.nan, int] = np.nan,
     imputation: Optional[str] = "mean",
 ) -> List[NumpyDataset]:
     """Separates the given NumpyDataset into n_windows sliding-window datasets and performs PCA/MDS analysis
@@ -1582,10 +1573,6 @@ def sliding_window_embedding_numpy(
             The resulting distance matrix is of size (n, m) and the resulting populations is expected to be
             of size (n, 1).
             Default is distance_metrics::eculidean_sample_distance (the pairwise Euclidean distance of all samples)
-        impute_missing: bool, default=True
-            Whether to impute missing values in self.input_data before performing PCA.
-        missing_value: Union[np.nan, int], default=np.nan
-            Value to treat as missing value.
         imputation: str, default="mean"
             Imputation method to use. Available options are:\n
             - mean: Imputes missing values with the average of the respective SNP\n
@@ -1605,8 +1592,6 @@ def sliding_window_embedding_numpy(
             embedding,
             n_components,
             distance_metric,
-            impute_missing,
-            missing_value,
             imputation,
         )
         for window in dataset.get_windows(n_windows)

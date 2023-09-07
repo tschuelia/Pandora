@@ -1,5 +1,6 @@
 import tempfile
 
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -55,8 +56,7 @@ class TestEigenDataset:
 
             assert overlap_window0.shape == overlap_window1.shape
             assert overlap_window0.shape[1] == expected_overlap
-
-            assert np.all(overlap_window0 == overlap_window1)
+            np.testing.assert_equal(overlap_window0, overlap_window1)
 
     def test_get_projected_samples_for_dataset_without_projections(
         self, example_dataset
@@ -402,13 +402,10 @@ class TestNumpyDataset:
         with pytest.raises(PandoraException, match="a sample ID for each sample"):
             NumpyDataset(test_data, sample_ids, populations)
 
-    @pytest.mark.parametrize("impute_missing", [True, False])
     @pytest.mark.parametrize("imputation", ["mean", "remove"])
-    def test_run_pca(self, test_numpy_dataset, impute_missing, imputation):
+    def test_run_pca(self, test_numpy_dataset, imputation):
         n_pcs = 2
-        test_numpy_dataset.run_pca(
-            n_pcs, impute_missing=impute_missing, imputation=imputation
-        )
+        test_numpy_dataset.run_pca(n_pcs, imputation=imputation)
         # dataset should now have a PCA object attached with embedding data (n_samples, n_pcs)
         # dataset.mds should still be None
         assert test_numpy_dataset.pca is not None
@@ -479,16 +476,12 @@ class TestNumpyDataset:
 
         assert overlap_window0.shape == overlap_window1.shape
         assert overlap_window0.shape[1] == expected_overlap
-
-        assert np.all(overlap_window0 == overlap_window1)
+        np.testing.assert_equal(overlap_window0, overlap_window1)
 
     @pytest.mark.parametrize(
         "embedding", [EmbeddingAlgorithm.PCA, EmbeddingAlgorithm.MDS]
     )
-    @pytest.mark.parametrize("impute_missing", [True, False])
-    def test_bootstrap_and_embed_multiple_numpy(
-        self, test_numpy_dataset, embedding, impute_missing
-    ):
+    def test_bootstrap_and_embed_multiple_numpy(self, test_numpy_dataset, embedding):
         n_bootstraps = 2
         bootstraps = bootstrap_and_embed_multiple_numpy(
             dataset=test_numpy_dataset,
@@ -497,8 +490,6 @@ class TestNumpyDataset:
             n_components=2,
             seed=0,
             threads=2,
-            impute_missing=impute_missing,
-            missing_value=0,
             # we don't test for 'remove' here because we have a small dataset and we might end up getting an error
             # because the bootstrapped dataset contains only nan-columns
             imputation="mean",
@@ -520,9 +511,8 @@ class TestNumpyDataset:
     @pytest.mark.parametrize(
         "embedding", [EmbeddingAlgorithm.PCA, EmbeddingAlgorithm.MDS]
     )
-    @pytest.mark.parametrize("impute_missing", [True, False])
     def test_sliding_window_embedding_numpy(
-        self, test_numpy_dataset_sliding_window, embedding, impute_missing
+        self, test_numpy_dataset_sliding_window, embedding
     ):
         n_windows = 4
         sliding_windows = sliding_window_embedding_numpy(
@@ -531,8 +521,6 @@ class TestNumpyDataset:
             embedding=embedding,
             n_components=2,
             threads=2,
-            impute_missing=impute_missing,
-            missing_value=0,
             # we don't test for 'remove' here because we have a small dataset and we might end up getting an error
             # because the windowed datasets contains only nan-columns
             imputation="mean",
@@ -552,13 +540,11 @@ class TestNumpyDataset:
             assert all(w.pca is None for w in sliding_windows)
 
     @pytest.mark.parametrize("distance_metric", DISTANCE_METRICS)
-    @pytest.mark.parametrize("impute_missing", [True, False])
     @pytest.mark.parametrize("imputation", ["mean", "remove"])
     def test_run_mds(
         self,
         test_numpy_dataset,
         distance_metric,
-        impute_missing,
         imputation,
     ):
         n_components = 2
@@ -566,7 +552,6 @@ class TestNumpyDataset:
         test_numpy_dataset.run_mds(
             n_components=n_components,
             distance_metric=distance_metric,
-            impute_missing=impute_missing,
             imputation=imputation,
         )
         # test_numpy_dataset should now have an MDS object attached with embedding data (n_samples, n_components)
@@ -596,18 +581,14 @@ class TestNumpyDataset:
         dataset = NumpyDataset(test_data, sample_ids, populations)
 
         # imputation remove -> should result in a single column being left
-        imputed_data = dataset._get_imputed_data(
-            missing_value=np.nan, imputation="remove"
-        )
+        imputed_data = dataset._get_imputed_data(imputation="remove")
         assert imputed_data.shape == (test_data.shape[0], 1)
 
         # mean imputation should result in the following data matrix:
         expected_imputed_data = np.asarray(
             [[2.5, 1, 1], [2, 2, 2], [3, 3, 3]], dtype="float"
         )
-        imputed_data = dataset._get_imputed_data(
-            missing_value=np.nan, imputation="mean"
-        )
+        imputed_data = dataset._get_imputed_data(imputation="mean")
         np.testing.assert_equal(imputed_data, expected_imputed_data)
 
     def test_data_imputation_remove_fails_for_snps_with_all_nan(self):
@@ -616,7 +597,7 @@ class TestNumpyDataset:
         populations = pd.Series(["population1", "population2", "population3"])
         dataset = NumpyDataset(test_data, sample_ids, populations)
         with pytest.raises(PandoraException, match="No data left after imputation."):
-            dataset._get_imputed_data(missing_value=np.nan, imputation="remove")
+            dataset._get_imputed_data(imputation="remove")
 
     def test_numpy_dataset_from_eigenfiles(self, example_eigen_dataset_prefix):
         np_dataset = numpy_dataset_from_eigenfiles(example_eigen_dataset_prefix)

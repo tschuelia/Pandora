@@ -9,6 +9,7 @@ from typing import Any, Dict, List, Optional
 
 import pandas as pd
 import yaml
+from plotly import graph_objects as go
 from pydantic import BaseModel, ConfigDict, NonNegativeInt, PositiveInt, ValidationError
 from pydantic.dataclasses import dataclass
 
@@ -588,7 +589,9 @@ class Pandora:
         for i, replicate in enumerate(self.replicates):
             self._plot_dataset(replicate, f"replicate_{i}")
 
-    def _plot_sample_support_values(self, projected_samples_only: bool = False) -> None:
+    def _plot_sample_support_values(
+        self, projected_samples_only: bool = False
+    ) -> go.Figure:
         if self.pandora_config.embedding_algorithm == EmbeddingAlgorithm.PCA:
             embedding = self.dataset.pca
         elif self.pandora_config.embedding_algorithm == EmbeddingAlgorithm.MDS:
@@ -652,18 +655,16 @@ class Pandora:
         if len(self.replicates) == 0:
             raise PandoraException("No replicates to compare!")
 
-        self.pandora_stability = batch_comparison.compare(self.pandora_config.threads)
         self.pairwise_stabilities = batch_comparison.get_pairwise_stabilities(
             self.pandora_config.threads
         )
-        self.pandora_cluster_stability = batch_comparison.compare_clustering(
-            kmeans_k, self.pandora_config.threads
-        )
+        self.pandora_stability = self.pairwise_stabilities.mean()
         self.pairwise_cluster_stabilities = (
             batch_comparison.get_pairwise_cluster_stabilities(
                 kmeans_k, self.pandora_config.threads
             )
         )
+        self.pandora_cluster_stability = self.pairwise_cluster_stabilities.mean()
         self.sample_support_values = batch_comparison.get_sample_support_values(
             self.pandora_config.threads
         )

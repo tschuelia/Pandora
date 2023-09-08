@@ -30,7 +30,7 @@ jobs:
           cat tests/test_config.py
       - name: Run Pandora tests
         run: |
-          PYTHONPATH=. pytest
+          PYTHONPATH=. pytest -v --color=yes
         shell: micromamba-shell {0}
 
   Install-using-pip:

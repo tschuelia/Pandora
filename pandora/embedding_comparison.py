@@ -479,6 +479,7 @@ class BatchEmbeddingComparison:
         sample_ids_superset = set(
             [sid for embedding in self.embeddings for sid in embedding.sample_ids]
         )
+        sample_ids_superset = pd.Series(list(sample_ids_superset)).sort_values()
 
         numerator = np.sum(
             self._get_pairwise_difference(sample_ids_superset, threads), axis=0
@@ -490,7 +491,7 @@ class BatchEmbeddingComparison:
 
         denominator = 2 * len(self.embeddings) * np.sum(embedding_norms, axis=0) + 1e-6
         gini_coefficients = pd.Series(
-            numerator / denominator, index=sample_ids_superset, name="PSV"
+            numerator / denominator, index=sample_ids_superset.values, name="PSV"
         ).sort_index()
         return 1 - gini_coefficients
 

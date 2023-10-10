@@ -17,6 +17,7 @@ dependencies:
   - eigensoft
   - pydantic >= 2
   - loguru
+  - scikit-allel
   - make
   - numpydoc
   - sphinx

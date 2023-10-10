@@ -22,6 +22,7 @@ from pandora.dataset import (
 )
 from pandora.distance_metrics import DISTANCE_METRICS
 from pandora.embedding import MDS, PCA
+from pandora.imputation import impute_data
 
 
 class TestEigenDataset:
@@ -595,14 +596,14 @@ class TestNumpyDataset:
         dataset = NumpyDataset(test_data, sample_ids, populations)
 
         # imputation remove -> should result in a single column being left
-        imputed_data = dataset._get_imputed_data(imputation="remove")
+        imputed_data = impute_data(dataset.input_data, imputation="remove")
         assert imputed_data.shape == (test_data.shape[0], 1)
 
         # mean imputation should result in the following data matrix:
         expected_imputed_data = np.asarray(
             [[2.5, 1, 1], [2, 2, 2], [3, 3, 3]], dtype="float"
         )
-        imputed_data = dataset._get_imputed_data(imputation="mean")
+        imputed_data = impute_data(dataset.input_data, imputation="mean")
         np.testing.assert_equal(imputed_data, expected_imputed_data)
 
     def test_data_imputation_remove_fails_for_snps_with_all_nan(self):
@@ -611,7 +612,7 @@ class TestNumpyDataset:
         populations = pd.Series(["population1", "population2", "population3"])
         dataset = NumpyDataset(test_data, sample_ids, populations)
         with pytest.raises(PandoraException, match="No data left after imputation."):
-            dataset._get_imputed_data(imputation="remove")
+            impute_data(dataset.input_data, imputation="remove")
 
     def test_numpy_dataset_from_eigenfiles(self, example_eigen_dataset_prefix):
         np_dataset = numpy_dataset_from_eigenfiles(example_eigen_dataset_prefix)

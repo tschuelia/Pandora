@@ -15,13 +15,13 @@ import numpy as np
 import pandas as pd
 from numpy import typing as npt
 from sklearn.decomposition import PCA as sklearnPCA
-from sklearn.impute import SimpleImputer
 from sklearn.manifold import MDS as sklearnMDS
 
 from pandora.custom_errors import PandoraConfigException, PandoraException
 from pandora.custom_types import EmbeddingAlgorithm, Executable
 from pandora.distance_metrics import euclidean_sample_distance
 from pandora.embedding import MDS, PCA, from_sklearn_mds, from_smartpca
+from pandora.imputation import impute_data
 
 
 def _check_geno_file(geno_file: pathlib.Path):
@@ -1187,27 +1187,6 @@ class NumpyDataset:
         self.pca: Union[None, PCA] = None
         self.mds: Union[None, MDS] = None
 
-    def _get_imputed_data(self, imputation: str = "mean") -> npt.NDArray:
-        if imputation == "mean":
-            imputer = SimpleImputer()
-            return imputer.fit_transform(self.input_data)
-        elif imputation == "remove":
-            # remove all columns containing at least one missing value
-            imputed_data = self.input_data[:, ~np.isnan(self.input_data).any(axis=0)]
-
-            if imputed_data.size == 0:
-                raise PandoraException(
-                    "No data left after imputation. Every SNP seems to contain at least one missing value. "
-                    "Consider using a different dataset or set imputation='mean'."
-                )
-
-            return imputed_data
-        else:
-            raise PandoraException(
-                f"Unrecognized imputation method {imputation}. "
-                f"Allowed methods are 'mean' and 'remove'."
-            )
-
     def run_pca(
         self,
         n_components: int = 10,
@@ -1223,10 +1202,20 @@ class NumpyDataset:
         n_components: int, default=10
             Number of components to reduce the data to. Default is 10.
         imputation: str, default="mean"
-            Imputation method to use. Available options are:\n
+            Imputation method to use. Available options for PCA are:\n
             - mean: Imputes missing values with the average of the respective SNP\n
             - remove: Removes all SNPs with at least one missing value.
+            - None: Does not impute missing data. Note that this option is only valid if self.input_data does not contain NaN values.
 
+        Raises
+        ------
+        PandoraException:
+            - if the number of principal components is >= the number of SNPs in self.input_data
+            - if imputation is None but self.input_data contains NaN values.
+
+        Returns
+        -------
+        None
         """
         n_snps = self.input_data.shape[1]
         if n_components > n_snps:
@@ -1235,7 +1224,12 @@ class NumpyDataset:
                 f"Got {n_snps} SNPs, but asked for {n_components}."
             )
 
-        pca_input = self._get_imputed_data(imputation)
+        if imputation is None and np.isnan(self.input_data).any():
+            raise PandoraException(
+                "Imputation method cannot be None if self.input_data contains NaN values."
+            )
+
+        pca_input = impute_data(self.input_data, imputation)
 
         pca = sklearnPCA(n_components)
         embedding = pca.fit_transform(pca_input)
@@ -1250,7 +1244,7 @@ class NumpyDataset:
         self,
         n_components: int = 2,
         distance_metric: Callable[
-            [npt.NDArray, pd.Series], Tuple[npt.NDArray, pd.Series]
+            [npt.NDArray, pd.Series, str], Tuple[npt.NDArray, pd.Series]
         ] = euclidean_sample_distance,
         imputation: str = "mean",
     ) -> None:
@@ -1264,22 +1258,24 @@ class NumpyDataset:
         ----------
         n_components: int, default=2
             Number of components to reduce the data to.
-        distance_metric: Callable[[npt.NDArray, pd.Series], Tuple[npt.NDArray, pd.Series]], default=euclidean_sample_distance
+        distance_metric: Callable[[npt.NDArray, pd.Series, str], Tuple[npt.NDArray, pd.Series]], default=euclidean_sample_distance
             Distance metric to use for computing the distance matrix input for MDS. This is expected to be a
-            function that receives the numpy array of sequences and the population for each sequence as input
-            and should output the distance matrix and the respective populations for each row.
+            function that receives the numpy array of sequences, the population for each sequence, and the impuation as
+            input and should output the distance matrix and the respective populations for each row.
             The resulting distance matrix is of size (n, m) and the resulting populations is expected to be
             of size (n, 1).
-            Default is distance_metrics::eculidean_sample_distance (the pairwise Euclidean distance of all samples)
+            Default is distance_metrics::eculidean_sample_distance (the pairwise Euclidean distance of all samples).
         imputation: str, default="mean"
             Imputation method to use. Available options are:\n
             - mean: Imputes missing values with the average of the respective SNP\n
-            - remove: Removes all SNPs with at least one missing value.
-
+            - remove: Removes all SNPs with at least one missing value.\n
+            - None: Does not impute missing data.
+            Note that depending on the distance_metric, not all imputation methods are supported. See the respective
+            documentations in the distance_metrics module.
         """
-        input_data = self._get_imputed_data(imputation)
-
-        distance_matrix, populations = distance_metric(input_data, self.populations)
+        distance_matrix, populations = distance_metric(
+            self.input_data, self.populations, imputation
+        )
         if distance_matrix.shape[0] != populations.shape[0]:
             raise PandoraException(
                 "The distance matrix computation did not yield the expected array and series shapes: "

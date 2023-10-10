@@ -400,7 +400,7 @@ class Pandora:
         self.pairwise_cluster_stabilities: pd.DataFrame = pd.DataFrame()
         self.pandora_cluster_stability: float = None
 
-        self.sample_support_values: pd.Series = pd.Series()
+        self.sample_support_values: pd.Series = pd.Series(dtype=float)
 
     def embed_dataset(self) -> None:
         """Perfoms dimensionality reduction on self.dataset.

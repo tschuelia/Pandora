@@ -43,76 +43,77 @@ class PandoraConfig(BaseModel):
 
     Parameters
     ----------
-    dataset_prefix: pathlib.Path
+    dataset_prefix : pathlib.Path
         File path prefix pointing to the dataset to use for the Pandora analyses.
         Pandora will look for files called <input>.* so make sure all files have the same prefix.
-    result_dir: pathlib.Path
+    result_dir : pathlib.Path
         Directory where to store all (intermediate) results to.
-    file_format: FileFormat, default=FileFormat.EIGENSTRAT
+    file_format : FileFormat, default=FileFormat.EIGENSTRAT
         Format of the input dataset.
         Can be ANCESTRYMAP, EIGENSTRAT, PED, PACKEDPED, PACKEDANCESTRYMAP. Default is EIGENSTRAT.
-    convertf: Executable, default="convertf"
+    convertf : Executable, default="convertf"
         File path pointing to an executable of Eigensoft's convertf tool. Convertf is used
         if the provided dataset is not in EIGENSTRAT format. Default is 'convertf'. This will only work if
         convertf is installed systemwide.
-    n_replicates: PositiveInt, default=100
+    n_replicates : PositiveInt, default=100
         Number of bootstrap replicates or sliding windows to compute.
-    keep_replicates: bool, default=False
+    keep_replicates : bool, default=False
         Whether to store all intermediate datasets files (.geno, .snp, .ind). Note that this will
         result in a substantial storage consumption. Default is False. Note that the bootstrapped indicies are
         stored as checkpoints for full reproducibility in any case.
-    n_components: PositiveInt, deafault=10
+    n_components : PositiveInt, deafault=10
         Number of dimensions to output and compare for PCA and MDS analyses.
         The recommended number is 10 for PCA and 2 for MDS. Default is 10 in correspondance to the default PCA embedding.
-    embedding_algorithm: EmbeddingAlgorithm, default=EmbeddingAlgorithm.PCA
+    embedding_algorithm : EmbeddingAlgorithm, default=EmbeddingAlgorithm.PCA
         Embedding to compute during the stability analysis. Can be either EmbeddingAlgorithm.PCA or EmbeddingAlgorithm.MDS.
-    smartpca: Executable, default="smartpca"
+    smartpca : Executable, default="smartpca"
         File path pointing to an executable of Eigensoft's smartpca tool. Smartpca is used
         for PCA analyses on the provided dataset. Default is 'smartpca'. This will only work if smartpca is
         installed systemwide.
-    smartpca_optional_settings: Dict[str, Any], default=None
+    smartpca_optional_settings : Dict[str, Any], default=None
         Optional additional settings to use when performing PCA with
         smartpca. Pandora has full support for all smartpca options. Not allowed are the following options:
         genotypename, snpname, indivname, evecoutname, evaloutname, numoutevec, maxpops.
         Use the following schema to set the options: dict(shrinkmode=True, numoutlieriter=1)
-    embedding_populations: pathlib.Path, default=None
+    embedding_populations : pathlib.Path, default=None
         File containing a new-line separated list of population names.
         Only these populations will be used for the dimensionality reduction. In case of PCA analyses, all remaining
         samples in the dataset will be projected onto the PCA results.
-    support_value_rogue_cutoff: float, default=0.5
+    support_value_rogue_cutoff : float, default=0.5
         When plotting the support values, only samples with a support value lower
         than the support_value_rogue_cutoff  will be annotated with their sample IDs.
         Note that all samples in the respective plot are color-coded according to their support value in any case.
-    kmeans_k: PositiveInt, default=None
+    kmeans_k : PositiveInt, default=None
         Number of clusters k to use for K-Means clustering of the dimensionality reduction embeddings.
         If not set, the optimal number of clusters will be automatically determined according to the
         Bayesian Information Criterion (BIC).
-    analysis_mode: AnalysisMode, default=AnalysisMode.BOOTSTRAP
+    analysis_mode : AnalysisMode, default=AnalysisMode.BOOTSTRAP
         Whether Pandora should do bootstrap analysis or sliding-window analysis.
-    redo: bool, default=False
+    redo : bool, default=False
         Whether to rerun all analyses in case the results files from a previous run are already present.
         Careful: this will overwrite existing results!
-    seed: int, default=None
+    seed : int, default=None
         Seed to initialize the random number generator. This setting is recommended for reproducible
         analyses. Default is the current unix timestamp.
-    threads: NonNegativeInt, default=None
+    threads : NonNegativeInt, default=None
         Number of threads to use for the analysis. Default is the number of CPUs available.
-    result_decimals: NonNegativeInt, default=2
+    result_decimals : NonNegativeInt, default=2
         Number of decimals to round the stability scores and support values in the output.
         Default is two decimals.
-    verbosity: int, default=1
+    verbosity : int, default=1
         Verbosity of the output logging of Pandora.
         - 0 = quiet, prints only errors and the results (loglevel = ERROR)
         - 1 = verbose, prints all intermediate infos (loglevel = INFO)
         - 2 = debug, prints intermediate infos and debug messages (loglevel = DEBUG)
-    plot_results: bool, default=False,
+    plot_results : bool, default=False,
         Whether to plot all dimensionality reduction results and sample support values.
-    plot_dim_x: NonNegativeInt, default=0
+    plot_dim_x : NonNegativeInt, default=0
         Dimension to plot on the x-axis. Note that the dimensions are zero-indexed. To plot the first
         dimension set plot_dim_x = 0
-    plot_dim_y: NonNegativeInt, default=1
+    plot_dim_y : NonNegativeInt, default=1
         Dimension to plot on the y-axis. Note that the dimensions are zero-indexed. To plot the second
         dimension set plot_dim_y = 1
+
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -220,6 +221,14 @@ class PandoraConfig(BaseModel):
 
     @property
     def convertf_result_dir(self) -> pathlib.Path:
+        """Path where to store converted input files.
+
+        Returns
+        -------
+        pathlib.Path
+            Filepath to the converted input files directory.
+
+        """
         return self.result_dir / "converted"
 
     @property
@@ -277,7 +286,7 @@ class PandoraConfig(BaseModel):
         Returns
         -------
         int
-            logging module loglevel based on the verbosity specified in self
+            logging module loglevel based on the verbosity specified in self.
 
         """
         if self.verbosity == 0:
@@ -319,6 +328,10 @@ class PandoraConfig(BaseModel):
         Will additionally log the Pandora version used for reproducibility.
         The resulting config file can be used as input for a subsequent Pandora execution.
 
+        Returns
+        -------
+        None
+
         """
         config_yaml = yaml.safe_dump(self.get_configuration())
         # additionally save the Pandora version
@@ -326,7 +339,13 @@ class PandoraConfig(BaseModel):
         self.configfile.open(mode="a").write(config_yaml)
 
     def log_results_files(self) -> None:
-        """Logs the absolute file paths of all files written during an execution of Pandora."""
+        """Logs the absolute file paths of all files written during an execution of Pandora.
+
+        Returns
+        -------
+        None
+
+        """
         logger.info(
             textwrap.dedent(
                 """
@@ -356,34 +375,35 @@ class Pandora:
 
     Parameters
     ----------
-    pandora_config: PandoraConfig
+    pandora_config : PandoraConfig
         PandoraConfig object used to determine the analyses to run
 
     Attributes
     ----------
-    pandora_config: PandoraConfig
+    pandora_config : PandoraConfig
         PandoraConfig object used to determine the analyses to run
-    dataset: EigenDataset
+    dataset : EigenDataset
         EigenDataset object that contains the input data provided by the user
-    replicates: List[EigenDataset]
+    replicates : List[EigenDataset]
         List of bootstrap replicates / sliding-windows of self.dataset.
         This is empty until self.bootstrap_embeddings() or self.sliding_window() was called.
-    pairwise_stabilities: pd.DataFrame
+    pairwise_stabilities : pd.DataFrame
         Pandas dataframe containing the Pandora stability scores for all pairwise replicate comparisons.
          This is empty until self.bootstrap_embeddings() or self.sliding_window() was called.
-    pandora_stability: float
+    pandora_stability : float
         Overall Pandora stability of the dataset under bootstrapping or sliding-window analysis.
         This is None until self.bootstrap_embeddings() or self.sliding_window() was called.
-    pairwise_stabilities: pd.DataFrame
+    pairwise_stabilities : pd.DataFrame
         Pandas dataframe containing the Pandora cluster stability scores for all pairwise replicate comparisons.
          This is empty until self.bootstrap_embeddings() or self.sliding_window() was called.
-    pandora_cluster_stability: float
+    pandora_cluster_stability : float
         Overall Pandora cluster stability of the dataset under bootstrapping or sliding-window analysis.
         This is None until self.bootstrap_embeddings() or self.sliding_window() was called.
-    sample_support_values: pd.DataFrame
+    sample_support_values : pd.DataFrame
         Pandas dataframe containing the support values for all samples of self.dataset for all pairwise
         replicate comparisons.
         This is empty until self.bootstrap_embeddings() or self.sliding_window() was called.
+
     """
 
     def __init__(self, pandora_config: PandoraConfig):
@@ -406,6 +426,16 @@ class Pandora:
         """Perfoms dimensionality reduction on self.dataset.
 
         The parameters (e.g. what method to use) is determined based on the configured settings in self.pandora_config.
+
+        Returns
+        -------
+        None
+
+        Raises
+        ------
+        PandoraConfigException
+            - If `self.pandora_config.embedding_algorithm` is not a valid EmbeddingAlgorithm.
+
         """
         self.pandora_config.result_dir.mkdir(exist_ok=True, parents=True)
         if self.pandora_config.embedding_algorithm == EmbeddingAlgorithm.PCA:
@@ -504,6 +534,10 @@ class Pandora:
             - self.pandora_cluster_stability
             - self.sample_support_values
 
+        Returns
+        -------
+        None
+
         """
         logger.info(
             fmt_message(
@@ -540,6 +574,10 @@ class Pandora:
             - self.pairwise_cluster_stabilities
             - self.pandora_cluster_stability
             - self.sample_support_values
+
+        Returns
+        -------
+        None
 
         """
         logger.info(
@@ -673,6 +711,15 @@ class Pandora:
         """Logs the results of the bootstrap/sliding-window analyses using pandora.logging.logger and also saves the
         results of the analyses to the respective files as specified by self.pandora_config.
 
+        Returns
+        -------
+        None
+
+        Raises
+        ------
+        PandoraException
+            If the results were not computed yet and thus there are not results to log.
+
         """
         if self.pandora_stability is None or self.pandora_cluster_stability is None:
             raise PandoraException("No results to log!")
@@ -754,7 +801,7 @@ def pandora_config_from_configfile(configfile: pathlib.Path) -> PandoraConfig:
 
     Parameters
     ----------
-    configfile: pathlib.Path
+    configfile : pathlib.Path
         Configuration file in yaml file_format
 
     Returns
@@ -763,6 +810,14 @@ def pandora_config_from_configfile(configfile: pathlib.Path) -> PandoraConfig:
         PandoraConfig object with the settings according to the given yaml file.
         Uses the default settings as specified in the PandoraConfig class for optional options not explictly
         specified in the configfile.
+
+    Raises
+    ------
+    PandoraConfigException
+        - If the config file does not specify a `dataset_prefix`.
+        - If the config file does not specify a `result_dir`.
+        - If the PandoraConfig object could not be initialized. This is most likely due to misspecified config options.
+
     """
     config_data = yaml.safe_load(configfile.open())
 
@@ -803,37 +858,55 @@ def pandora_config_from_configfile(configfile: pathlib.Path) -> PandoraConfig:
         for error in e.errors():
             error_msg += f"{error['loc']}: {error['msg']}; "
         raise PandoraConfigException(
-            "Initialzing Pandora from your config file failed! Got the following error(s): ",
+            "Initializing Pandora from your config file failed! Got the following error(s): ",
             error_msg,
         )
 
 
-def convert_to_eigenstrat_format(pandora_config: PandoraConfig):
-    """Converts the dataset in the given PandoraConfig configuration to EIGENSTRAT format that is required
-    for the Pandora analyses.
+def convert_to_eigenstrat_format(
+    convertf: Executable,
+    convertf_result_dir: pathlib.Path,
+    dataset_prefix: pathlib.Path,
+    file_format: FileFormat,
+    redo: bool = False,
+) -> pathlib.Path:
+    """Converts the given dataset from the given file_format to EIGENSTRAT format and stores it in the convertf_result_dir.
 
-    Note that this function modifies the pandora_config object as it replaces pandora_config.dataset_prefix
-    such that it points to the converted dataset.
+    Results in three new files:\n
+    - {convertf_result_dir}/{dataset_prefix.name}.geno\n
+    - {convertf_result_dir}/{dataset_prefix.name}.snp\n
+    - {convertf_result_dir}/{dataset_prefix.name}.ind
+
+    Parameters
+    ----------
+    convertf : Executable
+        Executable of the EIGENSOFT convertf program.
+    convertf_result_dir : pathlib.Path
+        Filepath where the output should be stored.
+    dataset_prefix : pathlib.Path
+        Prefix of the filepath pointing to the respective dataset files that should be converted.
+    file_format : FileFormat
+        Format of the input files.
+     redo : bool, default=False
+        Whether to rerun the conversion if the output files are already present.
 
     Returns
     -------
-    PandoraConfig
-        The modified pandora_config object with the dataset_prefix replaced.
+    convert_prefix : pathlib.Path
+        Filepath prefix pointing to the converted genotype files in EIGENSTRAT format.
 
     """
-    pandora_config.convertf_result_dir.mkdir(exist_ok=True, parents=True)
-    convert_prefix = (
-        pandora_config.convertf_result_dir / pandora_config.dataset_prefix.name
-    )
+
+    convertf_result_dir.mkdir(exist_ok=True, parents=True)
+    convert_prefix = convertf_result_dir / dataset_prefix.name
 
     run_convertf(
-        convertf=pandora_config.convertf,
-        in_prefix=pandora_config.dataset_prefix,
-        in_format=pandora_config.file_format,
+        convertf=convertf,
+        in_prefix=dataset_prefix,
+        in_format=file_format,
         out_prefix=convert_prefix,
         out_format=FileFormat.EIGENSTRAT,
-        redo=pandora_config.redo,
+        redo=redo,
     )
 
-    pandora_config.dataset_prefix = convert_prefix
-    return pandora_config
+    return convert_prefix

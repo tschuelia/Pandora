@@ -23,9 +23,9 @@ def filter_samples(embedding: Embedding, samples_to_keep: List[str]) -> Embeddin
 
     Parameters
     ----------
-    embedding: Embedding
+    embedding : Embedding
         Embedding object to filter.
-    samples_to_keep: List[str]
+    samples_to_keep : List[str]
         List of sample IDs to keep.
 
     Returns
@@ -56,13 +56,24 @@ def filter_samples(embedding: Embedding, samples_to_keep: List[str]) -> Embeddin
 def _check_sample_clipping(
     before_clipping: Embedding, after_clipping: Embedding
 ) -> None:
-    """
-    Compares the number of samples prior to and after clipping. Will show a warning message in case more
+    """Compares the number of samples prior to and after clipping. Will show a warning message in case more
     than 20% of samples were removed, indicating a potential major mismatch between the two PCAs.
 
-    Args:
-        before_clipping (PCA): PCA object prior to sample filtering.
-        after_clipping (PCA): PCA object after sample filtering.
+    Parameters
+    ----------
+    before_clipping : PCA
+        PCA object prior to sample filtering.
+    after_clipping : PCA
+        PCA object after sample filtering.
+
+    Returns
+    -------
+    None
+
+    Warnings
+    --------
+    UserWarning
+        If more than 20% of samples were removed for the comparison. This typically indicates a large number of outliers.
 
     """
     n_samples_before = before_clipping.embedding.shape[0]
@@ -79,15 +90,21 @@ def _check_sample_clipping(
 def _clip_missing_samples_for_comparison(
     comparable: Embedding, reference: Embedding
 ) -> Tuple[Embedding, Embedding]:
-    """
-    Reduces comparable and reference to similar sample IDs to make sure we compare projections for identical samples.
+    """Reduces comparable and reference to similar sample IDs to make sure we compare projections for identical samples.
 
-    Args:
-        comparable (Embedding): first Embedding object to compare
-        reference (Embedding): second Embedding object to compare
+    Parameters
+    ----------
+    comparable : Embedding
+        first Embedding object to compare
+    reference : Embedding
+        second Embedding object to compare
 
-    Returns:
-        (Embedding, Embedding): Comparable and reference Embeddings containing only the samples present in both Embeddings.
+    Returns
+    -------
+    comparable : Embedding
+        Passed comparable Embedding, but only containing the samples present in both Embeddings (comparable, reference).
+    reference : Embedding
+        Passed comparable Embedding, but only containing the samples present in both Embeddings (comparable, reference).
 
     """
     comp_data = comparable.embedding
@@ -114,6 +131,7 @@ def _clip_missing_samples_for_comparison(
 
 
 def _pad_missing_samples(all_sample_ids: pd.Series, embedding: Embedding) -> Embedding:
+    """Pads missing samples with zero-rows."""
     missing_samples = [
         sid for sid in all_sample_ids if sid not in embedding.sample_ids.values
     ]
@@ -199,25 +217,25 @@ class EmbeddingComparison:
 
     Parameters
     ----------
-    comparable: Embedding
+    comparable : Embedding
         Embedding object to compare
-    reference: Embedding
+    reference : Embedding
         Embedding object to transform comparable towards
 
     Attributes
     ----------
-    comparable: Embedding
+    comparable : Embedding
         comparable Embedding object after sample filtering and Procrustes Transformation.
-    reference: Embedding
+    reference : Embedding
         reference Embedding object after sample filtering and Procrustes Transformation.
-    sample_ids: pd.Series[str]
+    sample_ids : pd.Series[str]
         pd.Series containing the sample IDs present in both Embedding objects
 
     Raises
     ------
-    PandoraException:
-        - if either comparable of reference is not a Embedding object
-        - if comparable and reference are not of the same type (e.g. one is PCA and the other MDS)
+    PandoraException
+        - If either comparable of reference is not an Embedding object.
+        - If comparable and reference are not of the same type (e.g. one is PCA and the other MDS).
 
     """
 
@@ -242,17 +260,16 @@ class EmbeddingComparison:
         self.sample_ids = self.comparable.sample_ids
 
     def compare(self) -> float:
-        """Computes the Pandora stability between self.comparable to self.reference using Procrustes Analysis.
+        """Computes the Pandora stability between `self.comparable` to `self.reference` using Procrustes Analysis.
 
         Returns
         -------
         float
             Similarity score on a scale of 0 (entirely different) to 1 (identical) measuring the similarity of
-            self.comparable and self.reference.
+            `self.comparable` and `self.reference`.
 
         """
         similarity = np.sqrt(1 - self.disparity)
-
         return similarity
 
     def compare_clustering(self, kmeans_k: int = None) -> float:
@@ -262,7 +279,7 @@ class EmbeddingComparison:
 
         Parameters
         ----------
-        kmeans_k: int, default=None
+        kmeans_k : int, default=None
             Number k of clusters to use for K-Means clustering.
             If not set, the optimal number of clusters is determined automatically using self.reference.
 
@@ -301,20 +318,20 @@ class BatchEmbeddingComparison:
 
     Parameters
     ----------
-    embeddings: List[Embedding]
+    embeddings : List[Embedding]
         List of embeddings to compare
 
     Attributes
     ----------
-    embeddings: List[Embedding]
+    embeddings : List[Embedding]
         List of embeddings to compare
 
     Raises
     ------
     PandoraException
-        - if not all embeddings are of the same type
-        - if not all embeddings are either PCA or MDS objects
-        - if less than three embeddings are passed
+        - If not all embeddings are of the same type.
+        - If not all embeddings are either PCA or MDS objects.
+        - If less than three embeddings are passed.
 
     """
 
@@ -334,12 +351,12 @@ class BatchEmbeddingComparison:
         self.embeddings = embeddings
 
     def get_pairwise_stabilities(self, threads: Optional[int] = None) -> pd.Series:
-        """Computes the pairwise Pandora stability scores for all unique pairs of self.embedding and stores them in a
+        """Computes the pairwise Pandora stability scores for all unique pairs of `self.embedding` and stores them in a
         pandas Series.
 
         Parameters
         ----------
-        threads: int, default=None
+        threads : int, default=None
             Number of threads to use for the computation. Default is to use all available system threads.
 
         Returns
@@ -391,14 +408,14 @@ class BatchEmbeddingComparison:
     def get_pairwise_cluster_stabilities(
         self, kmeans_k: int, threads: Optional[int] = None
     ) -> pd.DataFrame:
-        """Computes the pairwise Pandora cluster stability scores for all unique pairs of self.embedding and stores them in a
-        pandas Series.
+        """Computes the pairwise Pandora cluster stability scores for all unique pairs of `self.embeddin`g and stores
+        them in a pandas Series.
 
         Parameters
         ----------
-        kmeans_k: int
+        kmeans_k : int
             Number k of clusters to use for K-Means clustering.
-        threads: int, default=None
+        threads : int, default=None
             Number of threads to use for the computation. Default is to use all available system threads.
 
         Returns
@@ -436,9 +453,9 @@ class BatchEmbeddingComparison:
 
         Parameters
         ----------
-        kmeans_k: int
+        kmeans_k : int
             Number k of clusters to use for K-Means clustering.
-        threads: int, default=None
+        threads : int, default=None
             Number of threads to use for the computation. Default is to use all available system threads.
 
         Returns
@@ -467,6 +484,11 @@ class BatchEmbeddingComparison:
         The sample support value per sample is computed as the `1 - dispertion` across all embeddings where dispertion
         is computed using the Gini Coefficient.
         The support values are computed for all samples in the union of all sample IDs of all self.embeddings.
+
+        Parameters
+        ----------
+        threads : int, default=None
+            Number of threads to use for the computation. Default is to use all available system threads.
 
         Returns
         -------
@@ -501,15 +523,15 @@ def _numpy_to_dataframe(
     sample_ids: pd.Series[str],
     populations: pd.Series[str],
 ):
-    """Transforms a numpy ndarray to a pandas Dataframe as required for initializing a Embedding object.
+    """Transforms a numpy ndarray to a pandas Dataframe as required for initializing an Embedding object.
 
     Parameters
     ----------
-    embedding_matrix: npt.NDArray[float]
+    embedding_matrix : npt.NDArray[float]
         Numpy ndarray containing the Embedding results (PC vectors) for all samples.
-    sample_ids: pd.Series[str]
+    sample_ids : pd.Series[str]
         Pandas Series containing the sample IDs corresponding to the embedding_matrix.
-    populations: pd.Series[str]
+    populations : pd.Series[str]
         Pandas Series containing the populations corresponding to the sample_ids.
 
     Returns
@@ -554,24 +576,29 @@ def match_and_transform(
 
     Parameters
     ----------
-    comparable: Embedding
+    comparable : Embedding
         The Embedding that should be transformed
-    reference: Embedding
+    reference : Embedding
         The Embedding that comparable should be transformed towards
 
     Returns
     -------
-    Tuple[Embedding, Embedding, float]
-        Two new Embedding objects and the disparity.
-        The first new Embedding is the transformed comparable and the second one is the standardized reference.
-        The disparity is the sum of squared distances between the transformed comparable and transformed
-        reference Embeddings.
+    transformed_comparable : Embedding
+        Transformed comparable Embedding, created by matching `comparable` to `reference` as close as possible using
+        Procrustes Analysis.
+    standardized_reference : Embedding
+        Standardized reference Embedding, `reference` is standardized during the matching procedure by Procrustes Analysis.
+    disparity : float
+        The sum of squared distances between the transformed comparable and transformed reference Embeddings.
 
     Raises
     ------
-    PandoraException:
-        - Mismatch in sample IDs between comparable and reference (identical sample IDs required for comparison)
+    PandoraException
+        - Mismatch in sample IDs between comparable and reference (identical sample IDs required for comparison).
+        - Mismatch in number of samples of PCs in comparable and reference.
         - No samples left after clipping. This is most likely caused by incorrect annotations of sample IDs.
+        - Comparable and reference are of different types. Both Embeddigs need to be either PCA or MDS objects.
+
     """
     comparable, reference = _clip_missing_samples_for_comparison(comparable, reference)
 

@@ -34,7 +34,7 @@ def euclidean_sample_distance(
         a unique interface for per-sample and per-population distances.
     imputation : str
         Imputation method to use. Available options are:\n
-        - mean: Imputes missing values with the average of the respective SNP\n
+        - mean: Imputes missing values with the average of the respective SNP
         - remove: Removes all SNPs with at least one missing value.
         - None: Note that this option is only valid if input_data does not contain NaN values.
 
@@ -78,7 +78,7 @@ def manhattan_sample_distance(
         a unique interface for per-sample and per-population distances.
     imputation : str
         Imputation method to use. Available options are:\n
-        - mean: Imputes missing values with the average of the respective SNP\n
+        - mean: Imputes missing values with the average of the respective SNP
         - remove: Removes all SNPs with at least one missing value.
         - None: Note that this option is only valid if input_data does not contain NaN values.
 
@@ -176,7 +176,7 @@ def euclidean_population_distance(
         Pandas Series containing a population name for each row in input_data.
     imputation : str
         Imputation method to use. Available options are:\n
-        - mean: Imputes missing values with the average of the respective SNP\n
+        - mean: Imputes missing values with the average of the respective SNP
         - remove: Removes all SNPs with at least one missing value.
         - None: Note that this option is only valid if input_data does not contain NaN values.
 
@@ -218,7 +218,7 @@ def manhattan_population_distance(
         Pandas Series containing a population name for each row in input_data.
     imputation : str
         Imputation method to use. Available options are:\n
-        - mean: Imputes missing values with the average of the respective SNP\n
+        - mean: Imputes missing values with the average of the respective SNP
         - remove: Removes all SNPs with at least one missing value.
         - None: Note that this option is only valid if input_data does not contain NaN values.
 

@@ -15,13 +15,14 @@ def get_distinct_colors(n_colors: int) -> List[str]:
 
     Parameters
     ----------
-    n_colors: int
+    n_colors : int
         Number of colors to return
 
     Returns
     -------
     List[str]
         List of n plotly HSV color strings.
+
     """
     hue_values = np.linspace(0, 100, n_colors, endpoint=False)
     hue_values = np.clip(hue_values, 0, 100)
@@ -35,6 +36,7 @@ def get_rdylgr_color_scale() -> List[Tuple[float, str]]:
     -------
     List[Tuple[float, str]]
         A list of (float, str) tuples that can be used as continuous color scale in plotly figures.
+
     """
     colors = ["#d60000", "#f2ce02", "#ebff0a", "#85e62c", "#209c05"]
     steps = np.linspace(0, 1, num=len(colors), endpoint=True)
@@ -47,7 +49,7 @@ def improve_plotly_text_position(x_values: pd.Series) -> List[str]:
 
     Parameters
     ----------
-    x_values: pd.Series
+    x_values : pd.Series
         x values of the samples to plot
 
     Returns
@@ -78,16 +80,20 @@ def _check_plot_dimensions(embedding: Embedding, dim_x: int, dim_y: int) -> None
 
     Parameters
     ----------
-    embedding: Embedding
+    embedding : Embedding
         Embedding data to plot.
-    dim_x: int
+    dim_x : int
         Index of dimension to plot on the x-axis.
-    dim_y: int
+    dim_y : int
         Index of dimension to plot on the y-axis.
+
+    Returns
+    -------
+    None
 
     Raises
     ------
-    PandoraException:
+    PandoraException
         - if dim_x == dim_y
         - if either dim_x or dim_y does not exist in the PCA data.
 
@@ -113,15 +119,15 @@ def _update_fig(
 
     Parameters
     ----------
-    embedding: Embedding
+    embedding : Embedding
         Embedding object to plot.
-    fig: go.Figure
+    fig : go.Figure
         Plotly figure to update.
-    dim_x: int
+    dim_x : int
         Index of the dimension plotted on the x-axis (zero-indexed).
-    dim_y: int
+    dim_y : int
         Index of the dimension plotted on the y-axis (zero-indexed).
-    show_variance_in_axes: bool
+    show_variance_in_axes : bool
         If true, also includes embedding.explained_variance data in the x-, and y-axis titles for PCA plots.
 
     Returns
@@ -145,15 +151,15 @@ def _update_pca_fig(
 
     Parameters
     ----------
-    pca: PCA
+    pca : PCA
         PCA object to plot.
-    fig: go.Figure
+    fig : go.Figure
         Plotly figure to update.
-    dim_x: int
+    dim_x : int
         Index of the dimension plotted on the x-axis (zero-indexed).
-    dim_y: int
+    dim_y : int
         Index of the dimension plotted on the y-axis (zero-indexed).
-    show_variance_in_axes: bool
+    show_variance_in_axes : bool
         If true, also includes embedding.explained_variance data in the x-, and y-axis titles.
 
     Returns
@@ -181,11 +187,11 @@ def _update_mds_fig(fig: go.Figure, dim_x: int, dim_y: int) -> go.Figure:
 
     Parameters
     ----------
-    fig: go.Figure
+    fig : go.Figure
         Plotly figure to update.
-    dim_x: int
+    dim_x : int
         Index of the dimension plotted on the x-axis (zero-indexed).
-    dim_y: int
+    dim_y : int
         Index of the dimension plotted on the y-axis (zero-indexed).
 
     Returns
@@ -216,13 +222,13 @@ def plot_populations(
 
     Parameters
     ----------
-    embedding: Embedding
+    embedding : Embedding
         Embedding data to plot.
-    dim_x: int
+    dim_x : int
         Index of the dimension plotted on the x-axis (zero-indexed).
-    dim_y: int
+    dim_y : int
         Index of the dimension plotted on the y-axis (zero-indexed).
-    fig: go.Figure
+    fig : go.Figure, default=None
         Optional figure containing previous plotting data (e.g. another PCA plot).
     **kwargs
         Optional plot arguments passed to go.Scatter. Refer to the plotly documentation for options.
@@ -232,6 +238,12 @@ def plot_populations(
     -------
     go.Figure
         Plotly figure depicting the PCA data
+
+    Raises
+    ------
+    PandoraException
+        If there are not populations associated with the embedding data.
+
     """
     _check_plot_dimensions(embedding, dim_x, dim_y)
     show_variance_in_axes = fig is None
@@ -285,16 +297,16 @@ def plot_projections(
 
     Parameters
     ----------
-    embedding: Embedding
+    embedding : Embedding
         Embedding data to plot.
-    embedding_populations: pd.Series
+    embedding_populations : pd.Series
         Pandas Series of population names used to compute the Embedding. Samples belonging to
         these populations are plotted in lightgray.
-    dim_x: int
+    dim_x : int
         Index of the dimension plotted on the x-axis (zero-indexed).
-    dim_y: int
+    dim_y : int
         Index of the dimension plotted on the y-axis (zero-indexed).
-    fig: go.Figure
+    fig : go.Figure
         Optional figure containing previous plotting data (e.g. another Embedding plot).
     **kwargs
         Optional plot arguments passed to go.Scatter. Refer to the plotly documentation for options.
@@ -304,6 +316,12 @@ def plot_projections(
     -------
     go.Figure
         Plotly figure depicting the Embedding data.
+
+    Raises
+    ------
+    PandoraException
+        If `embedding_populations` is empty. In this case there are not projected samples to plot.
+
     """
     _check_plot_dimensions(embedding, dim_x, dim_y)
     show_variance_in_axes = fig is None
@@ -360,16 +378,16 @@ def plot_clusters(
 
     Parameters
     ----------
-    embedding: Embedding
+    embedding : Embedding
         Embedding data to plot.
-    dim_x: int
+    dim_x : int
         Index of the dimension plotted on the x-axis (zero-indexed).
-    dim_y: int
+    dim_y : int
         Index of the dimension plotted on the y-axis (zero-indexed).
-    kmeans_k: int
+    kmeans_k : int
         Optional k to use for K-Means clustering. If not set, the optimal number of clusters k
         is automatically determined based on the data provided by PCA.
-    fig: go.Figure
+    fig : go.Figure
         Optional figure containing previous plotting data (e.g. another Embedding plot).
     **kwargs
         Optional plot arguments passed to go.Scatter. Refer to the plotly documentation for options.
@@ -379,6 +397,7 @@ def plot_clusters(
     -------
     go.Figure
         Plotly figure depicting the Embedding data.
+
     """
     _check_plot_dimensions(embedding, dim_x, dim_y)
     show_variance_in_axes = fig is None
@@ -436,20 +455,20 @@ def plot_support_values(
 
     Parameters
     ----------
-    embedding: Embedding
+    embedding : Embedding
         Embedding data to plot.
-    sample_support_values: pd.Series
+    sample_support_values : pd.Series
         Pandora support value for each sample in embedding.embedding.
         Note: The index of the Series is expected to contain the sample IDs and
         to be identical to embedding.sample_ids.
-    support_value_rogue_cutoff: float
+    support_value_rogue_cutoff : float
         Samples with a support value below this threshold are annotated with
         the sample ID and the support value. All other samples are only color-coded.
-    dim_x: int
+    dim_x : int
         Index of the dimension plotted on the x-axis (zero-indexed).
-    dim_y: int
+    dim_y : int
         Index of the dimension plotted on the y-axis (zero-indexed).
-    projected_samples: pd.Series
+    projected_samples : pd.Series
         Pandas series of sample IDs. If set, only samples in this list are color-coded according
         to their support value. All other samples are shown in gray.
     **kwargs
@@ -460,6 +479,19 @@ def plot_support_values(
     -------
     go.Figure
         Plotly figure depicting the PCA data.
+
+    Warnings
+    --------
+    UserWarning
+        - If not all samples in `sample_support_values` are present in the embedding data. This is most likely due to
+            outlier detection during the computation of the embedding.
+        - If not all samples in the embedding data have a support value associated.
+
+    Raises
+    ------
+    PandoraException
+        If no samples are left to plot after filtering samples present in both embedding data and `sample_support_values`.
+
     """
     _check_plot_dimensions(embedding, dim_x, dim_y)
 
@@ -587,11 +619,11 @@ def plot_embedding_comparison(
 
     Parameters
     ----------
-    embedding_comparison: EmbeddingComparison
+    embedding_comparison : EmbeddingComparison
         EmbeddingComparison object containing the two Embeddings to plot.
-    dim_x: int
+    dim_x : int
         Index of the dimension plotted on the x-axis (zero-indexed).
-    dim_y: int
+    dim_y : int
         Index of the dimension plotted on the y-axis (zero-indexed).
     **kwargs
         Optional plot arguments passed to go.Scatter. Refer to the plotly documentation for options.
@@ -601,6 +633,7 @@ def plot_embedding_comparison(
     -------
     go.Figure
         Plotly figure depicting both Embeddings in EmbeddingComparison.
+
     """
     _check_plot_dimensions(embedding_comparison.reference, dim_x, dim_y)
     _check_plot_dimensions(embedding_comparison.comparable, dim_x, dim_y)
@@ -654,22 +687,22 @@ def plot_embedding_comparison_rogue_samples(
     **kwargs,
 ) -> go.Figure:
     """Method to plot the closest match between two Embeddings. Plots the transformed Embeddings based on the
-    EmbeddingComparison object. Additionally all samples with a support value below support_value_rogue_cutoff are
+    EmbeddingComparison object. Additionally, all samples with a support value below support_value_rogue_cutoff are
     highlighted.
 
     Parameters
     ----------
-    embedding_comparison: EmbeddingComparison
+    embedding_comparison : EmbeddingComparison
         EmbeddingComparison object containing the two Embeddings to plot.
-    support_values: pd.Series
+    support_values : pd.Series
         Pandora support values for all samples in the embedding data. The series' indices should be the sample IDs and
         the values the respective support value.
-    support_value_rogue_cutoff: float
+    support_value_rogue_cutoff : float
         Samples with a support value below this threshold are considered rogue and
         are highlighted by color, their sample ID and support value.
-    dim_x: int
+    dim_x : int
         Index of the dimension plotted on the x-axis (zero-indexed).
-    dim_y: int
+    dim_y : int
         Index of the dimension plotted on the y-axis (zero-indexed).
     **kwargs
         Optional plot arguments passed to go.Scatter. Refer to the plotly documentation for options.
@@ -679,6 +712,7 @@ def plot_embedding_comparison_rogue_samples(
     -------
     go.Figure
         Plotly figure depicting both Embeddings in EmbeddingComparison and highlighting rouge samples.
+
     """
     _check_plot_dimensions(embedding_comparison.reference, dim_x, dim_y)
     _check_plot_dimensions(embedding_comparison.comparable, dim_x, dim_y)

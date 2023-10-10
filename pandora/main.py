@@ -96,7 +96,16 @@ def main():
                 f"Converting dataset from {pandora_config.file_format.value} to {FileFormat.EIGENSTRAT.value}"
             )
         )
-        pandora_config = convert_to_eigenstrat_format(pandora_config)
+        # convert the dataset to EIGENSTRAT format and replace the dataset_prefix and file_format in the pandora_config
+        convert_prefix = convert_to_eigenstrat_format(
+            convertf=pandora_config.convertf,
+            convertf_result_dir=pandora_config.convertf_result_dir,
+            dataset_prefix=pandora_config.dataset_prefix,
+            file_format=pandora_config.file_format,
+            redo=pandora_config.redo,
+        )
+        pandora_config.dataset_prefix = convert_prefix
+        pandora_config.file_format = FileFormat.EIGENSTRAT
 
     # initialize empty Pandora object that keeps track of all results
     pandora_results = Pandora(pandora_config)

@@ -25,15 +25,20 @@ def get_filenames(
 
     Parameters
     ----------
-    prefix: pathlib.Path
+    prefix : pathlib.Path
         Prefix of the filepath pointing to the respective dataset files.
-    file_format: FileFormat
-        FileFormat of the respective format the datset is in.
+    file_format : FileFormat
+        FileFormat of the respective format the dataset is in.
 
     Returns
     -------
     Tuple[pathlib.Path, pathlib.Path, pathlib.Path]
         File paths for the respective geno, snp and ind files.
+
+    Raises
+    ------
+    PandoraException
+        If the given file format is not recognized.
 
     """
     if file_format not in FILE_SUFFIXES:
@@ -62,18 +67,28 @@ def run_convertf(
 
     Parameters
     ----------
-    convertf: Executable
+    convertf : Executable
         Executable of the EIGENSOFT convertf program.
-    in_prefix: pathlib.Path
+    in_prefix : pathlib.Path
         Prefix of the filepath pointing to the respective dataset files that should be converted.
-    in_format: FileFormat
+    in_format : FileFormat
         Format of the input files.
-    out_prefix: pathlib.Path
+    out_prefix : pathlib.Path
         Prefix of the filepath where the output should be stored.
-    out_format: FileFormat
+    out_format : FileFormat
         Desired output format.
-    redo: bool, default=False
+    redo : bool, default=False
         Whether to rerun the conversion if the output files are already present.
+
+    Returns
+    -------
+    None
+
+    Raises
+    ------
+    RuntimeError
+        If the file conversion using the convertf program failed.
+
     """
     geno_in, snp_in, ind_in = get_filenames(in_prefix, in_format)
     geno_out, snp_out, ind_out = get_filenames(out_prefix, out_format)
@@ -111,14 +126,8 @@ def run_convertf(
 
 
 def _clean_converted_names(ind_out: pathlib.Path) -> None:
-    """
-    For some reason, the file conversion from PLINK to EIGEN results in weird sample IDs.
+    """For some reason, the file conversion from PLINK to EIGEN results in weird sample IDs.
     This method cleans all names to match the original IDs the affected file is the ind_out file.
-
-    Parameters
-    ----------
-    ind_out: pathlib.Path
-        FilePath of the indfile to correct the sample IDs in.
     """
     corrected_content = []
     for line in ind_out.open():

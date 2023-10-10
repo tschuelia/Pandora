@@ -1,5 +1,3 @@
-from typing import Optional
-
 import numpy as np
 from numpy import typing as npt
 from sklearn.impute import SimpleImputer
@@ -7,17 +5,30 @@ from sklearn.impute import SimpleImputer
 from pandora.custom_errors import PandoraException
 
 
-def impute_data(input_data, imputation: Optional[str] = None) -> npt.NDArray:
-    """
-    TODO
+def impute_data(input_data: npt.NDArray, imputation: str) -> npt.NDArray:
+    """Imputes missing values in the given input data using the given imputation strategy.
 
     Parameters
     ----------
-    input_data
-    imputation
+    input_data : npt.NDArray
+        Numpy array containing the input data to impute. Missing values are expected to be np.NaN.
+    imputation : str
+        Imputation method to use. Available options are:\n
+        - mean: Imputes missing values with the average of the respective column.
+        - remove: Removes all columns with at least one missing value.
+        - None: Note that this option is only valid if input_data does not contain NaN values.
 
     Returns
     -------
+    imputed_data : npt.NDArray
+        Imputed input data with imputation according to the specified method.
+
+    Raises
+    ------
+    PandoraException
+        - If not data is left in case of "remove" imputation strategy. That means that all columns in the input data
+            contained at least one missing value.
+        - If the imputation method is not supported.
 
     """
     if imputation is None:

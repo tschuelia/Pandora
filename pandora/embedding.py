@@ -15,6 +15,8 @@ from pandora.custom_errors import PandoraException
 
 
 class Embedding:
+    """Base Wrapper class for the result of a PCA/MDS embedding."""
+
     def __init__(self, embedding: pd.DataFrame, n_components: int):
         if "sample_id" not in embedding.columns:
             raise PandoraException("Column `sample_id` required.")
@@ -42,12 +44,12 @@ class Embedding:
         self.populations = self.embedding.population
 
     def _get_embedding_numpy_array(self) -> np.ndarray:
-        """
-        Converts the embedding data to a numpy array.
+        """Converts the embedding data to a numpy array.
 
-        Returns:
-             np.ndarray: Array of shape (n_samples, self.n_components).
-                 Does not contain the sample IDs or populations.
+        Returns
+        -------
+         np.ndarray
+            Array of shape (n_samples, self.n_components). Does not contain the sample IDs or populations.
         """
         return self.embedding[[f"D{i}" for i in range(self.n_components)]].to_numpy()
 
@@ -57,17 +59,18 @@ class Embedding:
 
         Parameters
         ----------
-        k_boundaries: Tuple[int, int], default=None
+        k_boundaries : Tuple[int, int], default=None
             Minimum and maximum number of clusters. If None is given,
             determine the boundaries automatically.
-            If self.embedding.populations is not identical for all samples, use the number of distinct populations,
-            otherwise use the square root of the number of samples as maximum max_k.
-            The minimum min_k is min(max_k, 3).
+            If `self.embedding.populations` is not identical for all samples, use the number of distinct populations,
+            otherwise use the square root of the number of samples as maximum `max_k`.
+            The minimum `min_k` is `min(max_k, 3)`.
 
         Returns
         -------
-            int
-                the optimal number of clusters between min_n and max_n
+        int
+            the optimal number of clusters between `min_n` and `max_n`
+
         """
         if k_boundaries is None:
             # check whether there are distinct populations given
@@ -95,13 +98,14 @@ class Embedding:
 
         Parameters
         ----------
-        kmeans_k: int
+        kmeans_k : int
             Number of clusters. If not set, the optimal number of clusters is determined automatically.
 
         Returns
         -------
-            KMeans
-                Scikit-learn KMeans object that is fitted to self.embedding.
+        KMeans
+            Scikit-learn KMeans object that is fitted to self.embedding.
+
         """
         if kmeans_k is None:
             kmeans_k = self.get_optimal_kmeans_k()
@@ -117,7 +121,7 @@ class PCA(Embedding):
 
     Parameters
     ----------
-    embedding: pd.DataFrame
+    embedding : pd.DataFrame
         Pandas dataframe containing the sample ID, population and PC-Vector of all samples.
         The dataframe should contain one row per sample.
         Pandora expects the following columns:
@@ -126,14 +130,14 @@ class PCA(Embedding):
             - population (str): Name of the respective population.
             - D{i} for i in range(n_components) (float): data for the i-th PC for each sample,
               0-indexed, so the first PC corresponds to column D0
-    n_components: int
+    n_components : int
         number of principal components corresponding to the PCA data
-    explained_variances: npt.NDArray[float]
+    explained_variances : npt.NDArray[float]
         Numpy ndarray containing the explained variances for each PC (shape=(n_components,))
 
     Attributes
     ----------
-    embedding: pd.DataFrame
+    embedding : pd.DataFrame
         Pandas dataframe with shape (n_samples, n_components + 2) that contains the PCA results.
         The dataframe contains one row per sample and has the following columns:
 
@@ -141,24 +145,24 @@ class PCA(Embedding):
             - population (str): Name of the respective population.
             - D{i} for i in range(n_components) (float): data for the i-th PC for each sample,
               0-indexed, so the first PC corresponds to column PC0
-    explained_variances: npt.NDArray[float]
+    explained_variances : npt.NDArray[float]
         Numpy ndarray containing the explained variances for each PC (shape=(n_components,))
-    n_components: int
+    n_components : int
         number of principal components
-    embedding_matrix: npt.NDArray[float]
+    embedding_matrix : npt.NDArray[float]
         Numpy ndarray of shape (n_samples, n_components) containing the PCA result matrix.
-    sample_ids: pd.Series[str]
+    sample_ids : pd.Series[str]
         Pandas series containing the IDs of all samples.
-    populations: pd.Series[str]
+    populations : pd.Series[str]
         Pandas series containing the population for each sample in sample_ids.
 
     Raises
     ------
     PandoraException
-        - explained_variances is not a 1D numpy array or contains more/fewer values than n_components
-        - embedding does not contain a "sample_id" column
-        - embedding does not contain a "population" column
-        - embedding does not contain (the correct amount of) D{i} columns
+        - If `explained_variances` is not a 1D numpy array or contains more/fewer values than `n_components`.
+        - If `embedding` does not contain a "sample_id" column.
+        - If `embedding` does not contain a "population" column
+        - If `embedding` does not contain (the correct amount of) `D{i}` columns
 
     """
 
@@ -187,7 +191,7 @@ class MDS(Embedding):
 
     Parameters
     ----------
-    embedding: pd.DataFrame
+    embedding : pd.DataFrame
         Pandas dataframe containing the sample ID, population and embedding vector of all samples.
         The dataframe should contain one row per sample.
         Pandora expects the following columns:
@@ -196,14 +200,14 @@ class MDS(Embedding):
             - population (str): Name of the respective population.
             - D{i} for i in range(n_components) (float): data for the i-th embedding dimension for each sample,
               0-indexed, so the first dimension corresponds to column D0
-    n_components: int
+    n_components : int
         number of components the data was fitted for
-    stress: float
+    stress : float
         Stress of the fitted MDS.
 
     Attributes
     ----------
-    embedding: pd.DataFrame
+    embedding : pd.DataFrame
         Pandas dataframe containing the sample ID, population and embedding vector of all samples.
         The dataframe should contain one row per sample.
         Pandora expects the following columns:
@@ -212,23 +216,24 @@ class MDS(Embedding):
             - population (str): Name of the respective population.
             - D{i} for i in range(n_components) (float): data for the i-th embedding dimension for each sample,
               0-indexed, so the first dimension corresponds to column D0
-    n_components: int
+    n_components : int
         number of components the data was fitted for
-    stress: float
+    stress : float
         Stress of the fitted MDS.
-    embedding_matrix: npt.NDArray[float]
+    embedding_matrix : npt.NDArray[float]
         Numpy ndarray of shape (n_samples, n_components) containing the MDS result matrix.
-    sample_ids: pd.Series[str]
+    sample_ids : pd.Series[str]
         Pandas series containing the IDs of all samples.
-    populations: pd.Series[str]
+    populations : pd.Series[str]
         Pandas series containing the population for each sample in sample_ids.
 
     Raises
     ------
     PandoraException
-        - embedding does not contain a "sample_id" column
-        - embedding does not contain a "population" column
-        - embedding does not contain (the correct amount of) D{i} columns
+        - If `embedding` does not contain a "sample_id" column.
+        - If `embedding` does not contain a "population" column.
+        - If `embedding` does not contain (the correct amount of) `D{i}` columns.
+
     """
 
     def __init__(self, embedding: pd.DataFrame, n_components: int, stress: float):
@@ -236,15 +241,19 @@ class MDS(Embedding):
         super().__init__(embedding, n_components)
 
 
-def check_smartpca_results(evec: pathlib.Path, eval: pathlib.Path):
+def check_smartpca_results(evec: pathlib.Path, eval: pathlib.Path) -> None:
     """Checks whether the smartpca results finished properly and contain all required information.
 
     Parameters
     ----------
-    evec: pathlib.Path
+    evec : pathlib.Path
         Filepath pointing to a .evec result file of a smartpca run.
-    eval: pathlib.Path
+    eval : pathlib.Path
         Filepath pointing to a .eval result file of a smartpca run.
+
+    Returns
+    -------
+    None
 
     Raises
     ------
@@ -303,9 +312,9 @@ def from_smartpca(evec: pathlib.Path, eval: pathlib.Path) -> PCA:
 
     Parameters
     ----------
-    evec: pathlib.Path
+    evec : pathlib.Path
         Filepath pointing to a .evec result file of a smartpca run.
-    eval: pathlib.Path
+    eval : pathlib.Path
         Filepath pointing to a .eval result file of a smartpca run.
 
     Returns
@@ -360,23 +369,29 @@ def from_sklearn_mds(
 
     Parameters
     ----------
-    embedding: pd.DataFrame
+    embedding : pd.DataFrame
         MDS embedding data as pandas DataFrame. Each row corresponds to a single sample or population.
         The embedding is expected to  have a column entitled 'population' denoting the respective population of the row.
-    sample_ids: pd.Series
+    sample_ids : pd.Series
         Pandas Series containing IDs of samples the embedding data is for. Note that the number of sample IDs can be
         larger than the number of rows in the embedding. This is the case if the embedding was computed per population
         but the data should be mapped for each sample. The number of sample IDs needs to match the number of populations.
-    populations: pd.Series
+    populations : pd.Series
         Pandas Series containing the population for each sample in sample_ids. The number of populations needs to match
         the number of sample IDs.
-    stress: float
+    stress : float
         Goodness of the MDS fit for the data.
 
     Returns
     -------
-    MDS:
+    MDS
         MDS object encapsulating the MDS data
+
+    Raises
+    ------
+    PandoraException
+        - If `embedding` does not contain a "populations" column.
+        - If the number of samples and number of populations are not identical. Exactly population is required for each sample.
 
     """
     if "population" not in embedding.columns:

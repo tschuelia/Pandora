@@ -113,7 +113,6 @@ class PandoraConfig(BaseModel):
     plot_dim_y : NonNegativeInt, default=1
         Dimension to plot on the y-axis. Note that the dimensions are zero-indexed. To plot the second
         dimension set plot_dim_y = 1
-
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -165,7 +164,6 @@ class PandoraConfig(BaseModel):
         -------
         pathlib.Path
             Filepath to the Pandora logfile.
-
         """
         return self.result_dir / "pandora.log"
 
@@ -179,7 +177,6 @@ class PandoraConfig(BaseModel):
         -------
         pathlib.Path
             Filepath to the config file.
-
         """
         return self.result_dir / "pandora.yaml"
 
@@ -191,7 +188,6 @@ class PandoraConfig(BaseModel):
         -------
         pathlib.Path
             Filepath to the Pandora results file.
-
         """
         return self.result_dir / "pandora.txt"
 
@@ -203,7 +199,6 @@ class PandoraConfig(BaseModel):
         -------
         pathlib.Path
             Filepath to the bootstrap results directory.
-
         """
         return self.result_dir / "bootstrap"
 
@@ -215,7 +210,6 @@ class PandoraConfig(BaseModel):
         -------
         pathlib.Path
             Filepath to the sliding-window results directory.
-
         """
         return self.result_dir / "windows"
 
@@ -227,7 +221,6 @@ class PandoraConfig(BaseModel):
         -------
         pathlib.Path
             Filepath to the converted input files directory.
-
         """
         return self.result_dir / "converted"
 
@@ -239,7 +232,6 @@ class PandoraConfig(BaseModel):
         -------
         pathlib.Path
             Filepath to a csv file for pairwise stability results.
-
         """
         return self.result_dir / "pandora.replicates.csv"
 
@@ -251,7 +243,6 @@ class PandoraConfig(BaseModel):
         -------
         pathlib.Path
             Filepath to a csv file for support value results for all samples.
-
         """
         return self.result_dir / "pandora.supportValues.csv"
 
@@ -263,7 +254,6 @@ class PandoraConfig(BaseModel):
         -------
         pathlib.Path
             Filepath to a csv file for support value results for projected samples.
-
         """
         return self.result_dir / "pandora.supportValues.projected.csv"
 
@@ -275,7 +265,6 @@ class PandoraConfig(BaseModel):
         -------
         pathlib.Path
             Filepath to the plots directory.
-
         """
         return self.result_dir / "plots"
 
@@ -287,7 +276,6 @@ class PandoraConfig(BaseModel):
         -------
         int
             logging module loglevel based on the verbosity specified in self.
-
         """
         if self.verbosity == 0:
             return logging.ERROR
@@ -308,7 +296,6 @@ class PandoraConfig(BaseModel):
         Dict[str, Any]
             Dictionary representation of all settings in self. Filepaths are translated to absolute path strings,
             enums are represted by their value.
-
         """
         config = dataclasses.asdict(self)
 
@@ -331,7 +318,6 @@ class PandoraConfig(BaseModel):
         Returns
         -------
         None
-
         """
         config_yaml = yaml.safe_dump(self.get_configuration())
         # additionally save the Pandora version
@@ -344,7 +330,6 @@ class PandoraConfig(BaseModel):
         Returns
         -------
         None
-
         """
         logger.info(
             textwrap.dedent(
@@ -403,7 +388,6 @@ class Pandora:
         Pandas dataframe containing the support values for all samples of self.dataset for all pairwise
         replicate comparisons.
         This is empty until self.bootstrap_embeddings() or self.sliding_window() was called.
-
     """
 
     def __init__(self, pandora_config: PandoraConfig):
@@ -435,7 +419,6 @@ class Pandora:
         ------
         PandoraConfigException
             - If `self.pandora_config.embedding_algorithm` is not a valid EmbeddingAlgorithm.
-
         """
         self.pandora_config.result_dir.mkdir(exist_ok=True, parents=True)
         if self.pandora_config.embedding_algorithm == EmbeddingAlgorithm.PCA:
@@ -521,8 +504,8 @@ class Pandora:
             )
 
     def bootstrap_embeddings(self) -> None:
-        """Draws bootstrap replicates of self.dataset and computes and compares the respective embedding for
-        all bootstrap replicates.
+        """Draws bootstrap replicates of self.dataset and computes and compares the respective embedding for all
+        bootstrap replicates.
 
         The parameters (e.g. what method to use) is determined based on the configured settings in self.pandora_config.
         On successfull run, the following parameters of self will be set:
@@ -537,7 +520,6 @@ class Pandora:
         Returns
         -------
         None
-
         """
         logger.info(
             fmt_message(
@@ -562,8 +544,8 @@ class Pandora:
         self._compare_and_plot_replicates()
 
     def sliding_window(self) -> None:
-        """Separates self.dataset into self.pandora_config.n_replicates overlapping windows and and computes and compares
-        the respective embedding for all of these windows.
+        """Separates self.dataset into self.pandora_config.n_replicates overlapping windows and and computes and
+        compares the respective embedding for all of these windows.
 
         The parameters (e.g. what method to use) is determined based on the configured settings in self.pandora_config.
         On successfull run, the following parameters of self will be set:
@@ -578,7 +560,6 @@ class Pandora:
         Returns
         -------
         None
-
         """
         logger.info(
             fmt_message(
@@ -719,7 +700,6 @@ class Pandora:
         ------
         PandoraException
             If the results were not computed yet and thus there are not results to log.
-
         """
         if self.pandora_stability is None or self.pandora_cluster_stability is None:
             raise PandoraException("No results to log!")
@@ -817,7 +797,6 @@ def pandora_config_from_configfile(configfile: pathlib.Path) -> PandoraConfig:
         - If the config file does not specify a `dataset_prefix`.
         - If the config file does not specify a `result_dir`.
         - If the PandoraConfig object could not be initialized. This is most likely due to misspecified config options.
-
     """
     config_data = yaml.safe_load(configfile.open())
 
@@ -870,7 +849,8 @@ def convert_to_eigenstrat_format(
     file_format: FileFormat,
     redo: bool = False,
 ) -> pathlib.Path:
-    """Converts the given dataset from the given file_format to EIGENSTRAT format and stores it in the convertf_result_dir.
+    """Converts the given dataset from the given file_format to EIGENSTRAT format and stores it in the
+    convertf_result_dir.
 
     Results in three new files:\n
     - {convertf_result_dir}/{dataset_prefix.name}.geno\n
@@ -894,7 +874,6 @@ def convert_to_eigenstrat_format(
     -------
     convert_prefix : pathlib.Path
         Filepath prefix pointing to the converted genotype files in EIGENSTRAT format.
-
     """
 
     convertf_result_dir.mkdir(exist_ok=True, parents=True)

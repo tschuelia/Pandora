@@ -1,5 +1,5 @@
 import itertools
-from typing import Callable, Tuple
+from typing import Callable, Optional, Tuple
 
 import allel
 import numpy as np
@@ -20,9 +20,10 @@ def _check_input(input_data: npt.NDArray, populations: pd.Series):
 
 
 def euclidean_sample_distance(
-    input_data: npt.NDArray, populations: pd.Series, imputation: str
+    input_data: npt.NDArray, populations: pd.Series, imputation: Optional[str]
 ) -> Tuple[npt.NDArray, pd.Series]:
-    """Computes and returns the distance matrix of pairwise Euclidean distances between all samples (rows) in input_data.
+    """Computes and returns the distance matrix of pairwise Euclidean distances between all samples (rows) in
+    input_data.
 
     Parameters
     ----------
@@ -32,7 +33,7 @@ def euclidean_sample_distance(
         Pandas Series containing a population name for each row in input_data. Note that this population info is not
         used for distance computation as the distance is computed per sample. The parameter is only required to provide
         a unique interface for per-sample and per-population distances.
-    imputation : str
+    imputation : Optional[str]
         Imputation method to use. Available options are:\n
         - mean: Imputes missing values with the average of the respective SNP
         - remove: Removes all SNPs with at least one missing value.
@@ -51,7 +52,6 @@ def euclidean_sample_distance(
     ------
     PandoraException
         If imputation is None but input_data contains NaN values.
-
     """
     if imputation is None and np.isnan(input_data).any():
         raise PandoraException(
@@ -64,9 +64,10 @@ def euclidean_sample_distance(
 
 
 def manhattan_sample_distance(
-    input_data: npt.NDArray, populations: pd.Series, imputation: str
+    input_data: npt.NDArray, populations: pd.Series, imputation: Optional[str]
 ) -> Tuple[npt.NDArray, pd.Series]:
-    """Computes and returns the distance matrix of pairwise manhattan distances between all samples (rows) in input_data.
+    """Computes and returns the distance matrix of pairwise manhattan distances between all samples (rows) in
+    input_data.
 
     Parameters
     ----------
@@ -76,7 +77,7 @@ def manhattan_sample_distance(
         Pandas Series containing a population name for each row in input_data. Note that this population info is not
         used for distance computation as the distance is computed per sample. The parameter is only required to provide
         a unique interface for per-sample and per-population distances.
-    imputation : str
+    imputation : Optional[str]
         Imputation method to use. Available options are:\n
         - mean: Imputes missing values with the average of the respective SNP
         - remove: Removes all SNPs with at least one missing value.
@@ -95,7 +96,6 @@ def manhattan_sample_distance(
     ------
     PandoraException
         If imputation is None but input_data contains NaN values.
-
     """
     if imputation is None and np.isnan(input_data).any():
         raise PandoraException(
@@ -112,7 +112,8 @@ def population_distance(
     populations: pd.Series,
     distance_metric: Callable[[npt.NDArray, npt.NDArray], npt.NDArray],
 ) -> Tuple[npt.NDArray, pd.Series]:
-    """Computes and returns the distance matrix of pairwise distances between all unique populations using the provided distance metric.
+    """Computes and returns the distance matrix of pairwise distances between all unique populations using the provided
+    distance metric.
 
     Parameters
     ----------
@@ -133,7 +134,6 @@ def population_distance(
     populations : pd.Series
         Pandas Series containing a population name for each row in the distance matrix. This values of this series are
         the unique populations.
-
     """
     _check_input(input_data, populations)
     input_data = pd.DataFrame(input_data)
@@ -164,7 +164,7 @@ def population_distance(
 
 
 def euclidean_population_distance(
-    input_data: npt.NDArray, populations: pd.Series, imputation: str
+    input_data: npt.NDArray, populations: pd.Series, imputation: Optional[str]
 ) -> Tuple[npt.NDArray, pd.Series]:
     """Computes and returns the distance matrix of pairwise Euclidean distances between all unique populations.
 
@@ -174,7 +174,7 @@ def euclidean_population_distance(
         Numpy Array containing the genetic input data to use.
     populations : pd.Series[str]
         Pandas Series containing a population name for each row in input_data.
-    imputation : str
+    imputation : Optional[str]
         Imputation method to use. Available options are:\n
         - mean: Imputes missing values with the average of the respective SNP
         - remove: Removes all SNPs with at least one missing value.
@@ -193,7 +193,6 @@ def euclidean_population_distance(
     ------
     PandoraException
         If imputation is None but input_data contains NaN values.
-
     """
     if imputation is None and np.isnan(input_data).any():
         raise PandoraException(
@@ -206,7 +205,7 @@ def euclidean_population_distance(
 
 
 def manhattan_population_distance(
-    input_data: npt.NDArray, populations: pd.Series, imputation: str
+    input_data: npt.NDArray, populations: pd.Series, imputation: Optional[str]
 ) -> Tuple[npt.NDArray, pd.Series]:
     """Computes and returns the distance matrix of pairwise manhattan distances between all unique populations.
 
@@ -216,7 +215,7 @@ def manhattan_population_distance(
         Numpy Array containing the genetic input data to use.
     populations : pd.Series[str]
         Pandas Series containing a population name for each row in input_data.
-    imputation : str
+    imputation : Optional[str]
         Imputation method to use. Available options are:\n
         - mean: Imputes missing values with the average of the respective SNP
         - remove: Removes all SNPs with at least one missing value.
@@ -235,7 +234,6 @@ def manhattan_population_distance(
     ------
     PandoraException
         If imputation is None but input_data contains NaN values.
-
     """
     if imputation is None and np.isnan(input_data).any():
         raise PandoraException(
@@ -248,7 +246,7 @@ def manhattan_population_distance(
 
 
 def fst_population_distance(
-    input_data: npt.NDArray, populations: pd.Series, imputation: str
+    input_data: npt.NDArray, populations: pd.Series, imputation: Optional[str]
 ) -> Tuple[npt.NDArray, pd.Series]:
     """Computes and returns the distance matrix of pairwise FST distances between all unique populations.
 
@@ -258,15 +256,15 @@ def fst_population_distance(
         Numpy Array containing the genetic input data to use.
     populations : pd.Series[str]
         Pandas Series containing a population name for each row in input_data.
-    imputation : str
+    imputation : Optional[str]
         Imputation method to use. For the FST populations distance, only imputation=None is supported.
 
     Returns
     -------
-    npt.NDArray
+    distance_matrix : npt.NDArray
         Distance matrix of pairwise FST distances between all unique populations.
         The array is of shape (n_unique_populations, n_unique_populations).
-    pd.Series
+    populations : pd.Series
         Pandas Series containing a population name for each row in the distance matrix. This values of this series are
         the unique populations.
     """
@@ -315,6 +313,10 @@ def _geno_to_var(geno):
         return [1, 1]
     elif np.isnan(geno):
         return [-1, -1]
+    else:
+        raise PandoraException(
+            f"Unrecognized geno type value: {geno}. Only values 0, 1, 2 or np.nan (missing) allowed."
+        )
 
 
 def _geno_data_to_geno_array(geno_data):
@@ -324,6 +326,7 @@ def _geno_data_to_geno_array(geno_data):
     for snp in range(n_snps):
         snp_data = [_geno_to_var(geno) for geno in geno_data[:, snp]]
         geno_array.append(snp_data)
+
     geno_array = np.asarray(geno_array)
     return allel.GenotypeArray(geno_array)
 
@@ -333,4 +336,5 @@ DISTANCE_METRICS = [
     manhattan_sample_distance,
     euclidean_population_distance,
     manhattan_population_distance,
+    fst_population_distance,
 ]

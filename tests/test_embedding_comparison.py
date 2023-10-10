@@ -234,8 +234,8 @@ class TestBatchEmbeddingComparison:
     data_embedding2 = np.asarray([[1, 1], [1, 2], [2, 1], [2, 2], [2, 3], [2, 4]])
 
     def _get_batch(self, embedding_type) -> BatchEmbeddingComparison:
-        """
-        The returned BatchEmbeddingComparison object contains three embeddings.
+        """The returned BatchEmbeddingComparison object contains three embeddings.
+
         Two are identical (with indices 0 and 2), and one is different.
         """
         embedding_data1 = _numpy_to_dataframe(

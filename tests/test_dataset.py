@@ -20,7 +20,7 @@ from pandora.dataset import (
     sliding_window_embedding_numpy,
     smartpca_finished,
 )
-from pandora.distance_metrics import DISTANCE_METRICS
+from pandora.distance_metrics import DISTANCE_METRICS, fst_population_distance
 from pandora.embedding import MDS, PCA
 from pandora.imputation import impute_data
 
@@ -89,9 +89,7 @@ class TestEigenDataset:
 
     @pytest.mark.parametrize("seed", [0, 10, 100, 885440])
     def test_bootstrap_files_correct(self, example_dataset, seed):
-        """
-        Tests whether the bootstrapped .geno, .ind, and .snp files have the correct file file_format
-        """
+        """Tests whether the bootstrapped .geno, .ind, and .snp files have the correct file file_format."""
         in_ind_count = sum(1 for _ in example_dataset._ind_file.open())
         in_geno_count = sum(1 for _ in example_dataset._geno_file.open())
         in_snp_count = sum(1 for _ in example_dataset._snp_file.open())
@@ -140,10 +138,8 @@ class TestEigenDataset:
             bootstrap.check_files()
 
     def test_bootstrap_using_existing_files(self, example_dataset):
-        """
-        Test that when setting redo=False, the resulting bootstrap dataset files
-        are identical to the example_dataset files and no bootstrapping is performed
-        """
+        """Test that when setting redo=False, the resulting bootstrap dataset files are identical to the example_dataset
+        files and no bootstrapping is performed."""
         with tempfile.TemporaryDirectory() as tmpdir:
             tmpdir = pathlib.Path(tmpdir)
             bootstrap_prefix = tmpdir / "bootstrap"
@@ -174,10 +170,8 @@ class TestEigenDataset:
 
     @pytest.mark.parametrize("seed", [0, 10, 100, 885440])
     def test_bootstrap_using_checkpoint(self, example_dataset, seed):
-        """
-        Test that when setting redo=False, and the results files do not exist, but a checkpoint does
-        that the bootstrap based on the checkpoint is identical
-        """
+        """Test that when setting redo=False, and the results files do not exist, but a checkpoint does that the
+        bootstrap based on the checkpoint is identical."""
         with tempfile.TemporaryDirectory() as tmpdir:
             tmpdir = pathlib.Path(tmpdir)
             bootstrap_prefix = tmpdir / "bootstrap"
@@ -562,6 +556,10 @@ class TestNumpyDataset:
         distance_metric,
         imputation,
     ):
+        if distance_metric == fst_population_distance:
+            # imputation mean or remove not supported for fst_population_distance
+            return
+
         n_components = 2
 
         test_numpy_dataset.run_mds(

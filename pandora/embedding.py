@@ -54,8 +54,8 @@ class Embedding:
         return self.embedding[[f"D{i}" for i in range(self.n_components)]].to_numpy()
 
     def get_optimal_kmeans_k(self, k_boundaries: Tuple[int, int] = None) -> int:
-        """Determines the optimal number of clusters k for K-Means clustering according to the
-        Bayesian Information Criterion (BIC).
+        """Determines the optimal number of clusters k for K-Means clustering according to the Bayesian Information
+        Criterion (BIC).
 
         Parameters
         ----------
@@ -70,7 +70,6 @@ class Embedding:
         -------
         int
             the optimal number of clusters between `min_n` and `max_n`
-
         """
         if k_boundaries is None:
             # check whether there are distinct populations given
@@ -105,7 +104,6 @@ class Embedding:
         -------
         KMeans
             Scikit-learn KMeans object that is fitted to self.embedding.
-
         """
         if kmeans_k is None:
             kmeans_k = self.get_optimal_kmeans_k()
@@ -163,7 +161,6 @@ class PCA(Embedding):
         - If `embedding` does not contain a "sample_id" column.
         - If `embedding` does not contain a "population" column
         - If `embedding` does not contain (the correct amount of) `D{i}` columns
-
     """
 
     def __init__(
@@ -233,7 +230,6 @@ class MDS(Embedding):
         - If `embedding` does not contain a "sample_id" column.
         - If `embedding` does not contain a "population" column.
         - If `embedding` does not contain (the correct amount of) `D{i}` columns.
-
     """
 
     def __init__(self, embedding: pd.DataFrame, n_components: int, stress: float):
@@ -259,7 +255,6 @@ def check_smartpca_results(evec: pathlib.Path, eval: pathlib.Path) -> None:
     ------
     PandoraException
         If either the evec file or the eval file are incorrect.
-
     """
     # check the evec file:
     # - first line should start with #eigvals: and then determines the number of PCs
@@ -308,7 +303,7 @@ def check_smartpca_results(evec: pathlib.Path, eval: pathlib.Path) -> None:
 
 
 def from_smartpca(evec: pathlib.Path, eval: pathlib.Path) -> PCA:
-    """Creates a PCA object based on the results of a smartpca run
+    """Creates a PCA object based on the results of a smartpca run.
 
     Parameters
     ----------
@@ -326,7 +321,6 @@ def from_smartpca(evec: pathlib.Path, eval: pathlib.Path) -> PCA:
     ------
     PandoraException
         If either the evec file or the eval file are incorrect.
-
     """
     # make sure both files are in correct file_format
     check_smartpca_results(evec, eval)
@@ -392,7 +386,6 @@ def from_sklearn_mds(
     PandoraException
         - If `embedding` does not contain a "populations" column.
         - If the number of samples and number of populations are not identical. Exactly population is required for each sample.
-
     """
     if "population" not in embedding.columns:
         raise PandoraException(

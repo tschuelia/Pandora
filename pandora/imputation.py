@@ -29,7 +29,6 @@ def impute_data(input_data: npt.NDArray, imputation: str) -> npt.NDArray:
         - If not data is left in case of "remove" imputation strategy. That means that all columns in the input data
             contained at least one missing value.
         - If the imputation method is not supported.
-
     """
     if imputation is None:
         return input_data

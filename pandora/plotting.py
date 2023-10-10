@@ -22,7 +22,6 @@ def get_distinct_colors(n_colors: int) -> List[str]:
     -------
     List[str]
         List of n plotly HSV color strings.
-
     """
     hue_values = np.linspace(0, 100, n_colors, endpoint=False)
     hue_values = np.clip(hue_values, 0, 100)
@@ -36,7 +35,6 @@ def get_rdylgr_color_scale() -> List[Tuple[float, str]]:
     -------
     List[Tuple[float, str]]
         A list of (float, str) tuples that can be used as continuous color scale in plotly figures.
-
     """
     colors = ["#d60000", "#f2ce02", "#ebff0a", "#85e62c", "#209c05"]
     steps = np.linspace(0, 1, num=len(colors), endpoint=True)
@@ -56,7 +54,6 @@ def improve_plotly_text_position(x_values: pd.Series) -> List[str]:
     -------
     List[str]
         A list of text positions, one position for each sample in x_values.
-
     """
     positions = [
         "top left",
@@ -96,7 +93,6 @@ def _check_plot_dimensions(embedding: Embedding, dim_x: int, dim_y: int) -> None
     PandoraException
         - if dim_x == dim_y
         - if either dim_x or dim_y does not exist in the PCA data.
-
     """
     if dim_x == dim_y:
         raise PandoraException("dim_x and dim_y cannot be identical.")
@@ -134,7 +130,6 @@ def _update_fig(
     -------
     go.Figure
         Figure with updated x- and y-axes as well as an updated layout.
-
     """
     if isinstance(embedding, PCA):
         return _update_pca_fig(embedding, fig, dim_x, dim_y, show_variance_in_axes)
@@ -166,7 +161,6 @@ def _update_pca_fig(
     -------
     go.Figure
         Figure with updated x- and y-axes as well as an updated layout.
-
     """
     xtitle = f"PC {dim_x + 1}"
     ytitle = f"PC {dim_y + 1}"
@@ -198,7 +192,6 @@ def _update_mds_fig(fig: go.Figure, dim_x: int, dim_y: int) -> go.Figure:
     -------
     go.Figure
         Figure with updated x- and y-axes as well as an updated layout.
-
     """
     xtitle = f"Coordinate {dim_x + 1}"
     ytitle = f"Coordinate {dim_y + 1}"
@@ -217,8 +210,8 @@ def plot_populations(
     fig: Optional[go.Figure] = None,
     **kwargs,
 ) -> go.Figure:
-    """Plots the data for the provided Embedding data using the given dimension indices
-    and colors all populations as provided by Embedding using distinct colors.
+    """Plots the data for the provided Embedding data using the given dimension indices and colors all populations as
+    provided by Embedding using distinct colors.
 
     Parameters
     ----------
@@ -243,7 +236,6 @@ def plot_populations(
     ------
     PandoraException
         If there are not populations associated with the embedding data.
-
     """
     _check_plot_dimensions(embedding, dim_x, dim_y)
     show_variance_in_axes = fig is None
@@ -289,9 +281,9 @@ def plot_projections(
     fig: Optional[go.Figure] = None,
     **kwargs,
 ):
-    """Plots the data for the provided Embedding data using the given dimension indices.
-    Only samples with populations *not* in embedding_populations are color-coded according to their population.
-    All other samples are colored in lightgray.
+    """Plots the data for the provided Embedding data using the given dimension indices. Only samples with populations
+    *not* in embedding_populations are color-coded according to their population. All other samples are colored in
+    lightgray.
 
     Use this plotting function if you want to highlight only projected samples in a Embedding plot.
 
@@ -321,7 +313,6 @@ def plot_projections(
     ------
     PandoraException
         If `embedding_populations` is empty. In this case there are not projected samples to plot.
-
     """
     _check_plot_dimensions(embedding, dim_x, dim_y)
     show_variance_in_axes = fig is None
@@ -397,7 +388,6 @@ def plot_clusters(
     -------
     go.Figure
         Plotly figure depicting the Embedding data.
-
     """
     _check_plot_dimensions(embedding, dim_x, dim_y)
     show_variance_in_axes = fig is None
@@ -491,7 +481,6 @@ def plot_support_values(
     ------
     PandoraException
         If no samples are left to plot after filtering samples present in both embedding data and `sample_support_values`.
-
     """
     _check_plot_dimensions(embedding, dim_x, dim_y)
 
@@ -633,7 +622,6 @@ def plot_embedding_comparison(
     -------
     go.Figure
         Plotly figure depicting both Embeddings in EmbeddingComparison.
-
     """
     _check_plot_dimensions(embedding_comparison.reference, dim_x, dim_y)
     _check_plot_dimensions(embedding_comparison.comparable, dim_x, dim_y)
@@ -712,7 +700,6 @@ def plot_embedding_comparison_rogue_samples(
     -------
     go.Figure
         Plotly figure depicting both Embeddings in EmbeddingComparison and highlighting rouge samples.
-
     """
     _check_plot_dimensions(embedding_comparison.reference, dim_x, dim_y)
     _check_plot_dimensions(embedding_comparison.comparable, dim_x, dim_y)

@@ -47,10 +47,7 @@ def main():
     print(get_header())
     logger.add(sys.stderr, format="{message}")
     args = argument_parser()
-
-    """
-    Pandora main program
-    """
+    """Pandora main program."""
     # =======================================
     # initialize options and directories
     # =======================================

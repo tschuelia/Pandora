@@ -76,25 +76,19 @@ def correct_smartpca_result_prefix() -> pathlib.Path:
 
 @pytest.fixture
 def unfinished_smartpca_result_prefix() -> pathlib.Path:
-    """
-    The log file is incomplete as an indicator of an interrupted smartPCA run
-    """
+    """The log file is incomplete as an indicator of an interrupted smartPCA run."""
     return pathlib.Path(__file__).parent / "data" / "smartpca" / "unfinished"
 
 
 @pytest.fixture
 def incorrect_smartpca_npcs_result_prefix() -> pathlib.Path:
-    """
-    Number of PCs in n_pcs_mismatch.evec is 3
-    """
+    """Number of PCs in n_pcs_mismatch.evec is 3."""
     return pathlib.Path(__file__).parent / "data" / "smartpca" / "example_3pcs"
 
 
 @pytest.fixture
 def missing_smartpca_result_prefix() -> pathlib.Path:
-    """
-    SmartPCA result files do not exist
-    """
+    """SmartPCA result files do not exist."""
     return pathlib.Path(__file__).parent / "data" / "smartpca" / "does_not_exist"
 
 

@@ -39,7 +39,6 @@ def get_filenames(
     ------
     PandoraException
         If the given file format is not recognized.
-
     """
     if file_format not in FILE_SUFFIXES:
         raise PandoraException(f"Unrecognized file format: {file_format.value}")
@@ -61,7 +60,8 @@ def run_convertf(
     out_format: FileFormat,
     redo: bool = False,
 ) -> None:
-    """Uses the EIGENSOFT convertf program to convert the given dataset in in_format into the same dataset in out_format.
+    """Uses the EIGENSOFT convertf program to convert the given dataset in in_format into the same dataset in
+    out_format.
 
     If all respective out_prefix files are already present, only runs convertf if redo is True.
 
@@ -88,7 +88,6 @@ def run_convertf(
     ------
     RuntimeError
         If the file conversion using the convertf program failed.
-
     """
     geno_in, snp_in, ind_in = get_filenames(in_prefix, in_format)
     geno_out, snp_out, ind_out = get_filenames(out_prefix, out_format)
@@ -127,7 +126,9 @@ def run_convertf(
 
 def _clean_converted_names(ind_out: pathlib.Path) -> None:
     """For some reason, the file conversion from PLINK to EIGEN results in weird sample IDs.
-    This method cleans all names to match the original IDs the affected file is the ind_out file.
+
+    This method cleans all names to match the original IDs the affected file is the
+    ind_out file.
     """
     corrected_content = []
     for line in ind_out.open():

@@ -169,7 +169,6 @@ def smartpca_finished(n_components: int, result_prefix: pathlib.Path) -> bool:
     -------
     bool
         Whether the respective smartpca run finished properly.
-
     """
     evec_out = pathlib.Path(f"{result_prefix}.evec")
     eval_out = pathlib.Path(f"{result_prefix}.eval")
@@ -209,7 +208,6 @@ def get_embedding_populations(
     -------
     pd.Series
         Pandas series of populations to use for the embedding computation.
-
     """
     if embedding_populations is None:
         return pd.Series(dtype=object)
@@ -351,7 +349,7 @@ class EigenDataset:
         self.mds: Union[None, MDS] = None
 
     def get_sample_info(self) -> pd.Series:
-        """Reads the sample IDs from self._ind_file
+        """Reads the sample IDs from self._ind_file.
 
         Returns
         -------
@@ -362,7 +360,6 @@ class EigenDataset:
         ------
         PandoraException
             if the respective .ind file does not exist
-
         """
         if not self._ind_file.exists():
             raise PandoraConfigException(
@@ -388,7 +385,6 @@ class EigenDataset:
         ------
         PandoraException
             if the respective .ind file does not exist
-
         """
         if not self._ind_file.exists():
             raise PandoraConfigException(
@@ -412,7 +408,6 @@ class EigenDataset:
         -------
         pd.Series
             Pandas series containing only sample IDs of projected samples.
-
         """
         populations_for_embedding = get_embedding_populations(
             self._embedding_populations_file
@@ -430,7 +425,7 @@ class EigenDataset:
         return pd.Series(projected)
 
     def get_sequence_length(self) -> int:
-        """Counts and returns the number of SNPs in self._geno_file
+        """Counts and returns the number of SNPs in self._geno_file.
 
         Returns
         -------
@@ -441,7 +436,6 @@ class EigenDataset:
         ------
         PandoraException
             if the respective .geno file does not exist
-
         """
         if not self._geno_file.exists():
             raise PandoraConfigException(
@@ -457,7 +451,6 @@ class EigenDataset:
         -------
         bool
             Whether all three input files are present.
-
         """
         return all(
             [self._ind_file.exists(), self._geno_file.exists(), self._snp_file.exists()]
@@ -475,7 +468,6 @@ class EigenDataset:
         ------
         PandoraException
             If any of the three files is malformatted.
-
         """
         _check_ind_file(self._ind_file)
         _check_geno_file(self._geno_file)
@@ -490,7 +482,6 @@ class EigenDataset:
         Returns
         -------
         None
-
         """
         self._ind_file.unlink(missing_ok=True)
         self._geno_file.unlink(missing_ok=True)
@@ -536,7 +527,6 @@ class EigenDataset:
             - If not all input files ein EIGENSTRAT format are present (geno, snp, ind files).
         RuntimeError
             If the `smartpca` run failed.
-
         """
         if n_components > self.n_snps:
             raise PandoraException(
@@ -629,13 +619,16 @@ class EigenDataset:
         Returns
         -------
         distance_matrix : npt.NDArray
-            The resulting FST distance matrix. The shape of this matrix is (n_unique_populations, n_unique_populations).
+            Distance matrix of pairwise FST distances between all unique populations.
+            The shape of this matrix is (n_unique_populations, n_unique_populations).
+        populations : pd.Series
+            Pandas Series containing a population name for each row in the distance matrix. This values of this series
+            are the unique populations.
 
         Raises
         ------
         RuntimeError
             If the `smartpca` FST distance matrix computation failed.
-
         """
         fst_file = pathlib.Path(f"{result_prefix}.fst")
         smartpca_log = pathlib.Path(f"{result_prefix}.smartpca.log")
@@ -712,7 +705,6 @@ class EigenDataset:
             If the number of components is >= the number of SNPs in self.input_data.
         RuntimeError
             If the `smartpca` FST distance matrix computation failed.
-
         """
         # TODO: implement redo option -> check if files are present and correct
 
@@ -765,7 +757,6 @@ class EigenDataset:
         -------
         EigenDataset
             A new dataset object containing the bootstrap replicate data.
-
         """
         bs_ind_file = pathlib.Path(f"{bootstrap_prefix}.ind")
         bs_geno_file = pathlib.Path(f"{bootstrap_prefix}.geno")
@@ -863,7 +854,6 @@ class EigenDataset:
         -------
         EigenDataset
             EigenDataset object containing the section of SNPs requested.
-
         """
         ind_file = pathlib.Path(f"{result_prefix}.ind")
         geno_file = pathlib.Path(f"{result_prefix}.geno")
@@ -914,7 +904,6 @@ class EigenDataset:
         -------
         windows : List[EigenDataset]
             List of `n_windows` new EigenDataset objects as overlapping windows over self.
-
         """
         n_snps = self.get_sequence_length()
         overlap = int((n_snps / n_windows) / 2)
@@ -989,8 +978,8 @@ def bootstrap_and_embed_multiple(
     keep_bootstraps: bool = False,
     smartpca_optional_settings: Optional[Dict] = None,
 ) -> List[EigenDataset]:
-    """Draws n_replicates bootstrap datasets of the provided EigenDataset and performs PCA/MDS analysis
-    (as specified by embedding) for each bootstrap.
+    """Draws n_replicates bootstrap datasets of the provided EigenDataset and performs PCA/MDS analysis (as specified by
+    embedding) for each bootstrap.
 
     Note that unless threads=1, the computation is performed in parallel.
 
@@ -1031,7 +1020,6 @@ def bootstrap_and_embed_multiple(
         List of `n_replicates` boostrap replicates as EigenDataset objects. Each of the resulting
         datasets will have either bootstrap.pca != None or bootstrap.mds != None depending on the selected
         embedding option.
-
     """
     result_dir.mkdir(exist_ok=True, parents=True)
 
@@ -1104,8 +1092,8 @@ def sliding_window_embedding(
     keep_windows: bool = False,
     smartpca_optional_settings: Optional[Dict] = None,
 ) -> List[EigenDataset]:
-    """Separates the given EigenDataset into n_windows sliding-window datasets and performs PCA/MDS analysis
-    (as specified by embedding) for each window.
+    """Separates the given EigenDataset into n_windows sliding-window datasets and performs PCA/MDS analysis (as
+    specified by embedding) for each window.
 
     Note that unless threads=1, the computation is performed in parallel.
 
@@ -1146,7 +1134,6 @@ def sliding_window_embedding(
         List of n_windows subsets as EigenDataset objects. Each of the resulting window
         datasets will have either window.pca != None or window.mds != None depending on the selected
         embedding option.
-
     """
     result_dir.mkdir(exist_ok=True, parents=True)
 
@@ -1210,7 +1197,6 @@ class NumpyDataset:
     ------
     PandoraException
         If the number of samples and number of populations differ (need to provide one population per sample).
-
     """
 
     def __init__(
@@ -1242,10 +1228,9 @@ class NumpyDataset:
     def run_pca(
         self,
         n_components: int = 10,
-        imputation: str = "mean",
+        imputation: Optional[str] = "mean",
     ) -> None:
         """Performs PCA analysis on self.input_data reducing the data to n_components dimensions.
-
 
         Uses the scikit-learn PCA implementation. The result of the PCA analysis is a PCA object assigned to self.pca.
 
@@ -1253,7 +1238,7 @@ class NumpyDataset:
         ----------
         n_components : int, default=10
             Number of components to reduce the data to. Default is 10.
-        imputation : str, default="mean"
+        imputation : Optional[str], default="mean"
             Imputation method to use. Available options for PCA are:\n
             - mean: Imputes missing values with the average of the respective SNP\n
             - remove: Removes all SNPs with at least one missing value.
@@ -1268,7 +1253,6 @@ class NumpyDataset:
         PandoraException
             - If the number of principal components is >= the number of SNPs in self.input_data.
             - If imputation is None but self.input_data contains NaN values.
-
         """
         n_snps = self.input_data.shape[1]
         if n_components > n_snps:
@@ -1299,7 +1283,7 @@ class NumpyDataset:
         distance_metric: Callable[
             [npt.NDArray, pd.Series, str], Tuple[npt.NDArray, pd.Series]
         ] = euclidean_sample_distance,
-        imputation: str = "mean",
+        imputation: Optional[str] = "mean",
     ) -> None:
         """Performs MDS analysis using the data provided in this class.
 
@@ -1318,7 +1302,7 @@ class NumpyDataset:
             The resulting distance matrix is of size (n, m) and the resulting populations is expected to be
             of size (n, 1).
             Default is distance_metrics::eculidean_sample_distance (the pairwise Euclidean distance of all samples).
-        imputation : str, default="mean"
+        imputation : Optional[str], default="mean"
             Imputation method to use. Available options are:\n
             - mean: Imputes missing values with the average of the respective SNP\n
             - remove: Removes all SNPs with at least one missing value.\n
@@ -1335,7 +1319,6 @@ class NumpyDataset:
         PandoraException
             - If the distance_metric did not return one population per row in the returned distance matrix.
             - If the number of components is >= the number of rows in the distance matrix.
-
         """
         distance_matrix, populations = distance_metric(
             self.input_data, self.populations, imputation
@@ -1381,7 +1364,6 @@ class NumpyDataset:
         -------
         NumpyDataset
             A new dataset object containing the bootstraped input_data.
-
         """
         random.seed(seed)
         num_snps = self.input_data.shape[1]
@@ -1448,7 +1430,6 @@ def numpy_dataset_from_eigenfiles(eigen_prefix: pathlib.Path) -> NumpyDataset:
     ------
     PandoraException
         If not all input files (`.geno`, `.ind`, and `.snp`) for the given `eigen_prefix` exist.
-
     """
     ind_file = pathlib.Path(f"{eigen_prefix}.ind")
     geno_file = pathlib.Path(f"{eigen_prefix}.geno")
@@ -1517,10 +1498,10 @@ def bootstrap_and_embed_multiple_numpy(
     distance_metric: Callable[
         [npt.NDArray, pd.Series], Tuple[npt.NDArray, pd.Series]
     ] = euclidean_sample_distance,
-    imputation: str = "mean",
+    imputation: Optional[str] = "mean",
 ) -> List[NumpyDataset]:
-    """Draws n_replicates bootstrap datasets of the provided NumpyDataset and performs PCA/MDS analysis
-    (as specified by embedding) for each bootstrap.
+    """Draws n_replicates bootstrap datasets of the provided NumpyDataset and performs PCA/MDS analysis (as specified by
+    embedding) for each bootstrap.
 
     Note that unless threads=1, the computation is performed in parallel.
 
@@ -1548,7 +1529,7 @@ def bootstrap_and_embed_multiple_numpy(
         The resulting distance matrix is of size (n, m) and the resulting populations is expected to be
         of size (n, 1).
         Default is distance_metrics::eculidean_sample_distance (the pairwise Euclidean distance of all samples)
-    imputation : str, default="mean"
+    imputation : Optional[str], default="mean"
         Imputation method to use. Available options are:\n
         - mean: Imputes missing values with the average of the respective SNP\n
         - remove: Removes all SNPs with at least one missing value.
@@ -1562,7 +1543,6 @@ def bootstrap_and_embed_multiple_numpy(
         List of `n_replicates` boostrap replicates as NumpyDataset objects. Each of the resulting
         datasets will have either bootstrap.pca != None or bootstrap.mds != None depending on the selected
         embedding option.
-
     """
     if seed is not None:
         random.seed(seed)
@@ -1617,48 +1597,47 @@ def sliding_window_embedding_numpy(
     ] = euclidean_sample_distance,
     imputation: Optional[str] = "mean",
 ) -> List[NumpyDataset]:
-    """Separates the given NumpyDataset into n_windows sliding-window datasets and performs PCA/MDS analysis
-    (as specified by embedding) for each window.
+    """Separates the given NumpyDataset into n_windows sliding-window datasets and performs PCA/MDS analysis (as
+    specified by embedding) for each window.
 
-        Note that unless threads=1, the computation is performed in parallel.
+    Note that unless threads=1, the computation is performed in parallel.
 
-        Parameters
-        ----------
-        dataset : NumpyDataset
-            Dataset object separate into windows.
-        n_windows : int
-            Number of sliding-windows to separate the dataset into.
-        embedding : EmbeddingAlgorithm
-            Dimensionality reduction technique to apply. Allowed options are
-            EmbeddingAlgorithm.PCA for PCA analysis and EmbeddingAlgorithm.MDS for MDS analysis.
-        n_components : int
-            Number of dimensions to reduce the data to.
-            The recommended number is 10 for PCA and 2 for MDS.
-        threads : int, default=None
-            Number of threads to use for parallel window embedding.
-            Default is to use all system threads.
-        distance_metric : Callable[[npt.NDArray, pd.Series, str], Tuple[npt.NDArray, pd.Series]], default=eculidean_sample_distance
-            Distance metric to use for computing the distance matrix input for MDS. This is expected to be a
-            function that receives the numpy array of sequences, the population for each sequence and the imputation method
-            as input and should output the distance matrix and the respective populations for each row.
-            The resulting distance matrix is of size (n, m) and the resulting populations is expected to be
-            of size (n, 1).
-            Default is distance_metrics::eculidean_sample_distance (the pairwise Euclidean distance of all samples)
-        imputation : str, default="mean"
-            Imputation method to use. Available options are:\n
-            - mean: Imputes missing values with the average of the respective SNP\n
-            - remove: Removes all SNPs with at least one missing value.
-            - None: Does not impute missing data.
-            Note that depending on the distance_metric, not all imputation methods are supported. See the respective
-            documentations in the distance_metrics module.
+    Parameters
+    ----------
+    dataset : NumpyDataset
+        Dataset object separate into windows.
+    n_windows : int
+        Number of sliding-windows to separate the dataset into.
+    embedding : EmbeddingAlgorithm
+        Dimensionality reduction technique to apply. Allowed options are
+        EmbeddingAlgorithm.PCA for PCA analysis and EmbeddingAlgorithm.MDS for MDS analysis.
+    n_components : int
+        Number of dimensions to reduce the data to.
+        The recommended number is 10 for PCA and 2 for MDS.
+    threads : int, default=None
+        Number of threads to use for parallel window embedding.
+        Default is to use all system threads.
+    distance_metric : Callable[[npt.NDArray, pd.Series, str], Tuple[npt.NDArray, pd.Series]], default=eculidean_sample_distance
+        Distance metric to use for computing the distance matrix input for MDS. This is expected to be a
+        function that receives the numpy array of sequences, the population for each sequence and the imputation method
+        as input and should output the distance matrix and the respective populations for each row.
+        The resulting distance matrix is of size (n, m) and the resulting populations is expected to be
+        of size (n, 1).
+        Default is distance_metrics::eculidean_sample_distance (the pairwise Euclidean distance of all samples)
+    imputation : Optional[str], default="mean"
+        Imputation method to use. Available options are:\n
+        - mean: Imputes missing values with the average of the respective SNP\n
+        - remove: Removes all SNPs with at least one missing value.
+        - None: Does not impute missing data.
+        Note that depending on the distance_metric, not all imputation methods are supported. See the respective
+        documentations in the distance_metrics module.
 
-        Returns
-        -------
-        windows : List[NumpyDataset]
-            List of `n_windows` subsets as NumpyDataset objects. Each of the resulting window
-            datasets will have either window.pca != None or window.mds != None depending on the selected
-            embedding option.
-
+    Returns
+    -------
+    windows : List[NumpyDataset]
+        List of `n_windows` subsets as NumpyDataset objects. Each of the resulting window
+        datasets will have either window.pca != None or window.mds != None depending on the selected
+        embedding option.
     """
 
     args = [

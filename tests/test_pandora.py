@@ -35,18 +35,22 @@ def test_convert_to_eigenstrat(
         pandora_test_config_with_ped_files.dataset_prefix.absolute()
         == example_ped_dataset_prefix.absolute()
     )
-    # now convert
-    convert_to_eigenstrat_format(pandora_test_config_with_ped_files)
-    # the dataset prefix should now be the following
+
+    # the dataset prefix should be the following
     expected_prefix = (
         pandora_test_config_with_ped_files.convertf_result_dir
         / pandora_test_config_with_ped_files.dataset_prefix.name
     )
 
-    assert (
-        pandora_test_config_with_ped_files.dataset_prefix.absolute()
-        == expected_prefix.absolute()
+    # now convert
+    actual_prefix = convert_to_eigenstrat_format(
+        convertf=pandora_test_config_with_ped_files.convertf,
+        convertf_result_dir=pandora_test_config_with_ped_files.convertf_result_dir,
+        dataset_prefix=pandora_test_config_with_ped_files.dataset_prefix,
+        file_format=pandora_test_config_with_ped_files.file_format,
     )
+
+    assert actual_prefix == expected_prefix
 
 
 class TestPandoraConfig:

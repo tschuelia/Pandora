@@ -194,6 +194,35 @@ def smartpca_finished(n_components: int, result_prefix: pathlib.Path) -> bool:
     return True
 
 
+def smartpca_fst_finished(result_prefix: pathlib.Path) -> bool:
+    """Checks whether existing smartpca FST distance matrix computation results are correct.
+
+    We consider them to be correct if the smartPCA run finished properly as indicated by the respective log file.
+
+    Parameters
+    ----------
+    result_prefix : pathlib.Path
+        File path prefix pointing to the output of the smartpca FST computation to check.
+
+    Returns
+    -------
+    bool
+        Whether the respective smartpca run finished properly.
+    """
+    fst_file = pathlib.Path(f"{result_prefix}.fst")
+    smartpca_log = pathlib.Path(f"{result_prefix}.smartpca.log")
+
+    if not fst_file.exists() or not smartpca_log.exists():
+        return False
+
+    # 1. check if the run finished properly, that is indicated by a line "##end of smartpca:"
+    # in the smartpca_log file
+
+    run_finished = any(["##end of smartpca:" in line for line in smartpca_log.open()])
+    if not run_finished:
+        return False
+
+
 def get_embedding_populations(
     embedding_populations: Optional[pathlib.Path],
 ) -> pd.Series:
@@ -633,8 +662,7 @@ class EigenDataset:
         fst_file = pathlib.Path(f"{result_prefix}.fst")
         smartpca_log = pathlib.Path(f"{result_prefix}.smartpca.log")
 
-        if fst_file.exists() and smartpca_log.exists() and not redo:
-            # TODO: check if results exist and are correct
+        if smartpca_fst_finished(result_prefix) and not redo:
             return _parse_smartpca_fst_results(result_prefix)
 
         result_prefix.parent.mkdir(parents=True, exist_ok=True)
@@ -706,8 +734,6 @@ class EigenDataset:
         RuntimeError
             If the `smartpca` FST distance matrix computation failed.
         """
-        # TODO: implement redo option -> check if files are present and correct
-
         if n_components > self.n_snps:
             raise PandoraException(
                 "Number of components needs to be smaller or equal than the number of SNPs. "

@@ -25,6 +25,68 @@ from pandora.embedding import MDS, PCA
 from pandora.imputation import impute_data
 
 
+@pytest.fixture
+def example_packed_eigen_dataset_prefix() -> pathlib.Path:
+    return pathlib.Path(__file__).parent / "data" / "converted" / "example.packed"
+
+
+@pytest.fixture
+def example_eigen_sliding_window_dataset_prefix() -> pathlib.Path:
+    return pathlib.Path(__file__).parent / "data" / "example_sliding_window"
+
+
+@pytest.fixture
+def example_dataset_with_poplist(
+    example_eigen_dataset_prefix, example_population_list
+) -> EigenDataset:
+    return EigenDataset(example_eigen_dataset_prefix, example_population_list)
+
+
+@pytest.fixture
+def unfinished_smartpca_result_prefix() -> pathlib.Path:
+    """The log file is incomplete as an indicator of an interrupted smartPCA run."""
+    return pathlib.Path(__file__).parent / "data" / "smartpca" / "unfinished"
+
+
+@pytest.fixture
+def incorrect_smartpca_npcs_result_prefix() -> pathlib.Path:
+    """Number of PCs in n_pcs_mismatch.evec is 3."""
+    return pathlib.Path(__file__).parent / "data" / "smartpca" / "example_3pcs"
+
+
+@pytest.fixture
+def missing_smartpca_result_prefix() -> pathlib.Path:
+    """SmartPCA result files do not exist."""
+    return pathlib.Path(__file__).parent / "data" / "smartpca" / "does_not_exist"
+
+
+@pytest.fixture
+def example_dataset(example_eigen_dataset_prefix) -> EigenDataset:
+    return EigenDataset(example_eigen_dataset_prefix)
+
+
+@pytest.fixture
+def example_sliding_window_dataset(
+    example_eigen_sliding_window_dataset_prefix,
+) -> EigenDataset:
+    return EigenDataset(example_eigen_sliding_window_dataset_prefix)
+
+
+@pytest.fixture
+def test_numpy_dataset_sliding_window() -> NumpyDataset:
+    test_data = np.asarray(
+        [
+            [1, 2, 1, 2, 0, 1, 0, 1, 2, 0, 2, 0, 0, 1, 0, 1, 0, 0, 0, 1],
+            [0, 1, 0, 0, 1, 2, 2, 1, 0, 2, 1, 2, 2, 0, 2, 0, 2, 1, 1, 0],
+            [0, 0, 0, 2, 0, 2, 1, 1, 1, 0, 1, 2, 2, 0, 2, 2, 1, 0, 0, 2],
+        ]
+    )
+    sample_ids = pd.Series(["sample1", "sample2", "sample3"])
+    populations = pd.Series(["population1", "population2", "population3"])
+    dataset = NumpyDataset(test_data, sample_ids, populations)
+    return dataset
+
+
 class TestEigenDataset:
     def test_get_embedding_populations(self, example_population_list):
         populations = get_embedding_populations(example_population_list)

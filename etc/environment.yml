@@ -13,13 +13,14 @@ dependencies:
   - pyyaml
   - pytest
   - pyarrow
-  - pip
   - eigensoft
+  - pip
   - pydantic >= 2
   - loguru
-  - scikit-allel
   - make
   - numpydoc
   - sphinx
   - sphinxcontrib-apidoc
   - sphinx_rtd_theme
+  - pip:
+      - scikit-allel  # can be installed with conda once PRs #33 and #31 in the feedstock are merged

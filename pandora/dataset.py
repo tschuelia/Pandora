@@ -8,7 +8,6 @@ import shutil
 import subprocess
 import tempfile
 import textwrap
-from multiprocessing import Pool
 from typing import Callable, Dict, List, Optional, Set, Tuple, Union
 
 import numpy as np
@@ -18,7 +17,7 @@ from sklearn.decomposition import PCA as sklearnPCA
 from sklearn.manifold import MDS as sklearnMDS
 
 from pandora.custom_errors import PandoraConfigException, PandoraException
-from pandora.custom_types import EmbeddingAlgorithm, Executable
+from pandora.custom_types import Executable
 from pandora.distance_metrics import euclidean_sample_distance
 from pandora.embedding import MDS, PCA, from_sklearn_mds, from_smartpca
 from pandora.imputation import impute_data
@@ -151,7 +150,7 @@ def _parse_smartpca_fst_results(
     return fst_results, pd.Series(populations)
 
 
-def smartpca_finished(n_components: int, result_prefix: pathlib.Path) -> bool:
+def _smartpca_finished(n_components: int, result_prefix: pathlib.Path) -> bool:
     """Checks whether existing smartPCA results are correct.
 
     We consider them to be correct if\n
@@ -194,7 +193,7 @@ def smartpca_finished(n_components: int, result_prefix: pathlib.Path) -> bool:
     return True
 
 
-def smartpca_fst_finished(result_prefix: pathlib.Path) -> bool:
+def _smartpca_fst_finished(result_prefix: pathlib.Path) -> bool:
     """Checks whether existing smartpca FST distance matrix computation results are correct.
 
     We consider them to be correct if the smartPCA run finished properly as indicated by the respective log file.
@@ -573,7 +572,7 @@ class EigenDataset:
         # check whether the all required output files are already present
         # and whether the smartPCA run finished properly and the number of PCs matches the requested number of PCs
 
-        if smartpca_finished(n_components, result_dir / self.name) and not redo:
+        if _smartpca_finished(n_components, result_dir / self.name) and not redo:
             self.pca = from_smartpca(evec_out, eval_out)
             return
 
@@ -662,7 +661,7 @@ class EigenDataset:
         fst_file = pathlib.Path(f"{result_prefix}.fst")
         smartpca_log = pathlib.Path(f"{result_prefix}.smartpca.log")
 
-        if smartpca_fst_finished(result_prefix) and not redo:
+        if _smartpca_fst_finished(result_prefix) and not redo:
             return _parse_smartpca_fst_results(result_prefix)
 
         result_prefix.parent.mkdir(parents=True, exist_ok=True)
@@ -947,242 +946,6 @@ class EigenDataset:
             )
 
         return windows
-
-
-def _bootstrap_and_embed(args):
-    """Draws a bootstrap EigenDataset and performs dimensionality reduction using the provided arguments."""
-    (
-        dataset,
-        bootstrap_prefix,
-        smartpca,
-        seed,
-        embedding,
-        n_components,
-        redo,
-        keep_bootstraps,
-        smartpca_optional_settings,
-    ) = args
-    if embedding == EmbeddingAlgorithm.PCA:
-        if smartpca_finished(n_components, bootstrap_prefix) and not redo:
-            bootstrap = EigenDataset(
-                bootstrap_prefix,
-                dataset._embedding_populations_file,
-                dataset.sample_ids,
-                dataset.populations,
-                dataset.n_snps,
-            )
-        else:
-            bootstrap = dataset.bootstrap(bootstrap_prefix, seed, redo)
-        bootstrap.run_pca(
-            smartpca=smartpca,
-            n_components=n_components,
-            redo=redo,
-            smartpca_optional_settings=smartpca_optional_settings,
-        )
-    elif embedding == EmbeddingAlgorithm.MDS:
-        bootstrap = dataset.bootstrap(bootstrap_prefix, seed, redo)
-        bootstrap.run_mds(smartpca=smartpca, n_components=n_components, redo=redo)
-    else:
-        raise PandoraException(
-            f"Unrecognized embedding option {embedding}. Supported are 'pca' and 'mds'."
-        )
-    if not keep_bootstraps:
-        bootstrap.remove_input_files()
-    return bootstrap
-
-
-def bootstrap_and_embed_multiple(
-    dataset: EigenDataset,
-    n_bootstraps: int,
-    result_dir: pathlib.Path,
-    smartpca: Executable,
-    embedding: EmbeddingAlgorithm,
-    n_components: int,
-    seed: Optional[int] = None,
-    threads: Optional[int] = None,
-    redo: bool = False,
-    keep_bootstraps: bool = False,
-    smartpca_optional_settings: Optional[Dict] = None,
-) -> List[EigenDataset]:
-    """Draws n_replicates bootstrap datasets of the provided EigenDataset and performs PCA/MDS analysis (as specified by
-    embedding) for each bootstrap.
-
-    Note that unless threads=1, the computation is performed in parallel.
-
-    Parameters
-    ----------
-    dataset : EigenDataset
-        Dataset object to base the bootstrap replicates on.
-    n_bootstraps : int
-        Number of bootstrap replicates to draw.
-    result_dir : pathlib.Path
-        Directory where to store all result files.
-    smartpca : Executable
-        Path pointing to an executable of the EIGENSOFT smartpca tool.
-    embedding : EmbeddingAlgorithm
-        Dimensionality reduction technique to apply. Allowed options are
-        EmbeddingAlgorithm.PCA for PCA analysis and EmbeddingAlgorithm.MDS for MDS analysis.
-    n_components : int
-        Number of dimensions to reduce the data to.
-        The recommended number is 10 for PCA and 2 for MDS.
-    seed : int, default=None
-        Seed to initialize the random number generator with.
-    threads : int, default=None
-        Number of threads to use for parallel bootstrap generation.
-        Default is to use all system threads.
-    redo : bool, default=False
-        Whether to rerun analyses in case the result files are already present.
-    keep_bootstraps : bool, default=False
-        Whether to store all intermediate bootstrap ind, geno, and snp files.
-        Note that setting this to True might require a notable amount of disk space.
-    smartpca_optional_settings : Dict, default=None
-        Additional smartpca settings.
-        Not allowed are the following options: genotypename, snpname, indivname,
-        evecoutname, evaloutname, numoutevec, maxpops. Note that this option is only used when embedding == "PCA".
-
-    Returns
-    -------
-    bootstraps : List[EigenDataset]
-        List of `n_replicates` boostrap replicates as EigenDataset objects. Each of the resulting
-        datasets will have either bootstrap.pca != None or bootstrap.mds != None depending on the selected
-        embedding option.
-    """
-    result_dir.mkdir(exist_ok=True, parents=True)
-
-    if seed is not None:
-        random.seed(seed)
-
-    args = [
-        (
-            dataset,
-            result_dir / f"bootstrap_{i}",
-            smartpca,
-            random.randint(0, 1_000_000),
-            embedding,
-            n_components,
-            redo,
-            keep_bootstraps,
-            smartpca_optional_settings,
-        )
-        for i in range(n_bootstraps)
-    ]
-    with Pool(threads) as p:
-        bootstraps = list(p.map(_bootstrap_and_embed, args))
-
-    return bootstraps
-
-
-def _embed_window(args):
-    (
-        window,
-        window_prefix,
-        smartpca,
-        embedding,
-        n_components,
-        redo,
-        keep_windows,
-        smartpca_optional_settings,
-    ) = args
-
-    if embedding == EmbeddingAlgorithm.PCA:
-        window.run_pca(
-            smartpca=smartpca,
-            n_components=n_components,
-            redo=redo,
-            smartpca_optional_settings=smartpca_optional_settings,
-        )
-
-    elif embedding == EmbeddingAlgorithm.MDS:
-        window.run_mds(smartpca=smartpca, n_components=n_components, redo=redo)
-
-    else:
-        raise PandoraException(
-            f"Unrecognized embedding option {embedding}. Supported are 'pca' and 'mds'."
-        )
-
-    if not keep_windows:
-        window.remove_input_files()
-
-    return window
-
-
-def sliding_window_embedding(
-    dataset: EigenDataset,
-    n_windows: int,
-    result_dir: pathlib.Path,
-    smartpca: Executable,
-    embedding: EmbeddingAlgorithm,
-    n_components: int,
-    threads: Optional[int] = None,
-    redo: bool = False,
-    keep_windows: bool = False,
-    smartpca_optional_settings: Optional[Dict] = None,
-) -> List[EigenDataset]:
-    """Separates the given EigenDataset into n_windows sliding-window datasets and performs PCA/MDS analysis (as
-    specified by embedding) for each window.
-
-    Note that unless threads=1, the computation is performed in parallel.
-
-    Parameters
-    ----------
-    dataset : EigenDataset
-        Dataset object separate into windows.
-    n_windows : int
-        Number of sliding-windows to separate the dataset into.
-    result_dir : pathlib.Path
-        Directory where to store all result files.
-    smartpca : Executable
-        Path pointing to an executable of the EIGENSOFT smartpca tool.
-    embedding : EmbeddingAlgorithm
-        Dimensionality reduction technique to apply. Allowed options are
-        EmbeddingAlgorithm.PCA for PCA analysis and EmbeddingAlgorithm.MDS for MDS analysis.
-    n_components : int
-        Number of dimensions to reduce the data to.
-        The recommended number is 10 for PCA and 2 for MDS.
-    seed : int, default=None
-        Seed to initialize the random number generator with.
-    threads : int, default=None
-        Number of threads to use for parallel bootstrap generation.
-        Default is to use all system threads.
-    redo : bool, default=False
-        Whether to rerun analyses in case the result files are already present.
-    keep_windows : bool, default=False
-        Whether to store all intermediate window-dataset ind, geno, and snp files.
-        Note that setting this to True might require a notable amount of disk space.
-    smartpca_optional_settings : Dict, default=None
-        Additional smartpca settings.
-        Not allowed are the following options: genotypename, snpname, indivname,
-        evecoutname, evaloutname, numoutevec, maxpops. Note that this option is only used when embedding == "pca".
-
-    Returns
-    -------
-    windows : List[EigenDataset]
-        List of n_windows subsets as EigenDataset objects. Each of the resulting window
-        datasets will have either window.pca != None or window.mds != None depending on the selected
-        embedding option.
-    """
-    result_dir.mkdir(exist_ok=True, parents=True)
-
-    sliding_windows = dataset.get_windows(result_dir, n_windows)
-
-    args = [
-        (
-            window,
-            result_dir / f"window_{i}",
-            smartpca,
-            embedding,
-            n_components,
-            redo,
-            keep_windows,
-            smartpca_optional_settings,
-        )
-        for i, window in enumerate(sliding_windows)
-    ]
-
-    with Pool(threads) as p:
-        sliding_windows = list(p.map(_embed_window, args))
-
-    return sliding_windows
 
 
 class NumpyDataset:
@@ -1486,198 +1249,3 @@ def numpy_dataset_from_eigenfiles(eigen_prefix: pathlib.Path) -> NumpyDataset:
         populations.append(pop.strip())
 
     return NumpyDataset(geno_data, pd.Series(sample_ids), pd.Series(populations))
-
-
-def _bootstrap_and_embed_numpy(args):
-    (
-        dataset,
-        seed,
-        embedding,
-        n_components,
-        distance_metric,
-        imputation,
-    ) = args
-    bootstrap = dataset.bootstrap(seed)
-    if embedding == EmbeddingAlgorithm.PCA:
-        bootstrap.run_pca(n_components, imputation)
-    elif embedding == EmbeddingAlgorithm.MDS:
-        bootstrap.run_mds(
-            n_components,
-            distance_metric,
-            imputation,
-        )
-    else:
-        raise PandoraException(
-            f"Unrecognized embedding option {embedding}. Supported are 'pca' and 'mds'."
-        )
-
-    return bootstrap
-
-
-def bootstrap_and_embed_multiple_numpy(
-    dataset: NumpyDataset,
-    n_bootstraps: int,
-    embedding: EmbeddingAlgorithm,
-    n_components: int,
-    seed: Optional[int] = None,
-    threads: Optional[int] = None,
-    distance_metric: Callable[
-        [npt.NDArray, pd.Series], Tuple[npt.NDArray, pd.Series]
-    ] = euclidean_sample_distance,
-    imputation: Optional[str] = "mean",
-) -> List[NumpyDataset]:
-    """Draws n_replicates bootstrap datasets of the provided NumpyDataset and performs PCA/MDS analysis (as specified by
-    embedding) for each bootstrap.
-
-    Note that unless threads=1, the computation is performed in parallel.
-
-    Parameters
-    ----------
-    dataset : NumpyDataset
-        Dataset object to base the bootstrap replicates on.
-    n_bootstrap : int
-        Number of bootstrap replicates to draw.
-    embedding : EmbeddingAlgorithm
-        Dimensionality reduction technique to apply. Allowed options are
-        EmbeddingAlgorithm.PCA for PCA analysis and EmbeddingAlgorithm.MDS for MDS analysis.
-    n_components : int
-        Number of dimensions to reduce the data to.
-        The recommended number is 10 for PCA and 2 for MDS.
-    seed : int, default=None
-        Seed to initialize the random number generator with.
-    threads : int, default=None
-        Number of threads to use for parallel bootstrap generation.
-        Default is to use all system threads.
-    distance_metric : Callable[[npt.NDArray, pd.Series, str], Tuple[npt.NDArray, pd.Series]], default=eculidean_sample_distance
-        Distance metric to use for computing the distance matrix input for MDS. This is expected to be a
-        function that receives the numpy array of sequences, the population for each sequencem and the imputation method
-        as input and should output the distance matrix and the respective populations for each row.
-        The resulting distance matrix is of size (n, m) and the resulting populations is expected to be
-        of size (n, 1).
-        Default is distance_metrics::eculidean_sample_distance (the pairwise Euclidean distance of all samples)
-    imputation : Optional[str], default="mean"
-        Imputation method to use. Available options are:\n
-        - mean: Imputes missing values with the average of the respective SNP\n
-        - remove: Removes all SNPs with at least one missing value.
-        - None: Does not impute missing data.
-        Note that depending on the distance_metric, not all imputation methods are supported. See the respective
-        documentations in the distance_metrics module.
-
-    Returns
-    -------
-    bootstraps : List[NumpyDataset]
-        List of `n_replicates` boostrap replicates as NumpyDataset objects. Each of the resulting
-        datasets will have either bootstrap.pca != None or bootstrap.mds != None depending on the selected
-        embedding option.
-    """
-    if seed is not None:
-        random.seed(seed)
-
-    args = [
-        (
-            dataset,
-            random.randint(0, 1_000_000),
-            embedding,
-            n_components,
-            distance_metric,
-            imputation,
-        )
-        for _ in range(n_bootstraps)
-    ]
-    with Pool(threads) as p:
-        bootstraps = list(p.map(_bootstrap_and_embed_numpy, args))
-
-    return bootstraps
-
-
-def _embed_window_numpy(args):
-    (
-        window,
-        embedding,
-        n_components,
-        distance_metric,
-        imputation,
-    ) = args
-
-    if embedding == EmbeddingAlgorithm.PCA:
-        window.run_pca(n_components, imputation)
-    elif embedding == EmbeddingAlgorithm.MDS:
-        window.run_mds(n_components, distance_metric, imputation)
-
-    else:
-        raise PandoraException(
-            f"Unrecognized embedding option {embedding}. Supported are 'pca' and 'mds'."
-        )
-
-    return window
-
-
-def sliding_window_embedding_numpy(
-    dataset: NumpyDataset,
-    n_windows: int,
-    embedding: EmbeddingAlgorithm,
-    n_components: int,
-    threads: Optional[int] = None,
-    distance_metric: Callable[
-        [npt.NDArray, pd.Series], Tuple[npt.NDArray, pd.Series]
-    ] = euclidean_sample_distance,
-    imputation: Optional[str] = "mean",
-) -> List[NumpyDataset]:
-    """Separates the given NumpyDataset into n_windows sliding-window datasets and performs PCA/MDS analysis (as
-    specified by embedding) for each window.
-
-    Note that unless threads=1, the computation is performed in parallel.
-
-    Parameters
-    ----------
-    dataset : NumpyDataset
-        Dataset object separate into windows.
-    n_windows : int
-        Number of sliding-windows to separate the dataset into.
-    embedding : EmbeddingAlgorithm
-        Dimensionality reduction technique to apply. Allowed options are
-        EmbeddingAlgorithm.PCA for PCA analysis and EmbeddingAlgorithm.MDS for MDS analysis.
-    n_components : int
-        Number of dimensions to reduce the data to.
-        The recommended number is 10 for PCA and 2 for MDS.
-    threads : int, default=None
-        Number of threads to use for parallel window embedding.
-        Default is to use all system threads.
-    distance_metric : Callable[[npt.NDArray, pd.Series, str], Tuple[npt.NDArray, pd.Series]], default=eculidean_sample_distance
-        Distance metric to use for computing the distance matrix input for MDS. This is expected to be a
-        function that receives the numpy array of sequences, the population for each sequence and the imputation method
-        as input and should output the distance matrix and the respective populations for each row.
-        The resulting distance matrix is of size (n, m) and the resulting populations is expected to be
-        of size (n, 1).
-        Default is distance_metrics::eculidean_sample_distance (the pairwise Euclidean distance of all samples)
-    imputation : Optional[str], default="mean"
-        Imputation method to use. Available options are:\n
-        - mean: Imputes missing values with the average of the respective SNP\n
-        - remove: Removes all SNPs with at least one missing value.
-        - None: Does not impute missing data.
-        Note that depending on the distance_metric, not all imputation methods are supported. See the respective
-        documentations in the distance_metrics module.
-
-    Returns
-    -------
-    windows : List[NumpyDataset]
-        List of `n_windows` subsets as NumpyDataset objects. Each of the resulting window
-        datasets will have either window.pca != None or window.mds != None depending on the selected
-        embedding option.
-    """
-
-    args = [
-        (
-            window,
-            embedding,
-            n_components,
-            distance_metric,
-            imputation,
-        )
-        for window in dataset.get_windows(n_windows)
-    ]
-
-    with Pool(threads) as p:
-        sliding_windows = list(p.map(_embed_window_numpy, args))
-
-    return sliding_windows

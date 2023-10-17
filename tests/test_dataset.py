@@ -6,23 +6,27 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from pandora.bootstrap import (
+    bootstrap_and_embed_multiple,
+    bootstrap_and_embed_multiple_numpy,
+)
 from pandora.custom_errors import PandoraException
 from pandora.custom_types import EmbeddingAlgorithm
 from pandora.dataset import (
     EigenDataset,
     NumpyDataset,
     _deduplicate_snp_id,
-    bootstrap_and_embed_multiple,
-    bootstrap_and_embed_multiple_numpy,
+    _smartpca_finished,
     get_embedding_populations,
     numpy_dataset_from_eigenfiles,
-    sliding_window_embedding,
-    sliding_window_embedding_numpy,
-    smartpca_finished,
 )
 from pandora.distance_metrics import DISTANCE_METRICS, fst_population_distance
 from pandora.embedding import MDS, PCA
 from pandora.imputation import impute_data
+from pandora.sliding_window import (
+    sliding_window_embedding,
+    sliding_window_embedding_numpy,
+)
 
 
 @pytest.fixture
@@ -366,19 +370,19 @@ class TestEigenDataset:
 class TestEigenDatasetPCA:
     def test_smartpca_finished(self, correct_smartpca_result_prefix):
         n_pcs = 2
-        assert smartpca_finished(n_pcs, correct_smartpca_result_prefix)
+        assert _smartpca_finished(n_pcs, correct_smartpca_result_prefix)
 
     def test_smartpca_not_finished(self, unfinished_smartpca_result_prefix):
         n_pcs = 2
-        assert not smartpca_finished(n_pcs, unfinished_smartpca_result_prefix)
+        assert not _smartpca_finished(n_pcs, unfinished_smartpca_result_prefix)
 
     def test_smartpca_wrong_n_pcs(self, incorrect_smartpca_npcs_result_prefix):
         n_pcs = 2
-        assert not smartpca_finished(n_pcs, incorrect_smartpca_npcs_result_prefix)
+        assert not _smartpca_finished(n_pcs, incorrect_smartpca_npcs_result_prefix)
 
     def test_smartpca_results_missing(self, missing_smartpca_result_prefix):
         n_pcs = 2
-        assert not smartpca_finished(n_pcs, missing_smartpca_result_prefix)
+        assert not _smartpca_finished(n_pcs, missing_smartpca_result_prefix)
 
     def test_smartpca(self, smartpca, example_dataset):
         n_pcs = 2

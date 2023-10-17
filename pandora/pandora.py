@@ -14,6 +14,7 @@ from pydantic import BaseModel, ConfigDict, NonNegativeInt, PositiveInt, Validat
 from pydantic.dataclasses import dataclass
 
 from pandora import __version__
+from pandora.bootstrap import bootstrap_and_embed_multiple
 from pandora.converter import run_convertf
 from pandora.custom_errors import PandoraConfigException, PandoraException
 from pandora.custom_types import (
@@ -22,11 +23,7 @@ from pandora.custom_types import (
     Executable,
     FileFormat,
 )
-from pandora.dataset import (
-    EigenDataset,
-    bootstrap_and_embed_multiple,
-    sliding_window_embedding,
-)
+from pandora.dataset import EigenDataset
 from pandora.embedding_comparison import BatchEmbeddingComparison
 from pandora.logger import fmt_message, logger
 from pandora.plotting import (
@@ -35,6 +32,7 @@ from pandora.plotting import (
     plot_projections,
     plot_support_values,
 )
+from pandora.sliding_window import sliding_window_embedding
 
 
 @dataclass

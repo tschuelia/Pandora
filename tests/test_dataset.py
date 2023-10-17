@@ -6,37 +6,23 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from pandora.bootstrap import (
-    bootstrap_and_embed_multiple,
-    bootstrap_and_embed_multiple_numpy,
-)
 from pandora.custom_errors import PandoraException
-from pandora.custom_types import EmbeddingAlgorithm
 from pandora.dataset import (
     EigenDataset,
     NumpyDataset,
     _deduplicate_snp_id,
+    _get_embedding_populations,
     _smartpca_finished,
-    get_embedding_populations,
     numpy_dataset_from_eigenfiles,
 )
 from pandora.distance_metrics import DISTANCE_METRICS, fst_population_distance
 from pandora.embedding import MDS, PCA
 from pandora.imputation import impute_data
-from pandora.sliding_window import (
-    sliding_window_embedding,
-    sliding_window_embedding_numpy,
-)
 
 
 @pytest.fixture
 def example_packed_eigen_dataset_prefix() -> pathlib.Path:
     return pathlib.Path(__file__).parent / "data" / "converted" / "example.packed"
-
-
-@pytest.fixture
-def example_eigen_sliding_window_dataset_prefix() -> pathlib.Path:
-    return pathlib.Path(__file__).parent / "data" / "example_sliding_window"
 
 
 @pytest.fixture
@@ -64,36 +50,9 @@ def missing_smartpca_result_prefix() -> pathlib.Path:
     return pathlib.Path(__file__).parent / "data" / "smartpca" / "does_not_exist"
 
 
-@pytest.fixture
-def example_dataset(example_eigen_dataset_prefix) -> EigenDataset:
-    return EigenDataset(example_eigen_dataset_prefix)
-
-
-@pytest.fixture
-def example_sliding_window_dataset(
-    example_eigen_sliding_window_dataset_prefix,
-) -> EigenDataset:
-    return EigenDataset(example_eigen_sliding_window_dataset_prefix)
-
-
-@pytest.fixture
-def test_numpy_dataset_sliding_window() -> NumpyDataset:
-    test_data = np.asarray(
-        [
-            [1, 2, 1, 2, 0, 1, 0, 1, 2, 0, 2, 0, 0, 1, 0, 1, 0, 0, 0, 1],
-            [0, 1, 0, 0, 1, 2, 2, 1, 0, 2, 1, 2, 2, 0, 2, 0, 2, 1, 1, 0],
-            [0, 0, 0, 2, 0, 2, 1, 1, 1, 0, 1, 2, 2, 0, 2, 2, 1, 0, 0, 2],
-        ]
-    )
-    sample_ids = pd.Series(["sample1", "sample2", "sample3"])
-    populations = pd.Series(["population1", "population2", "population3"])
-    dataset = NumpyDataset(test_data, sample_ids, populations)
-    return dataset
-
-
 class TestEigenDataset:
     def test_get_embedding_populations(self, example_population_list):
-        populations = get_embedding_populations(example_population_list)
+        populations = _get_embedding_populations(example_population_list)
         pd.testing.assert_series_equal(populations, pd.Series(["Pop1", "Pop2", "Pop3"]))
 
     def test_get_windows(self, example_dataset):
@@ -285,87 +244,6 @@ class TestEigenDataset:
 
         assert len(seen_ids) == n_ids
 
-    @pytest.mark.parametrize(
-        "embedding", [EmbeddingAlgorithm.PCA, EmbeddingAlgorithm.MDS]
-    )
-    @pytest.mark.parametrize("keep_files", [True, False])
-    def test_bootstrap_and_embed_multiple(
-        self, example_dataset, smartpca, embedding, keep_files
-    ):
-        n_bootstraps = 2
-        with tempfile.TemporaryDirectory() as tmpdir:
-            tmpdir = pathlib.Path(tmpdir)
-            bootstraps = bootstrap_and_embed_multiple(
-                dataset=example_dataset,
-                n_bootstraps=n_bootstraps,
-                result_dir=tmpdir,
-                smartpca=smartpca,
-                embedding=embedding,
-                n_components=2,
-                seed=0,
-                threads=1,
-                keep_bootstraps=keep_files,
-            )
-
-            assert len(bootstraps) == n_bootstraps
-
-            if embedding == EmbeddingAlgorithm.PCA:
-                # each bootstrap should have embedding.pca != None, but embedding.mds == None
-                assert all(b.pca is not None for b in bootstraps)
-                assert all(isinstance(b.pca, PCA) for b in bootstraps)
-                assert all(b.mds is None for b in bootstraps)
-            elif embedding == EmbeddingAlgorithm.MDS:
-                # each bootstrap should have embedding.mds != None, but embedding.pca == None
-                assert all(b.mds is not None for b in bootstraps)
-                assert all(isinstance(b.mds, MDS) for b in bootstraps)
-                assert all(b.pca is None for b in bootstraps)
-
-            # make sure that all files are present if keep_files == True, otherwise check that they are deleted
-            if keep_files:
-                assert all(b.files_exist() for b in bootstraps)
-            else:
-                assert not any(b.files_exist() for b in bootstraps)
-
-    @pytest.mark.parametrize(
-        "embedding", [EmbeddingAlgorithm.PCA, EmbeddingAlgorithm.MDS]
-    )
-    @pytest.mark.parametrize("keep_files", [True, False])
-    def test_sliding_window_embedding(
-        self, example_sliding_window_dataset, smartpca, embedding, keep_files
-    ):
-        n_windows = 5
-        with tempfile.TemporaryDirectory() as tmpdir:
-            tmpdir = pathlib.Path(tmpdir)
-            windows = sliding_window_embedding(
-                dataset=example_sliding_window_dataset,
-                n_windows=n_windows,
-                result_dir=tmpdir,
-                smartpca=smartpca,
-                embedding=embedding,
-                n_components=2,
-                threads=1,
-                keep_windows=keep_files,
-            )
-
-            assert len(windows) == n_windows
-
-            if embedding == EmbeddingAlgorithm.PCA:
-                # each window should have embedding.pca != None, but embedding.mds == None
-                assert all(w.pca is not None for w in windows)
-                assert all(isinstance(w.pca, PCA) for w in windows)
-                assert all(w.mds is None for w in windows)
-            elif embedding == EmbeddingAlgorithm.MDS:
-                # each window should have embedding.mds != None, but embedding.pca == None
-                assert all(w.mds is not None for w in windows)
-                assert all(isinstance(w.mds, MDS) for w in windows)
-                assert all(w.pca is None for w in windows)
-
-            # make sure that all files are present if keep_files == True, otherwise check that they are deleted
-            if keep_files:
-                assert all(w.files_exist() for w in windows)
-            else:
-                assert not any(w.files_exist() for w in windows)
-
 
 class TestEigenDatasetPCA:
     def test_smartpca_finished(self, correct_smartpca_result_prefix):
@@ -552,67 +430,6 @@ class TestNumpyDataset:
         assert overlap_window0.shape == overlap_window1.shape
         assert overlap_window0.shape[1] == expected_overlap
         np.testing.assert_equal(overlap_window0, overlap_window1)
-
-    @pytest.mark.parametrize(
-        "embedding", [EmbeddingAlgorithm.PCA, EmbeddingAlgorithm.MDS]
-    )
-    def test_bootstrap_and_embed_multiple_numpy(self, test_numpy_dataset, embedding):
-        n_bootstraps = 2
-        bootstraps = bootstrap_and_embed_multiple_numpy(
-            dataset=test_numpy_dataset,
-            n_bootstraps=n_bootstraps,
-            embedding=embedding,
-            n_components=2,
-            seed=0,
-            threads=2,
-            # we don't test for 'remove' here because we have a small dataset and we might end up getting an error
-            # because the bootstrapped dataset contains only nan-columns
-            imputation="mean",
-        )
-
-        assert len(bootstraps) == n_bootstraps
-
-        if embedding == EmbeddingAlgorithm.PCA:
-            # each bootstrap should have embedding.pca != None, but embedding.mds == None
-            assert all(b.pca is not None for b in bootstraps)
-            assert all(isinstance(b.pca, PCA) for b in bootstraps)
-            assert all(b.mds is None for b in bootstraps)
-        elif embedding == EmbeddingAlgorithm.MDS:
-            # each bootstrap should have embedding.mds != None, but embedding.pca == None
-            assert all(b.mds is not None for b in bootstraps)
-            assert all(isinstance(b.mds, MDS) for b in bootstraps)
-            assert all(b.pca is None for b in bootstraps)
-
-    @pytest.mark.parametrize(
-        "embedding", [EmbeddingAlgorithm.PCA, EmbeddingAlgorithm.MDS]
-    )
-    def test_sliding_window_embedding_numpy(
-        self, test_numpy_dataset_sliding_window, embedding
-    ):
-        n_windows = 4
-        sliding_windows = sliding_window_embedding_numpy(
-            dataset=test_numpy_dataset_sliding_window,
-            n_windows=n_windows,
-            embedding=embedding,
-            n_components=2,
-            threads=2,
-            # we don't test for 'remove' here because we have a small dataset and we might end up getting an error
-            # because the windowed datasets contains only nan-columns
-            imputation="mean",
-        )
-
-        assert len(sliding_windows) == n_windows
-
-        if embedding == EmbeddingAlgorithm.PCA:
-            # each window should have embedding.pca != None, but embedding.mds == None
-            assert all(w.pca is not None for w in sliding_windows)
-            assert all(isinstance(w.pca, PCA) for w in sliding_windows)
-            assert all(w.mds is None for w in sliding_windows)
-        elif embedding == EmbeddingAlgorithm.MDS:
-            # each window should have embedding.mds != None, but embedding.pca == None
-            assert all(w.mds is not None for w in sliding_windows)
-            assert all(isinstance(w.mds, MDS) for w in sliding_windows)
-            assert all(w.pca is None for w in sliding_windows)
 
     @pytest.mark.parametrize("distance_metric", DISTANCE_METRICS)
     @pytest.mark.parametrize("imputation", ["mean", "remove"])

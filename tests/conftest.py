@@ -6,7 +6,7 @@ import pandas as pd
 import pytest
 
 from pandora.custom_types import Executable
-from pandora.dataset import NumpyDataset
+from pandora.dataset import EigenDataset, NumpyDataset
 from pandora.embedding import PCA, from_smartpca
 
 from .test_config import CONVERTF, SMARTPCA
@@ -40,6 +40,11 @@ def example_population_list() -> pathlib.Path:
 @pytest.fixture
 def correct_smartpca_result_prefix() -> pathlib.Path:
     return pathlib.Path(__file__).parent / "data" / "smartpca" / "example"
+
+
+@pytest.fixture
+def example_dataset(example_eigen_dataset_prefix) -> EigenDataset:
+    return EigenDataset(example_eigen_dataset_prefix)
 
 
 @pytest.fixture

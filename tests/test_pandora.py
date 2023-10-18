@@ -347,6 +347,10 @@ class TestPandora:
     def test_log_and_save_results(self, pandora_test_config_with_embedding_populations):
         # modify the config to not plot anything for these tests
         pandora_test_config_with_embedding_populations.plot_results = False
+        # also we disable the bootstrap convergence check
+        pandora_test_config_with_embedding_populations.bootstrap_convergence_check = (
+            False
+        )
         pandora = Pandora(pandora_test_config_with_embedding_populations)
 
         # first lets run the bootstrap analyses to make sure there is something to log

@@ -8,6 +8,7 @@ plot_results: True
 n_components: 2
 kmeans_k: 3
 result_decimals: 2
+bootstrap_convergence_check: False
 smartpca_optional_settings:
   shrinkmode: NO
   numoutlieriter: 0

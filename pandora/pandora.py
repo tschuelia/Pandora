@@ -55,11 +55,19 @@ class PandoraConfig(BaseModel):
         convertf is installed systemwide.
     n_replicates : PositiveInt, default=100
         Number of bootstrap replicates or sliding windows to compute.
+        In case of bootstrapping, make sure to also set the `bootstrap_convergence_check` parameter as desired.
     keep_replicates : bool, default=False
         Whether to store all intermediate datasets files (.geno, .snp, .ind). Note that this will
         result in a substantial storage consumption. Default is False. Note that the bootstrapped indicies are
         stored as checkpoints for full reproducibility in any case.
-    n_components : PositiveInt, deafault=10
+    bootstrap_convergence_check : bool, default=True
+        Whether to heuristically determine convergence of the bootstrapping procedure.
+        If true, instead of computing `n_replicates` bootstraps and embeddings, Pandora will check for convergence once
+        every 10 bootstrap embeddings are computed. If according to our heuristic (see `bootstrap.py` for more details)
+        the bootstrap procedure converged, all remaining tasks are cancelled and the stability is determined uisng
+        only the number of replicates computed when convergence is determined.
+        Note that this parameter is only relevant if `analysis_mode` is `AnalysisMode.BOOTSTRAP`.
+    n_components : PositiveInt, default=10
         Number of dimensions to output and compare for PCA and MDS analyses.
         The recommended number is 10 for PCA and 2 for MDS. Default is 10 in correspondance to the default PCA embedding.
     embedding_algorithm : EmbeddingAlgorithm, default=EmbeddingAlgorithm.PCA
@@ -121,9 +129,12 @@ class PandoraConfig(BaseModel):
     file_format: FileFormat = FileFormat.EIGENSTRAT
     convertf: Executable = "convertf"
 
-    # Repliactes related settings
+    # Repliacates related settings
     n_replicates: NonNegativeInt = 100
     keep_replicates: bool = False
+
+    # Bootstrap specific setting (convergence check)
+    bootstrap_convergence_check: bool = True
 
     # Embedding related
     n_components: NonNegativeInt = 10
@@ -525,6 +536,13 @@ class Pandora:
                 f"running {self.pandora_config.embedding_algorithm.value}."
             )
         )
+        if self.pandora_config.bootstrap_convergence_check:
+            logger.info(
+                fmt_message(
+                    "NOTE: Bootstrap convergence check is enabled. "
+                    "Will terminate bootstrap computation once convergence is determined."
+                )
+            )
         self.replicates = bootstrap_and_embed_multiple(
             self.dataset,
             self.pandora_config.n_replicates,
@@ -536,9 +554,14 @@ class Pandora:
             self.pandora_config.threads,
             self.pandora_config.redo,
             self.pandora_config.keep_replicates,
+            self.pandora_config.bootstrap_convergence_check,
             self.pandora_config.smartpca_optional_settings,
         )
-
+        logger.info(
+            fmt_message(
+                f"Bootstrapping done. Number of replicates computed: {len(self.replicates)}"
+            )
+        )
         self._compare_and_plot_replicates()
 
     def sliding_window(self) -> None:
@@ -716,7 +739,7 @@ class Pandora:
         results_string = textwrap.dedent(
             f"""
             > Performed Analysis: {self.pandora_config.analysis_mode.value}
-            > Number of replicates computed: {self.pandora_config.n_replicates}
+            > Number of replicates computed: {len(self.replicates)}
             > Number of Kmeans clusters: {self.pandora_config.kmeans_k}
 
             ------------------

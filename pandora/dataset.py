@@ -222,7 +222,7 @@ def _smartpca_fst_finished(result_prefix: pathlib.Path) -> bool:
         return False
 
 
-def get_embedding_populations(
+def _get_embedding_populations(
     embedding_populations: Optional[pathlib.Path],
 ) -> pd.Series:
     """Return a pandas series of populations to use for the embedding computation.
@@ -252,6 +252,36 @@ def _deduplicate_snp_id(snp_id: str, seen_snps: Set[str]):
         deduplicate = f"{snp_id}_r{snp_id_counter}"
 
     return deduplicate
+
+
+# def _run_smartpca(cmd: List[str], logfile: pathlib.Path) -> bool:
+#     """Returns whether the process finished properly or was terminated.
+#
+#     If the smartpca run finished without any errors, returns True. If the smartpca run
+#     was terminated as a consequence of STOP_SMARTPCA being set, returns False. In case
+#     of an error an exception is thrown.
+#     """
+#     with logfile.open("w") as log:
+#         try:
+#             process = subprocess.Popen(cmd, stdout=log, stderr=log)
+#             while 1:
+#                 if process.poll() is not None:
+#                     # smartPCA run is finished
+#                     break
+#                 if STOP_SMARTPCA.is_set():
+#                     process.terminate()
+#                     time.sleep(0.5)
+#                     return False
+#                 time.sleep(0.01)
+#             return_code = process.wait()
+#         except Exception as e:
+#             raise PandoraException("Something went wrong executing smartPCA.") from e
+#         if return_code != 0:
+#             raise RuntimeError(
+#                 f"Error running smartPCA. "
+#                 f"Check the smartPCA logfile {logfile.absolute()} for details."
+#             )
+#         return True
 
 
 class EigenDataset:
@@ -336,7 +366,7 @@ class EigenDataset:
         self._snp_file: pathlib.Path = pathlib.Path(f"{self.file_prefix}.snp")
 
         self._embedding_populations_file: pathlib.Path = embedding_populations
-        self.embedding_populations: pd.Series = get_embedding_populations(
+        self.embedding_populations: pd.Series = _get_embedding_populations(
             self._embedding_populations_file
         )
 
@@ -437,7 +467,7 @@ class EigenDataset:
         pd.Series
             Pandas series containing only sample IDs of projected samples.
         """
-        populations_for_embedding = get_embedding_populations(
+        populations_for_embedding = _get_embedding_populations(
             self._embedding_populations_file
         )
 
@@ -620,12 +650,15 @@ class EigenDataset:
                 try:
                     subprocess.run(cmd, stdout=logfile, stderr=logfile, check=True)
                 except subprocess.CalledProcessError:
+                    # in case of an error, we remove the (probably) incorrect/broken evec and eval files
+                    evec_out.unlink(missing_ok=True)
+                    eval_out.unlink(missing_ok=True)
                     raise RuntimeError(
                         f"Error running smartPCA. "
                         f"Check the smartPCA logfile {smartpca_log.absolute()} for details."
                     )
 
-        self.pca = from_smartpca(evec_out, eval_out)
+            self.pca = from_smartpca(evec_out, eval_out)
 
     def fst_population_distance(
         self, smartpca: Executable, result_prefix: pathlib.Path, redo: bool = False
@@ -684,17 +717,18 @@ class EigenDataset:
                 "-p",
                 tmpfile.name,
             ]
-
             with smartpca_log.open("w") as logfile:
                 try:
                     subprocess.run(cmd, stdout=logfile, stderr=logfile, check=True)
                 except subprocess.CalledProcessError:
+                    # in case of an error, we remove the (probably) incorrect/broken fst file
+                    fst_file.unlink(missing_ok=True)
                     raise RuntimeError(
                         f"Error computing FST matrix using smartPCA. "
                         f"Check the smartPCA logfile {smartpca_log.absolute()} for details."
                     )
 
-        return _parse_smartpca_fst_results(result_prefix)
+            return _parse_smartpca_fst_results(result_prefix)
 
     def run_mds(
         self,
@@ -743,7 +777,7 @@ class EigenDataset:
             result_dir = self._file_dir
 
         fst_matrix, populations = self.fst_population_distance(
-            smartpca=smartpca, result_prefix=result_dir / self.name
+            smartpca=smartpca, result_prefix=result_dir / self.name, redo=redo
         )
 
         mds = sklearnMDS(
@@ -807,6 +841,9 @@ class EigenDataset:
         # sample the SNPs using the snp file
         # each line in the snp file corresponds to one SNP
         num_snps = self.get_sequence_length()
+
+        # create the parent directory to make sure we can write the files
+        bootstrap_prefix.parent.mkdir(parents=True, exist_ok=True)
 
         # check if a checkpoint with SNP indices exists
         ckp_file = pathlib.Path(f"{bootstrap_prefix}.ckp")

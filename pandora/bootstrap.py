@@ -242,6 +242,9 @@ def bootstrap_and_embed_multiple(
     We assume convergence if all pairwise relative differences are below 5%.
     If we determine that the bootstrap has converged, all remaining bootstrap computations are cancelled.
     """
+    # before starting the bootstrap computation, make sure the convergence signal is cleared
+    STOP_BOOTSTRAP.clear()
+
     result_dir.mkdir(exist_ok=True, parents=True)
 
     if seed is not None:
@@ -415,6 +418,9 @@ def bootstrap_and_embed_multiple_numpy(
     We assume convergence if all pairwise relative differences are below 5%.
     If we determine that the bootstrap has converged, all remaining bootstrap computations are cancelled.
     """
+    # before starting the bootstrap computation, make sure the convergence signal is cleared
+    STOP_BOOTSTRAP.clear()
+
     if seed is not None:
         random.seed(seed)
 

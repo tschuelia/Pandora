@@ -22,11 +22,6 @@ from pandora.custom_types import EmbeddingAlgorithm
 from pandora.embedding import MDS, PCA
 
 
-@pytest.fixture(autouse=True)
-def cleanup_bootstrap_stop_signal():
-    STOP_BOOTSTRAP.clear()
-
-
 def _dummy_func(status: int):
     """Dummy function that returns the status if it is > 0 and otherwise raises a ValueError."""
     if status >= 0:

@@ -238,7 +238,7 @@ def bootstrap_and_embed_multiple(
     Let :math:`N` be the number of replicate computed when performing the convergence check.
     We first create 10 random subsets of size :math:`int(N/2)` by sampling from all :math:`N` replicates.
     We then compute the Pandora Stability (PS) for each of the 10 subsets and compute the relative difference of PS
-    values between all possible pairs of subsets :math:`(PS_1, PS_2)` by computing :math:`\\frac{abs(PS_1 - PS_2)}{PS_2}`.
+    values between all possible pairs of subsets :math:`(PS_1, PS_2)` by computing :math:`\\frac{\\left|PS_1 - PS_2\\right|}{PS_2}`.
     We assume convergence if all pairwise relative differences are below 5%.
     If we determine that the bootstrap has converged, all remaining bootstrap computations are cancelled.
     """
@@ -414,7 +414,7 @@ def bootstrap_and_embed_multiple_numpy(
     Let :math:`N` be the number of replicate computed when performing the convergence check.
     We first create 10 random subsets of size :math:`int(N/2)` by sampling from all :math:`N` replicates.
     We then compute the Pandora Stability (PS) for each of the 10 subsets and compute the relative difference of PS
-    values between all possible pairs of subsets :math:`(PS_1, PS_2)` by computing :math:`\\frac{abs(PS_1 - PS_2)}{PS_2}`.
+    values between all possible pairs of subsets :math:`(PS_1, PS_2)` by computing :math:`\\frac{\\left|PS_1 - PS_2\\right|}{PS_2}`.
     We assume convergence if all pairwise relative differences are below 5%.
     If we determine that the bootstrap has converged, all remaining bootstrap computations are cancelled.
     """

@@ -23,7 +23,7 @@ STOP_BOOTSTRAP = Event()
 
 
 def _wrapped_func(func, result_queue, args):
-    """Runs the given function `func` with the given arguments `args` and stores the result in result_queue.
+    """Runs the given function ``func`` with the given arguments ``args`` and stores the result in result_queue.
 
     If the function call raises an exception, the Exception is also stored in the
     result_queue.
@@ -35,12 +35,12 @@ def _wrapped_func(func, result_queue, args):
 
 
 def _run_function_in_process(func, args):
-    """Runs the given function `func` with the provided arguments `args` in a multiprocessing.Process.
+    """Runs the given function ``func`` with the provided arguments ``args`` in a multiprocessing.Process.
 
     We periodically check for a stop signal (`STOP_BOOTSTRAP`) that signals bootstrap convergence.
     If this signal is set, we terminate the running process.
-    Returns the result of `func(*args)` in case the process terminates without an error.
-    If the underlying `func` call raises an exception, the exception is passed through to the caller
+    Returns the result of ``func(*args)`` in case the process terminates without an error.
+    If the underlying ``func`` call raises an exception, the exception is passed through to the caller
     of this function.
     """
     if STOP_BOOTSTRAP.is_set():
@@ -53,7 +53,7 @@ def _run_function_in_process(func, args):
 
     try:
         # open a new Process using _wrapped_func
-        # _wrapped_func simply calls the specified function `func` with the provided arguments `args`
+        # _wrapped_func simply calls the specified function ``func`` with the provided arguments ``args``
         # and stores the result (or Exception) in the result_queue
         process = Process(
             target=functools.partial(_wrapped_func, func, result_queue, args),
@@ -179,12 +179,12 @@ def bootstrap_and_embed_multiple(
     bootstrap_convergence_check: bool = True,
     smartpca_optional_settings: Optional[Dict] = None,
 ) -> List[EigenDataset]:
-    """Draws `n_replicates` bootstrap datasets of the provided EigenDataset and performs PCA/MDS analysis (as specified
-    by embedding) for each bootstrap.
+    """Draws ``n_replicates`` bootstrap datasets of the provided EigenDataset and performs PCA/MDS analysis (as
+    specified by embedding) for each bootstrap.
 
-    If `bootstrap_convergence_check` is set, this method will draw *at most* `n_replicates` bootstraps. See
+    If ``bootstrap_convergence_check`` is set, this method will draw *at most* ``n_replicates`` bootstraps. See
     Notes below for further details.
-    Note that unless threads=1, the computation is performed in parallel.
+    Note that unless ``threads=1``, the computation is performed in parallel.
 
     Parameters
     ----------
@@ -192,14 +192,14 @@ def bootstrap_and_embed_multiple(
         Dataset object to base the bootstrap replicates on.
     n_bootstraps : int
         Number of bootstrap replicates to draw.
-        In case `bootstrap_convergence_check` is set, this is the upper limit of number of replicates.
+        In case ``bootstrap_convergence_check`` is set, this is the upper limit of number of replicates.
     result_dir : pathlib.Path
         Directory where to store all result files.
     smartpca : Executable
         Path pointing to an executable of the EIGENSOFT smartpca tool.
     embedding : EmbeddingAlgorithm
         Dimensionality reduction technique to apply. Allowed options are
-        EmbeddingAlgorithm.PCA for PCA analysis and EmbeddingAlgorithm.MDS for MDS analysis.
+        ``EmbeddingAlgorithm.PCA`` for PCA analysis and ``EmbeddingAlgorithm.MDS`` for MDS analysis.
     n_components : int
         Number of dimensions to reduce the data to.
         The recommended number is 10 for PCA and 2 for MDS.
@@ -212,20 +212,21 @@ def bootstrap_and_embed_multiple(
         Whether to rerun analyses in case the result files are already present.
     keep_bootstraps : bool, default=False
         Whether to store all intermediate bootstrap ind, geno, and snp files.
-        Note that setting this to True might require a notable amount of disk space.
+        Note that setting this to ``True`` might require a substantial amount of disk space depending on the size of your
+        dataset.
     bootstrap_convergence_check : bool, default=True
-        Whether to automatically determine bootstrap convergence. If True, will only compute as many replicates as
+        Whether to automatically determine bootstrap convergence. If ``True``, will only compute as many replicates as
         required for convergence according to our heuristic (see Notes below).
     smartpca_optional_settings : Dict, default=None
         Additional smartpca settings.
-        Not allowed are the following options: genotypename, snpname, indivname,
-        evecoutname, evaloutname, numoutevec, maxpops. Note that this option is only used when embedding == "PCA".
+        Not allowed are the following options: ``genotypename``, ``snpname``, ``indivname``,
+        ``evecoutname``, ``evaloutname``, ``numoutevec``, ``maxpops``. Note that this option is only used for PCA analyses.
 
     Returns
     -------
     bootstraps : List[EigenDataset]
-        List of `n_replicates` boostrap replicates as EigenDataset objects. Each of the resulting
-        datasets will have either bootstrap.pca != None or bootstrap.mds != None depending on the selected
+        List of ``n_replicates`` boostrap replicates as EigenDataset objects. Each of the resulting
+        datasets will have either ``bootstrap.pca != None`` or ``bootstrap.mds != None`` depending on the selected
         embedding option.
 
     Notes
@@ -233,7 +234,7 @@ def bootstrap_and_embed_multiple(
     Bootstrap Convergence ("Bootstopping"): While more bootstraps yield more reliable stability analyses
     results, computing a vast amount of replicates is very compute heavy for typical genotype datasets.
     We thus suggest a trade-off between the accuracy of the stability and the ressource usage.
-    To this end, we implement a "bootstopping" procedure intended to determine convergence of the bootstrapping procedure.
+    To this end, we implement a bootstopping procedure intended to determine convergence of the bootstrapping procedure.
     Once every 10 replicates, we perform the following heuristic convergence check:
     Let :math:`N` be the number of replicate computed when performing the convergence check.
     We first create 10 random subsets of size :math:`int(N/2)` by sampling from all :math:`N` replicates.
@@ -355,12 +356,12 @@ def bootstrap_and_embed_multiple_numpy(
     imputation: Optional[str] = "mean",
     bootstrap_convergence_check: bool = True,
 ) -> List[NumpyDataset]:
-    """Draws n_replicates bootstrap datasets of the provided NumpyDataset and performs PCA/MDS analysis (as specified by
-    embedding) for each bootstrap.
+    """Draws ``n_replicates`` bootstrap datasets of the provided NumpyDataset and performs PCA/MDS analysis (as
+    specified by ``embedding``) for each bootstrap.
 
-    If `bootstrap_convergence_check` is set, this method will draw *at most* `n_replicates` bootstraps. See
+    If ``bootstrap_convergence_check`` is set, this method will draw *at most* ``n_replicates`` bootstraps. See
     Notes below for further details.
-    Note that unless threads=1, the computation is performed in parallel.
+    Note that unless ``threads=1``, the computation is performed in parallel.
 
     Parameters
     ----------
@@ -370,7 +371,7 @@ def bootstrap_and_embed_multiple_numpy(
         Number of bootstrap replicates to draw.
     embedding : EmbeddingAlgorithm
         Dimensionality reduction technique to apply. Allowed options are
-        EmbeddingAlgorithm.PCA for PCA analysis and EmbeddingAlgorithm.MDS for MDS analysis.
+        ``EmbeddingAlgorithm.PCA`` for PCA analysis and ``EmbeddingAlgorithm.MDS`` for MDS analysis.
     n_components : int
         Number of dimensions to reduce the data to.
         The recommended number is 10 for PCA and 2 for MDS.
@@ -381,10 +382,10 @@ def bootstrap_and_embed_multiple_numpy(
         Default is to use all system threads.
     distance_metric : Callable[[npt.NDArray, pd.Series, str], Tuple[npt.NDArray, pd.Series]], default=eculidean_sample_distance
         Distance metric to use for computing the distance matrix input for MDS. This is expected to be a
-        function that receives the numpy array of sequences, the population for each sequencem and the imputation method
+        function that receives the numpy array of sequences, the population for each sequence and the imputation method
         as input and should output the distance matrix and the respective populations for each row.
-        The resulting distance matrix is of size (n, m) and the resulting populations is expected to be
-        of size (n, 1).
+        The resulting distance matrix is of size :math:`(n, m)`` and the resulting populations is expected to be
+        of size :math:`(n, 1)`.
         Default is distance_metrics::eculidean_sample_distance (the pairwise Euclidean distance of all samples)
     imputation : Optional[str], default="mean"
         Imputation method to use. Available options are:\n
@@ -394,14 +395,14 @@ def bootstrap_and_embed_multiple_numpy(
         Note that depending on the distance_metric, not all imputation methods are supported. See the respective
         documentations in the distance_metrics module.
     bootstrap_convergence_check : bool, default=True
-        Whether to automatically determine bootstrap convergence. If True, will only compute as many replicates as
+        Whether to automatically determine bootstrap convergence. If ``True``, will only compute as many replicates as
         required for convergence according to our heuristic (see Notes below).
 
     Returns
     -------
     bootstraps : List[NumpyDataset]
-        List of `n_replicates` boostrap replicates as NumpyDataset objects. Each of the resulting
-        datasets will have either bootstrap.pca != None or bootstrap.mds != None depending on the selected
+        List of ``n_replicates`` boostrap replicates as NumpyDataset objects. Each of the resulting
+        datasets will have either ``bootstrap.pca != None`` or ``bootstrap.mds != None`` depending on the selected
         embedding option.
 
     Notes
@@ -409,7 +410,7 @@ def bootstrap_and_embed_multiple_numpy(
     Bootstrap Convergence ("Bootstopping"): While more bootstraps yield more reliable stability analyses
     results, computing a vast amount of replicates is very compute heavy for typical genotype datasets.
     We thus suggest a trade-off between the accuracy of the stability and the ressource usage.
-    To this end, we implement a "bootstopping" procedure intended to determine convergence of the bootstrapping procedure.
+    To this end, we implement a bootstopping procedure intended to determine convergence of the bootstrapping procedure.
     Once every 10 replicates, we perform the following heuristic convergence check:
     Let :math:`N` be the number of replicate computed when performing the convergence check.
     We first create 10 random subsets of size :math:`int(N/2)` by sampling from all :math:`N` replicates.

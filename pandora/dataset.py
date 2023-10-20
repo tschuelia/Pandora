@@ -254,36 +254,6 @@ def _deduplicate_snp_id(snp_id: str, seen_snps: Set[str]):
     return deduplicate
 
 
-# def _run_smartpca(cmd: List[str], logfile: pathlib.Path) -> bool:
-#     """Returns whether the process finished properly or was terminated.
-#
-#     If the smartpca run finished without any errors, returns True. If the smartpca run
-#     was terminated as a consequence of STOP_SMARTPCA being set, returns False. In case
-#     of an error an exception is thrown.
-#     """
-#     with logfile.open("w") as log:
-#         try:
-#             process = subprocess.Popen(cmd, stdout=log, stderr=log)
-#             while 1:
-#                 if process.poll() is not None:
-#                     # smartPCA run is finished
-#                     break
-#                 if STOP_SMARTPCA.is_set():
-#                     process.terminate()
-#                     time.sleep(0.5)
-#                     return False
-#                 time.sleep(0.01)
-#             return_code = process.wait()
-#         except Exception as e:
-#             raise PandoraException("Something went wrong executing smartPCA.") from e
-#         if return_code != 0:
-#             raise RuntimeError(
-#                 f"Error running smartPCA. "
-#                 f"Check the smartPCA logfile {logfile.absolute()} for details."
-#             )
-#         return True
-
-
 class EigenDataset:
     """Class structure to represent a population genetics dataset in Eigenstrat format.
 
@@ -291,41 +261,41 @@ class EigenDataset:
     It further provides methods to generate a bootstrap replicate dataset (SNPs resampled with replacement) and
     to generate overlapping sliding windows of sub-datasets.
     Note that in order for the bootstrap and windowing methods to work, the respective geno, ind, and snp files need to
-    be in EIGENSTRAT format with a similar file prefix and need to have file endings `.geno`, `.ind`, and `.snp`.
+    be in EIGENSTRAT format with a similar file prefix and need to have file endings ``.geno``, ``.ind``, and ``.snp``.
 
     Note that Pandora does not check on init whether all input files are present, as you are allowed to init
     a dataset despite the files missing. This is useful for saving storage when drawing lots of bootstrap
     replicates. In case the input files are missing, you need to pass sample_ids, populations and n_snps.
-    Of course, you need the files if you want to run self.bootstrap, self.run_pca,
-    self.run_mds, or self.get_windows.
+    Of course, you need the files if you want to run ``self.bootstrap``, ``self.run_pca``,
+    ``self.run_mds``, or ``self.get_windows``.
 
     Parameters
     ----------
     file_prefix : pathlib.Path
         File path prefix pointing to the ind, geno, and snp files in EIGENSTRAT format.
         All methods assume that all three files have the same prefix and have the file endings
-        `.geno`, `.ind`, and `.snp`.
+        ``.geno``, ``.ind``, and ``.snp``.
     embedding_populations : pathlib.Path, default=None
         Path pointing to a file containing a new-line separated list
         containing population names. Only samples belonging to these populations will be used for PCA analyses.
         If not set, all samples will be used.
     sample_ids :  pd.Series, default=None
         pandas Series containing a sample ID for each sequence in the dataset.
-        If not set, Pandora will set this based on the content of self._ind_file
+        If not set, Pandora will set this based on the content of ``self._ind_file``
     populations : pd.Series, default=None
         pandas Series containing the population for each sample in the dataset.
-        If not set, Pandora will set this based on the content of self._ind_file
+        If not set, Pandora will set this based on the content of ``self._ind_file``
     n_snps : int, default=None
-        Number of SNPs in the dataset. If not set, Pandora will set this based on the content of self._geno_file
+        Number of SNPs in the dataset. If not set, Pandora will set this based on the content of ``self._geno_file``
 
     Attributes
     ----------
     file_prefix : pathlib.Path
         File path prefix pointing to the ind, geno, and snp files in EIGENSTRAT format.
         All methods assume that all three files have the same prefix and have the file endings
-        `.geno`, `.ind`, and `.snp`.
+        ``.geno``, ``.ind``, and ``.snp``.
     name : str
-        Name of the dataset. Inferred as name of the provided file_prefix.
+        Name of the dataset. Inferred as name of the provided ``file_prefix``.
     embedding_populations : List[str]
         List of population used for PCA analysis with smartpca.
     sample_ids : pd.Series
@@ -339,14 +309,15 @@ class EigenDataset:
         Number of SNPs in the dataset.
     pca : PCA
         PCA object as result of a smartpca run on the provided dataset.
-        This is None until self.run_pca() was called.
+        This is ``None`` until ``self.run_pca()`` was called.
     mds : MDS
-        MDS object as a result of an MDS computation. This is None until self.run_mds() was called.
+        MDS object as a result of an MDS computation. This is ``None`` until ``self.run_mds()`` was called.
 
     Raises
     ------
     PandoraException
-        If not all input files (`.geno`, `.ind`, and `.snp`) exist, but `sample_ids`, `populations` and/or `n_snps` is None.
+        If not all input files (``.geno``, ``.ind``, and ``.snp``) exist, but ``sample_ids``, ``populations``
+        and/or ``n_snp`s` is ``None``.
     """
 
     def __init__(
@@ -407,7 +378,7 @@ class EigenDataset:
         self.mds: Union[None, MDS] = None
 
     def get_sample_info(self) -> pd.Series:
-        """Reads the sample IDs from self._ind_file.
+        """Reads the sample IDs from ``self._ind_file``.
 
         Returns
         -------
@@ -417,7 +388,7 @@ class EigenDataset:
         Raises
         ------
         PandoraException
-            if the respective .ind file does not exist
+            if the respective ind file does not exist
         """
         if not self._ind_file.exists():
             raise PandoraConfigException(
@@ -432,12 +403,12 @@ class EigenDataset:
         return pd.Series(sample_ids)
 
     def get_population_info(self) -> pd.Series:
-        """Reads the populations from self._ind_file.
+        """Reads the populations from ``self._ind_file``.
 
         Returns
         -------
         pd.Series
-            Pandas series containing the population for each sample in the prder in the ind file.
+            Pandas series containing the population for each sample in the order in the ind file.
 
         Raises
         ------
@@ -460,7 +431,7 @@ class EigenDataset:
         """Returns a pandas series with sample IDs of projected samples.
 
         If a sample is projected or used to compute the
-        embedding is decided based on the presence and content of self._embedding_populations_file.
+        embedding is decided based on the presence and content of ``self._embedding_populations_file``.
 
         Returns
         -------
@@ -483,17 +454,17 @@ class EigenDataset:
         return pd.Series(projected)
 
     def get_sequence_length(self) -> int:
-        """Counts and returns the number of SNPs in self._geno_file.
+        """Counts and returns the number of SNPs in ``self._geno_file``.
 
         Returns
         -------
         int
-            Number of SNPs in self._geno_file.
+            Number of SNPs in ``self._geno_file``.
 
         Raises
         ------
         PandoraException
-            if the respective .geno file does not exist
+            if the respective geno file does not exist
         """
         if not self._geno_file.exists():
             raise PandoraConfigException(
@@ -532,7 +503,7 @@ class EigenDataset:
         _check_snp_file(self._snp_file)
 
     def remove_input_files(self) -> None:
-        """Removes all three input files (self._ind_file, self._geno_file, self._snp_file).
+        """Removes all three input files (``self._ind_file``, ``self._geno_file``, ``self._snp_file``).
 
         This is useful if you want to save storage space and don't need the input files anymore
         (e.g. for bootstrap replicates).
@@ -556,7 +527,7 @@ class EigenDataset:
         """Runs the EIGENSOFT smartpca on the dataset and assigns its PCA result to self.pca.
 
         Additional smartpca options can be passed as dictionary in smartpca_optional_settings, e.g.
-        `smartpca_optional_settings = dict(numoutlieriter=0, shrinkmode=True)`.
+        ``smartpca_optional_settings = dict(numoutlieriter=0, shrinkmode=True)``.
 
         Parameters
         ----------
@@ -570,8 +541,8 @@ class EigenDataset:
             Whether to redo the analysis, if all outfiles are already present and correct.
         smartpca_optional_settings : Dict, default=None
             Additional smartpca settings.
-            Not allowed are the following options: genotypename, snpname, indivname,
-            evecoutname, evaloutname, numoutevec, maxpops.
+            Not allowed are the following options: ``genotypename``, ``snpname``, ``indivname``,
+            ``evecoutname``, ``evaloutname``, ``numoutevec``, ``maxpops``.
             If not set, the default settings of your smartpca executable are used.
 
         Returns
@@ -581,10 +552,10 @@ class EigenDataset:
         Raises
         ------
         PandoraException
-            - If the number of principal components is >= the number of SNPs in self.input_data.
+            - If the number of principal components is >= the number of SNPs in ``self.input_data``.
             - If not all input files ein EIGENSTRAT format are present (geno, snp, ind files).
         RuntimeError
-            If the `smartpca` run failed.
+            If the ``smartpca`` run failed.
         """
         if n_components > self.n_snps:
             raise PandoraException(
@@ -673,7 +644,7 @@ class EigenDataset:
             Path pointing to an executable of the EIGENSOFT smartpca tool.
         result_prefix : pathlib.Path
             Prefix where to store the results of the smartpca FST computation. On successfull execution, two files will
-            be created: the FST result ({prefix}.fst) and a smartpca log file ({prefix}.smartpca.log).
+            be created: the FST result (``{prefix}.fst``) and a smartpca log file (``{prefix}.smartpca.log``).
         redo : bool
             Whether to recompute the FST matrix in case the result file is already present.
 
@@ -681,7 +652,7 @@ class EigenDataset:
         -------
         distance_matrix : npt.NDArray
             Distance matrix of pairwise FST distances between all unique populations.
-            The shape of this matrix is (n_unique_populations, n_unique_populations).
+            The shape of this matrix is ``(n_unique_populations, n_unique_populations)``.
         populations : pd.Series
             Pandas Series containing a population name for each row in the distance matrix. This values of this series
             are the unique populations.
@@ -689,7 +660,7 @@ class EigenDataset:
         Raises
         ------
         RuntimeError
-            If the `smartpca` FST distance matrix computation failed.
+            If the ``smartpca`` FST distance matrix computation failed.
         """
         fst_file = pathlib.Path(f"{result_prefix}.fst")
         smartpca_log = pathlib.Path(f"{result_prefix}.smartpca.log")
@@ -750,9 +721,9 @@ class EigenDataset:
             Number of components to reduce the data to.
         result_dir : pathlib.Path, default=self._file_dir
             Directory where to store the data in. Calling this method will create two files:\n
-            * result_dir / (self.name + ".fst"): contains the FST distance matrix.\n
-            * result_dir / (self.name + ".smartpca.log"): contains the smartpca log.\n
-            Default is self._file_dir.
+            * ``result_dir / (self.name + ".fst")``: contains the FST distance matrix.\n
+            * ``result_dir / (self.name + ".smartpca.log")``: contains the smartpca log.\n
+            Default is ``self._file_dir``.
         redo : bool, default=False
             Whether to recompute the FST matrix in case the result file is already present.
 
@@ -763,9 +734,9 @@ class EigenDataset:
         Raises
         ------
         PandoraException
-            If the number of components is >= the number of SNPs in self.input_data.
+            If the number of components is >= the number of SNPs in ``self.input_data``.
         RuntimeError
-            If the `smartpca` FST distance matrix computation failed.
+            If the ``smartpca`` FST distance matrix computation failed.
         """
         if n_components > self.n_snps:
             raise PandoraException(
@@ -806,7 +777,7 @@ class EigenDataset:
         ----------
         bootstrap_prefix : pathlib.Path
             Prefix of the file path where to write the bootstrap dataset to.
-                The resulting files will be  `bootstrap_prefix.geno`, `bootstrap_prefix.ind`, and `bootstrap_prefix.snp`.
+                The resulting files will be  ``bootstrap_prefix.geno``, ``bootstrap_prefix.ind``, and ``bootstrap_prefix.snp``.
         seed : int
             Seed to initialize the random number generator before drawing the replicates.
         redo : bool, default=False
@@ -899,7 +870,7 @@ class EigenDataset:
     def _generate_windowed_dataset(
         self, window_start: int, window_end: int, result_prefix: pathlib.Path
     ) -> EigenDataset:
-        """Extracts a section of SNPs from self and returns it as new EigenDataset.
+        """Extracts a section of SNPs from self and returns it as new ``EigenDataset``.
 
         Parameters
         ----------
@@ -909,13 +880,13 @@ class EigenDataset:
             End index of the section to extract.
         result_prefix : pathlib.Path
             File prefix where to store the resulting EIGENSTRAT files.
-            Will create three new files: {result_prefix}.ind, {result_prefix}.geno, {result_prefix}.snp containing
+            Will create three new files: ``{result_prefix}.ind``, ``{result_prefix}.geno``, ``{result_prefix}.snp`` containing
             the specified section of SNPs.
 
         Returns
         -------
         EigenDataset
-            EigenDataset object containing the section of SNPs requested.
+            ``EigenDataset`` object containing the section of SNPs requested.
         """
         ind_file = pathlib.Path(f"{result_prefix}.ind")
         geno_file = pathlib.Path(f"{result_prefix}.geno")
@@ -946,11 +917,11 @@ class EigenDataset:
     def get_windows(
         self, result_dir: pathlib.Path, n_windows: int = 100
     ) -> List[EigenDataset]:
-        """Creates n_windows new EigenDataset objects as overlapping sliding windows over self.
+        """Creates n_windows new ``EigenDataset`` objects as overlapping sliding windows over self.
 
-        Let `K` = number of SNPs in self and `N` = n_windows.
-        Each dataset will have a window size of `int(K / N + (K / 2 * N))` SNPs.
-        The stride is `int(K / N)` and the overlap between windows is thus `int(K / 2 * N)` SNPs.
+        Let :math:`K` = number of SNPs in self and :math:`N` = n_windows.
+        Each dataset will have a window size of :math:`int(K / N + (K / 2 * N))` SNPs.
+        The stride is :math:`int(K / N)` and the overlap between windows is thus :math:`int(K / 2 * N)` SNPs.
         Note that the last EigenDataset will contain fewer SNPs as there is no following window to overlap with.
         However, due to rounding, the number of SNPs in the final Dataset will not simply be overlap fewer.
 
@@ -958,14 +929,14 @@ class EigenDataset:
         ----------
         result_dir : pathlib.Path
             Directory where to store the resulting Dataset files in.
-            Each window Dataset will be named `window_{i}` for `i` in `range(n_windows)`
+            Each window Dataset will be named ``window_{i}`` for ``i`` in ``range(n_windows)``
         n_windows : int, default=100
             Number of windowed datasets to generate.
 
         Returns
         -------
         windows : List[EigenDataset]
-            List of `n_windows` new EigenDataset objects as overlapping windows over self.
+            List of ``n_windows`` new ``EigenDataset`` objects as overlapping windows over self.
         """
         n_snps = self.get_sequence_length()
         overlap = int((n_snps / n_windows) / 2)
@@ -997,27 +968,27 @@ class NumpyDataset:
     input_data : npt.NDArray
         Numpy Array containing the input data to use.
     sample_ids : pd.Series[str]
-        Pandas Series containing the sample IDs of the sequences contained in input_data.
-        Expects the number of sample_ids to match the first dimension of input_data.
+        Pandas Series containing the sample IDs of the sequences contained in ``input_data``.
+        Expects the number of ``sample_ids`` to match the first dimension of ``input_data``.
     populations : pd.Series[str]
-        Pandas Series containing the populations of the sequences contained in input_data.
-        Expects the number of populations to matche the first dimension of input_data.
+        Pandas Series containing the populations of the sequences contained in ``input_data``.
+        Expects the number of ``populations`` to match the first dimension of ``input_data``.
     missing_value : Union[np.nan, int], default=np.nan
-            Value to treat as missing value. All missing values in input_data will be replaced with np.nan
+            Value to treat as missing value. All missing values in ``input_data`` will be replaced with ``np.nan``
 
     Attributes
     ----------
     input_data : npt.NDArray
         Numpy Array containing the input data to use.
     sample_ids : pd.Series[str]
-        Pandas Series containing a sample ID for each row in input_data.
+        Pandas Series containing a sample ID for each row in ``input_data``.
     populations : pd.Series[str]
-        Pandas Series containing a population name for each row in input_data.
+        Pandas Series containing a population name for each row in ``input_data``.
     pca : PCA
         PCA object as result of a PCA analysis run on the provided dataset.
-        This is None until self.run_pca() was called.
+        This is ``None`` until ``self.run_pca()`` was called.
     mds : MDS
-        MDS object as a result of an MDS computation. This is None until self.run_mds() was called.
+        MDS object as a result of an MDS computation. This is ``None`` until ``self.run_mds()`` was called.
 
     Raises
     ------
@@ -1056,9 +1027,9 @@ class NumpyDataset:
         n_components: int = 10,
         imputation: Optional[str] = "mean",
     ) -> None:
-        """Performs PCA analysis on self.input_data reducing the data to n_components dimensions.
+        """Performs PCA analysis on ``self.input_data`` reducing the data to ``n_components`` dimensions.
 
-        Uses the scikit-learn PCA implementation. The result of the PCA analysis is a PCA object assigned to self.pca.
+        Uses the scikit-learn PCA implementation. The result of the PCA analysis is a PCA object assigned to ``self.pca``.
 
         Parameters
         ----------
@@ -1068,7 +1039,7 @@ class NumpyDataset:
             Imputation method to use. Available options for PCA are:\n
             - mean: Imputes missing values with the average of the respective SNP\n
             - remove: Removes all SNPs with at least one missing value.
-            - None: Does not impute missing data. Note that this option is only valid if self.input_data does not contain NaN values.
+            - None: Does not impute missing data. Note that this option is only valid if ``self.input_data`` does not contain NaN values.
 
         Returns
         -------
@@ -1077,8 +1048,8 @@ class NumpyDataset:
         Raises
         ------
         PandoraException
-            - If the number of principal components is >= the number of SNPs in self.input_data.
-            - If imputation is None but self.input_data contains NaN values.
+            - If the number of principal components is >= the number of SNPs in ``self.input_data``.
+            - If imputation is ``None`` but ``self.input_data`` contains NaN values.
         """
         n_snps = self.input_data.shape[1]
         if n_components > n_snps:
@@ -1115,7 +1086,7 @@ class NumpyDataset:
 
         The distance matrix is generated using the
         provided distance_metric callable. The subsequent MDS analysis is performed using the scikit-learn MDS
-        implementation. The result of the MDS analysis is an MDS object assigned to self.mds.
+        implementation. The result of the MDS analysis is an MDS object assigned to ``self.mds``.
 
         Parameters
         ----------
@@ -1125,16 +1096,16 @@ class NumpyDataset:
             Distance metric to use for computing the distance matrix input for MDS. This is expected to be a
             function that receives the numpy array of sequences, the population for each sequence, and the imputation method
             as input and should output the distance matrix and the respective populations for each row.
-            The resulting distance matrix is of size (n, m) and the resulting populations is expected to be
-            of size (n, 1).
-            Default is distance_metrics::eculidean_sample_distance (the pairwise Euclidean distance of all samples).
+            The resulting distance matrix is of size :math:`(n, m)` and the resulting populations is expected to be
+            of size :math:`(n, 1)`.
+            Default is ``distance_metrics::eculidean_sample_distance`` (the pairwise Euclidean distance of all samples).
         imputation : Optional[str], default="mean"
             Imputation method to use. Available options are:\n
             - mean: Imputes missing values with the average of the respective SNP\n
             - remove: Removes all SNPs with at least one missing value.\n
             - None: Does not impute missing data.
-            Note that depending on the distance_metric, not all imputation methods are supported. See the respective
-            documentations in the distance_metrics module.
+            Note that depending on the ``distance_metric``, not all imputation methods are supported. See the respective
+            documentations in the ``distance_metrics`` module.
 
         Returns
         -------
@@ -1143,7 +1114,7 @@ class NumpyDataset:
         Raises
         ------
         PandoraException
-            - If the distance_metric did not return one population per row in the returned distance matrix.
+            - If the ``distance_metric`` did not return one population per row in the returned distance matrix.
             - If the number of components is >= the number of rows in the distance matrix.
         """
         distance_matrix, populations = distance_metric(
@@ -1189,7 +1160,7 @@ class NumpyDataset:
         Returns
         -------
         NumpyDataset
-            A new dataset object containing the bootstraped input_data.
+            A new dataset object containing the bootstrapped ``input_data``.
         """
         random.seed(seed)
         num_snps = self.input_data.shape[1]
@@ -1199,11 +1170,11 @@ class NumpyDataset:
         return NumpyDataset(bootstrap_data, self.sample_ids, self.populations)
 
     def get_windows(self, n_windows: int = 100) -> List[NumpyDataset]:
-        """Creates n_windows new NumpyDataset objects as overlapping sliding windows over self.
+        """Creates ``n_windows`` new ``NumpyDataset`` objects as overlapping sliding windows over self.
 
-        Let `K` = number of SNPs in self and `N` = n_windows.
-        Each dataset will have a window size of `int(K / N + (K / 2 * N))` SNPs.
-        The stride is `int(K / N)` and the overlap between windows is thus `int(K / 2 * N)` SNPs.
+        Let :math:`K` = number of SNPs in self and :math:`N` = n_windows.
+        Each dataset will have a window size of :math:`int(K / N + (K / 2 * N))` SNPs.
+        The stride is :math:`int(K / N)` and the overlap between windows is thus :math:`int(K / 2 * N)` SNPs.
         Note that the last NumpyDataset will contain fewer SNPs as there is no following window to overlap with.
         However, due to rounding, the number of SNPs in the final Dataset will not simply be overlap fewer.
 
@@ -1215,7 +1186,7 @@ class NumpyDataset:
         Returns
         -------
         windows : List[NumpyDataset]
-            List of `n_windows` new NumpyDataset objects as overlapping windows over self.
+            List of ``n_windows`` new ``NumpyDataset`` objects as overlapping windows over self.
         """
         num_snps = self.input_data.shape[1]
         overlap = int((num_snps / n_windows) / 2)
@@ -1234,28 +1205,28 @@ class NumpyDataset:
 
 
 def numpy_dataset_from_eigenfiles(eigen_prefix: pathlib.Path) -> NumpyDataset:
-    """Loads a genotype dataset in EIGENSTRAT format as NumpyDataset.
+    """Loads a genotype dataset in EIGENSTRAT format as ``NumpyDataset``.
 
-    This method only requires the genotye and individual files as the metadata of the SNPs present in the `.snp` file is
+    This method only requires the genotype and individual files as the metadata of the SNPs present in the ``.snp`` file is
     not used. Note that the dataset needs to be in EIGENSTRAT format with a similar file prefix and need to have file
-    endings `.geno` and `.ind` for the respective file type.
+    endings ``.geno`` and ``.ind`` for the respective file type.
 
     Parameters
     ----------
     eigen_prefix : pathlib.Path
         File path prefix pointing to the ind and geno genotype files in EIGENSTRAT format.
         This method assumes that all EIGEn files have the same prefix and have the file endings
-        `.geno` and `.ind`. (Note that the `.snp` file is not required.)
+        ``.geno`` and ``.ind``. (Note that the ``.snp`` file is not required.)
 
     Returns
     -------
     NumpyDataset
-        NumpyDataset containing the genotype data provided in the EIGEN files located at eigen_prefix.
+        ``NumpyDataset`` containing the genotype data provided in the EIGEN files located at ``eigen_prefix``.
 
     Raises
     ------
     PandoraException
-        If not all input files (`.geno`, `.ind`, and `.snp`) for the given `eigen_prefix` exist.
+        If not all input files (``.geno``, ``.ind``, and ``.snp``) for the given ``eigen_prefix`` exist.
     """
     ind_file = pathlib.Path(f"{eigen_prefix}.ind")
     geno_file = pathlib.Path(f"{eigen_prefix}.geno")

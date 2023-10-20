@@ -60,10 +60,10 @@ def run_convertf(
     out_format: FileFormat,
     redo: bool = False,
 ) -> None:
-    """Uses the EIGENSOFT convertf program to convert the given dataset in in_format into the same dataset in
-    out_format.
+    """Uses the EIGENSOFT convertf program to convert the given dataset in ``in_format`` into the same dataset in
+    ``out_format``.
 
-    If all respective out_prefix files are already present, only runs convertf if redo is True.
+    If all respective ``out_prefix`` files are already present, only runs convertf if redo is ``True``.
 
     Parameters
     ----------

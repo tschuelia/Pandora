@@ -108,17 +108,17 @@ class PandoraConfig(BaseModel):
         Default is two decimals.
     verbosity : int, default=1
         Verbosity of the output logging of Pandora.
-        - 0 = quiet, prints only errors and the results (loglevel = ERROR)
-        - 1 = verbose, prints all intermediate infos (loglevel = INFO)
-        - 2 = debug, prints intermediate infos and debug messages (loglevel = DEBUG)
+        - ``0`` = quiet, prints only errors and the results (loglevel = ERROR)
+        - ``1`` = verbose, prints all intermediate infos (loglevel = INFO)
+        - ``2`` = debug, prints intermediate infos and debug messages (loglevel = DEBUG)
     plot_results : bool, default=False,
         Whether to plot all dimensionality reduction results and sample support values.
     plot_dim_x : NonNegativeInt, default=0
         Dimension to plot on the x-axis. Note that the dimensions are zero-indexed. To plot the first
-        dimension set plot_dim_x = 0
+        dimension set ``plot_dim_x = 0``
     plot_dim_y : NonNegativeInt, default=1
         Dimension to plot on the y-axis. Note that the dimensions are zero-indexed. To plot the second
-        dimension set plot_dim_y = 1
+        dimension set ``plot_dim_y = 1``
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -379,24 +379,24 @@ class Pandora:
     dataset : EigenDataset
         EigenDataset object that contains the input data provided by the user
     replicates : List[EigenDataset]
-        List of bootstrap replicates / sliding-windows of self.dataset.
-        This is empty until self.bootstrap_embeddings() or self.sliding_window() was called.
+        List of bootstrap replicates / sliding-windows of ``self.dataset``.
+        This is empty until ``self.bootstrap_embeddings()`` or ``self.sliding_window()`` was called.
     pairwise_stabilities : pd.DataFrame
         Pandas dataframe containing the Pandora stability scores for all pairwise replicate comparisons.
-         This is empty until self.bootstrap_embeddings() or self.sliding_window() was called.
+         This is empty until ``self.bootstrap_embeddings()`` or ``self.sliding_window()`` was called.
     pandora_stability : float
         Overall Pandora stability of the dataset under bootstrapping or sliding-window analysis.
-        This is None until self.bootstrap_embeddings() or self.sliding_window() was called.
+        This is ``None`` until ``self.bootstrap_embeddings()`` or ``self.sliding_window()`` was called.
     pairwise_stabilities : pd.DataFrame
         Pandas dataframe containing the Pandora cluster stability scores for all pairwise replicate comparisons.
-         This is empty until self.bootstrap_embeddings() or self.sliding_window() was called.
+         This is empty until ``self.bootstrap_embeddings()`` or ``self.sliding_window()`` was called.
     pandora_cluster_stability : float
         Overall Pandora cluster stability of the dataset under bootstrapping or sliding-window analysis.
-        This is None until self.bootstrap_embeddings() or self.sliding_window() was called.
+        This is ``None`` until ``self.bootstrap_embeddings()`` or ``self.sliding_window()`` was called.
     sample_support_values : pd.DataFrame
-        Pandas dataframe containing the support values for all samples of self.dataset for all pairwise
+        Pandas dataframe containing the support values for all samples of ``self.dataset`` for all pairwise
         replicate comparisons.
-        This is empty until self.bootstrap_embeddings() or self.sliding_window() was called.
+        This is empty until ``self.bootstrap_embeddings()`` or ``self.sliding_window()`` was called.
     """
 
     def __init__(self, pandora_config: PandoraConfig):
@@ -416,9 +416,9 @@ class Pandora:
         self.sample_support_values: pd.Series = pd.Series(dtype=float)
 
     def embed_dataset(self) -> None:
-        """Perfoms dimensionality reduction on self.dataset.
+        """Performs dimensionality reduction on ``self.dataset``.
 
-        The parameters (e.g. what method to use) is determined based on the configured settings in self.pandora_config.
+        The parameters (e.g. what method to use) is determined based on the configured settings in ``self.pandora_config``.
 
         Returns
         -------
@@ -427,7 +427,7 @@ class Pandora:
         Raises
         ------
         PandoraConfigException
-            - If `self.pandora_config.embedding_algorithm` is not a valid EmbeddingAlgorithm.
+            - If ``self.pandora_config.embedding_algorithm`` is not a valid ``EmbeddingAlgorithm``.
         """
         self.pandora_config.result_dir.mkdir(exist_ok=True, parents=True)
         if self.pandora_config.embedding_algorithm == EmbeddingAlgorithm.PCA:
@@ -513,18 +513,18 @@ class Pandora:
             )
 
     def bootstrap_embeddings(self) -> None:
-        """Draws bootstrap replicates of self.dataset and computes and compares the respective embedding for all
+        """Draws bootstrap replicates of ``self.dataset`` and computes and compares the respective embedding for all
         bootstrap replicates.
 
-        The parameters (e.g. what method to use) is determined based on the configured settings in self.pandora_config.
-        On successfull run, the following parameters of self will be set:
+        The parameters (e.g. what method to use) is determined based on the configured settings in ``self.pandora_config``.
+        If run successfully, the following parameters of self will be set:
 
-            - self.replicates
-            - self.pairwise_stabilities
-            - self.pandora_stability
-            - self.pairwise_cluster_stabilities
-            - self.pandora_cluster_stability
-            - self.sample_support_values
+            - ``self.replicates``
+            - ``self.pairwise_stabilities``
+            - ``self.pandora_stability``
+            - ``self.pairwise_cluster_stabilities``
+            - ``self.pandora_cluster_stability``
+            - ``self.sample_support_values``
 
         Returns
         -------
@@ -565,18 +565,18 @@ class Pandora:
         self._compare_and_plot_replicates()
 
     def sliding_window(self) -> None:
-        """Separates self.dataset into self.pandora_config.n_replicates overlapping windows and and computes and
+        """Separates ``self.dataset`` into ``self.pandora_config.n_replicates`` overlapping windows and computes and
         compares the respective embedding for all of these windows.
 
-        The parameters (e.g. what method to use) is determined based on the configured settings in self.pandora_config.
-        On successfull run, the following parameters of self will be set:
+        The parameters (e.g. what method to use) is determined based on the configured settings in ``self.pandora_config``.
+        If run successfully, the following parameters of self will be set:
 
-            - self.replicates
-            - self.pairwise_stabilities
-            - self.pandora_stability
-            - self.pairwise_cluster_stabilities
-            - self.pandora_cluster_stability
-            - self.sample_support_values
+            - ``self.replicates``
+            - ``self.pairwise_stabilities``
+            - ``self.pandora_stability``
+            - ``self.pairwise_cluster_stabilities``
+            - ``self.pandora_cluster_stability``
+            - ``self.sample_support_values``
 
         Returns
         -------
@@ -710,8 +710,8 @@ class Pandora:
         )
 
     def log_and_save_replicates_results(self) -> None:
-        """Logs the results of the bootstrap/sliding-window analyses using pandora.logging.logger and also saves the
-        results of the analyses to the respective files as specified by self.pandora_config.
+        """Logs the results of the bootstrap/sliding-window analyses using ``pandora.logging.logger`` and also saves the
+        results of the analyses to the respective files as specified by ``self.pandora_config``.
 
         Returns
         -------
@@ -720,7 +720,7 @@ class Pandora:
         Raises
         ------
         PandoraException
-            If the results were not computed yet and thus there are not results to log.
+            - If the results were not computed yet and thus there are no results to log.
         """
         if self.pandora_stability is None or self.pandora_cluster_stability is None:
             raise PandoraException("No results to log!")
@@ -798,26 +798,26 @@ class Pandora:
 
 
 def pandora_config_from_configfile(configfile: pathlib.Path) -> PandoraConfig:
-    """Creates a new PandoraConfig object using the provided yaml configuration file.
+    """Creates a new ``PandoraConfig`` object using the provided yaml configuration file.
 
     Parameters
     ----------
     configfile : pathlib.Path
-        Configuration file in yaml file_format
+        Configuration file in yaml ``file_format``
 
     Returns
     -------
     PandoraConfig
         PandoraConfig object with the settings according to the given yaml file.
-        Uses the default settings as specified in the PandoraConfig class for optional options not explictly
-        specified in the configfile.
+        Uses the default settings as specified in the PandoraConfig class for optional options not explicitly
+        specified in the ``configfile``.
 
     Raises
     ------
     PandoraConfigException
-        - If the config file does not specify a `dataset_prefix`.
-        - If the config file does not specify a `result_dir`.
-        - If the PandoraConfig object could not be initialized. This is most likely due to misspecified config options.
+        - If the config file does not specify a ``dataset_prefix``.
+        - If the config file does not specify a ``result_dir``.
+        - If the ``PandoraConfig`` object could not be initialized. This is most likely due to misspecified config options.
     """
     config_data = yaml.safe_load(configfile.open())
 
@@ -870,13 +870,13 @@ def convert_to_eigenstrat_format(
     file_format: FileFormat,
     redo: bool = False,
 ) -> pathlib.Path:
-    """Converts the given dataset from the given file_format to EIGENSTRAT format and stores it in the
-    convertf_result_dir.
+    """Converts the given dataset from the given ``file_format`` to ``EIGENSTRAT`` format and stores it in the
+    ``convertf_result_dir``.
 
     Results in three new files:\n
-    - {convertf_result_dir}/{dataset_prefix.name}.geno\n
-    - {convertf_result_dir}/{dataset_prefix.name}.snp\n
-    - {convertf_result_dir}/{dataset_prefix.name}.ind
+    - ``{convertf_result_dir}/{dataset_prefix.name}.geno``\n
+    - ``{convertf_result_dir}/{dataset_prefix.name}.snp``\n
+    - ``{convertf_result_dir}/{dataset_prefix.name}.ind``
 
     Parameters
     ----------

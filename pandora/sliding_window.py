@@ -60,9 +60,9 @@ def sliding_window_embedding(
     smartpca_optional_settings: Optional[Dict] = None,
 ) -> List[EigenDataset]:
     """Separates the given EigenDataset into n_windows sliding-window datasets and performs PCA/MDS analysis (as
-    specified by embedding) for each window.
+    specified by ``embedding``) for each window.
 
-    Note that unless threads=1, the computation is performed in parallel.
+    Note that unless ``threads=1``, the computation is performed in parallel.
 
     Parameters
     ----------
@@ -76,7 +76,7 @@ def sliding_window_embedding(
         Path pointing to an executable of the EIGENSOFT smartpca tool.
     embedding : EmbeddingAlgorithm
         Dimensionality reduction technique to apply. Allowed options are
-        EmbeddingAlgorithm.PCA for PCA analysis and EmbeddingAlgorithm.MDS for MDS analysis.
+        ``EmbeddingAlgorithm.PCA`` for PCA analysis and ``EmbeddingAlgorithm.MDS`` for MDS analysis.
     n_components : int
         Number of dimensions to reduce the data to.
         The recommended number is 10 for PCA and 2 for MDS.
@@ -88,19 +88,20 @@ def sliding_window_embedding(
     redo : bool, default=False
         Whether to rerun analyses in case the result files are already present.
     keep_windows : bool, default=False
-        Whether to store all intermediate window-dataset ind, geno, and snp files.
-        Note that setting this to True might require a notable amount of disk space.
+        Whether to store all intermediate window-dataset ``ind``, ``geno``, and ``snp`` files.
+        Note that setting this to True might require a substantial amount of disk space.
     smartpca_optional_settings : Dict, default=None
         Additional smartpca settings.
-        Not allowed are the following options: genotypename, snpname, indivname,
-        evecoutname, evaloutname, numoutevec, maxpops. Note that this option is only used when embedding == "pca".
+        Not allowed are the following options: ``genotypename``, ``snpname``, ``indivname``,
+        ``evecoutname``, ``evaloutname``, ``numoutevec``, ``maxpops``. N
+        ote that this option is only used when ``embedding == EmbeddingAlgorithm.PCA``.
 
     Returns
     -------
     windows : List[EigenDataset]
-        List of n_windows subsets as EigenDataset objects. Each of the resulting window
-        datasets will have either window.pca != None or window.mds != None depending on the selected
-        embedding option.
+        List of ``n_windows`` subsets as EigenDataset objects. Each of the resulting window
+        datasets will have either ``window.pca != None`` or ``window.mds != None`` depending on the selected
+        ``embedding`` option.
     """
     result_dir.mkdir(exist_ok=True, parents=True)
 
@@ -159,10 +160,10 @@ def sliding_window_embedding_numpy(
     ] = euclidean_sample_distance,
     imputation: Optional[str] = "mean",
 ) -> List[NumpyDataset]:
-    """Separates the given NumpyDataset into n_windows sliding-window datasets and performs PCA/MDS analysis (as
-    specified by embedding) for each window.
+    """Separates the given ``NumpyDataset`` into ``n_windows`` sliding-window datasets and performs PCA/MDS analysis (as
+    specified by ``embedding``) for each window.
 
-    Note that unless threads=1, the computation is performed in parallel.
+    Note that unless ``threads=1``, the computation is performed in parallel.
 
     Parameters
     ----------
@@ -172,7 +173,7 @@ def sliding_window_embedding_numpy(
         Number of sliding-windows to separate the dataset into.
     embedding : EmbeddingAlgorithm
         Dimensionality reduction technique to apply. Allowed options are
-        EmbeddingAlgorithm.PCA for PCA analysis and EmbeddingAlgorithm.MDS for MDS analysis.
+        ``EmbeddingAlgorithm.PCA`` for PCA analysis and ``EmbeddingAlgorithm.MDS`` for MDS analysis.
     n_components : int
         Number of dimensions to reduce the data to.
         The recommended number is 10 for PCA and 2 for MDS.
@@ -183,22 +184,22 @@ def sliding_window_embedding_numpy(
         Distance metric to use for computing the distance matrix input for MDS. This is expected to be a
         function that receives the numpy array of sequences, the population for each sequence and the imputation method
         as input and should output the distance matrix and the respective populations for each row.
-        The resulting distance matrix is of size (n, m) and the resulting populations is expected to be
-        of size (n, 1).
-        Default is distance_metrics::eculidean_sample_distance (the pairwise Euclidean distance of all samples)
+        The resulting distance matrix is of size ``(n, m)`` and the resulting populations is expected to be
+        of size ``(n, 1)``.
+        Default is ``distance_metrics::eculidean_sample_distance`` (the pairwise Euclidean distance of all samples)
     imputation : Optional[str], default="mean"
         Imputation method to use. Available options are:\n
-        - mean: Imputes missing values with the average of the respective SNP\n
-        - remove: Removes all SNPs with at least one missing value.
-        - None: Does not impute missing data.
+        - ``"mean"``: Imputes missing values with the average of the respective SNP\n
+        - ``"remove"``: Removes all SNPs with at least one missing value.
+        - ``None``: Does not impute missing data.
         Note that depending on the distance_metric, not all imputation methods are supported. See the respective
-        documentations in the distance_metrics module.
+        documentations in the ``distance_metrics`` module.
 
     Returns
     -------
     windows : List[NumpyDataset]
-        List of `n_windows` subsets as NumpyDataset objects. Each of the resulting window
-        datasets will have either window.pca != None or window.mds != None depending on the selected
+        List of ``n_windows`` subsets as ``NumpyDataset`` objects. Each of the resulting window
+        datasets will have either ``window.pca != None`` or ``window.mds != None`` depending on the selected
         embedding option.
     """
 

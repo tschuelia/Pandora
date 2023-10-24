@@ -2,8 +2,11 @@ from __future__ import annotations
 
 import concurrent.futures
 import functools
+import multiprocessing
+import os
 import pathlib
 import random
+import signal
 import time
 from multiprocessing import Event, Process, Queue
 from typing import Callable, Dict, List, Optional, Tuple, Union
@@ -19,7 +22,11 @@ from pandora.distance_metrics import euclidean_sample_distance
 from pandora.embedding import Embedding
 from pandora.embedding_comparison import BatchEmbeddingComparison
 
+# Event to terminate waiting and running bootstrap processes in case convergence was detected
 STOP_BOOTSTRAP = Event()
+# Event to pause waiting and running bootstrap processes during convergence check
+# Using this event allows us to utilize all cores for the convergence check
+PAUSE_BOOTSTRAP = Event()
 
 
 def _wrapped_func(func, result_queue, args):
@@ -60,6 +67,9 @@ def _run_function_in_process(func, args):
             daemon=True,
         )
         process.start()
+
+        process_paused = False
+
         while 1:
             if not process.is_alive():
                 # Bootstrapping finished, stop the loop
@@ -68,6 +78,17 @@ def _run_function_in_process(func, args):
                 # Bootstrapping convergence detected, terminate the running Process
                 process.terminate()
                 break
+            if PAUSE_BOOTSTRAP.is_set():
+                # Bootrap convergence check running requiring all provided resources, pause process
+                if not process_paused:
+                    os.kill(process.pid, signal.SIGTSTP)
+                    process_paused = True
+                time.sleep(0.01)
+                continue
+            if process_paused:
+                # resume paused process
+                os.kill(process.pid, signal.SIGCONT)
+                process_paused = False
             time.sleep(0.01)
         process.join()
         process.close()
@@ -86,6 +107,7 @@ def _run_function_in_process(func, args):
 def _bootstrap_convergence_check(
     bootstraps: List[Union[NumpyDataset, EigenDataset]],
     embedding: EmbeddingAlgorithm,
+    threads: int,
 ):
     if embedding == EmbeddingAlgorithm.PCA:
         embeddings = [b.pca for b in bootstraps]
@@ -95,10 +117,15 @@ def _bootstrap_convergence_check(
         raise PandoraException(
             f"Unrecognized embedding option {embedding}. Supported are 'pca' and 'mds'."
         )
-    return _bootstrap_converged(embeddings)
+    # interrupt other running bootstrap processes
+    PAUSE_BOOTSTRAP.set()
+    converged = _bootstrap_converged(embeddings, threads)
+    # resume remaining bootstrap processes
+    PAUSE_BOOTSTRAP.clear()
+    return converged
 
 
-def _bootstrap_converged(bootstraps: List[Embedding]):
+def _bootstrap_converged(bootstraps: List[Embedding], threads: int):
     """Checks for convergence by comparing the Pandora Stabilities for 10 subsets of the given list of bootstraps."""
     n_bootstraps = len(bootstraps)
 
@@ -110,7 +137,7 @@ def _bootstrap_converged(bootstraps: List[Embedding]):
         comparison = BatchEmbeddingComparison(subset)
         # TODO: maybe pause all other bootstrap comparisons and then use all cores here
         # either in compare or do the loop in parallel
-        subset_stabilities.append(comparison.compare(threads=1))
+        subset_stabilities.append(comparison.compare(threads=threads))
 
     subset_stabilities = np.asarray(subset_stabilities)
     subset_stabilities_reshaped = subset_stabilities.reshape(-1, 1)
@@ -235,16 +262,26 @@ def bootstrap_and_embed_multiple(
     results, computing a vast amount of replicates is very compute heavy for typical genotype datasets.
     We thus suggest a trade-off between the accuracy of the stability and the ressource usage.
     To this end, we implement a bootstopping procedure intended to determine convergence of the bootstrapping procedure.
-    Once every 10 replicates, we perform the following heuristic convergence check:
+    Once every ``max(10, threads)``(*) replicates, we perform the following heuristic convergence check:
     Let :math:`N` be the number of replicate computed when performing the convergence check.
     We first create 10 random subsets of size :math:`int(N/2)` by sampling from all :math:`N` replicates.
     We then compute the Pandora Stability (PS) for each of the 10 subsets and compute the relative difference of PS
     values between all possible pairs of subsets :math:`(PS_1, PS_2)` by computing :math:`\\frac{\\left|PS_1 - PS_2\\right|}{PS_2}`.
     We assume convergence if all pairwise relative differences are below 5%.
     If we determine that the bootstrap has converged, all remaining bootstrap computations are cancelled.
+
+    (*) The reasoning for checking every ``max(10, threads)`` is the following: if Pandora runs on a machine with e.g. 48
+    provided threads, 48 bootstraps will be computed in parallel and will terminate at approximately the same time.
+    If we check convergence every 10 replicates, we will have to perform 4 checks, three of which are unnecessary (since
+    the 48 replicates are already computed anyway, might as well use them instead of throwing away 30 in case 10 would
+    have been sufficient).
     """
-    # before starting the bootstrap computation, make sure the convergence signal is cleared
+    # before starting the bootstrap computation, make sure the convergence and pause signals are cleared
     STOP_BOOTSTRAP.clear()
+    PAUSE_BOOTSTRAP.clear()
+
+    if threads is None:
+        threads = multiprocessing.cpu_count()
 
     result_dir.mkdir(exist_ok=True, parents=True)
 
@@ -295,13 +332,13 @@ def bootstrap_and_embed_multiple(
             # perform a convergence check:
             # If the user wants to do convergence check (`bootstrap_convergence_check`)
             # AND if not all n_bootstraps already computed anyway
-            # AND only every 10 replicates
+            # AND only every max(10, threads) replicates
             if (
                 bootstrap_convergence_check
                 and len(bootstraps) < n_bootstraps
-                and len(bootstraps) % 10 == 0
+                and len(bootstraps) % max(10, threads) == 0
             ):
-                if _bootstrap_convergence_check(bootstraps, embedding):
+                if _bootstrap_convergence_check(bootstraps, embedding, threads):
                     # in case convergence is detected, we set the event that interrupts all running smartpca runs
                     STOP_BOOTSTRAP.set()
                     break
@@ -411,16 +448,26 @@ def bootstrap_and_embed_multiple_numpy(
     results, computing a vast amount of replicates is very compute heavy for typical genotype datasets.
     We thus suggest a trade-off between the accuracy of the stability and the ressource usage.
     To this end, we implement a bootstopping procedure intended to determine convergence of the bootstrapping procedure.
-    Once every 10 replicates, we perform the following heuristic convergence check:
+    Once every ``max(10, threads)`` (*) replicates, we perform the following heuristic convergence check:
     Let :math:`N` be the number of replicate computed when performing the convergence check.
     We first create 10 random subsets of size :math:`int(N/2)` by sampling from all :math:`N` replicates.
     We then compute the Pandora Stability (PS) for each of the 10 subsets and compute the relative difference of PS
     values between all possible pairs of subsets :math:`(PS_1, PS_2)` by computing :math:`\\frac{\\left|PS_1 - PS_2\\right|}{PS_2}`.
     We assume convergence if all pairwise relative differences are below 5%.
     If we determine that the bootstrap has converged, all remaining bootstrap computations are cancelled.
+
+    (*) The reasoning for checking every ``max(10, threads)`` is the following: if Pandora runs on a machine with e.g. 48
+    provided threads, 48 bootstraps will be computed in parallel and will terminate at approximately the same time.
+    If we check convergence every 10 replicates, we will have to perform 4 checks, three of which are unnecessary (since
+    the 48 replicates are already computed anyway, might as well use them instead of throwing away 30 in case 10 would
+    have been sufficient).
     """
-    # before starting the bootstrap computation, make sure the convergence signal is cleared
+    # before starting the bootstrap computation, make sure the convergence and pause signals are cleared
     STOP_BOOTSTRAP.clear()
+    PAUSE_BOOTSTRAP.clear()
+
+    if threads is None:
+        threads = multiprocessing.cpu_count()
 
     if seed is not None:
         random.seed(seed)
@@ -458,13 +505,13 @@ def bootstrap_and_embed_multiple_numpy(
             # perform a convergence check:
             # If the user wants to do convergence check (`bootstrap_convergence_check`)
             # AND if not all n_bootstraps already computed anyway
-            # AND only every 10 replicates
+            # AND only every max(10, threads) replicates
             if (
                 bootstrap_convergence_check
                 and len(bootstraps) < n_bootstraps
-                and len(bootstraps) % 10 == 0
+                and len(bootstraps) % max(10, threads) == 0
             ):
-                if _bootstrap_convergence_check(bootstraps, embedding):
+                if _bootstrap_convergence_check(bootstraps, embedding, threads):
                     # in case convergence is detected, we set the event that interrupts all running bootstrap runs
                     STOP_BOOTSTRAP.set()
                     break

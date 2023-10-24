@@ -136,7 +136,7 @@ def test_bootstrap_converged_for_identical_embeddings(
     for n_replicates in range(6, 10):
         # _bootstrap_convergence_check should determine convergence
         assert _bootstrap_convergence_check(
-            [test_numpy_dataset] * n_replicates, embedding_algorithm
+            [test_numpy_dataset] * n_replicates, embedding_algorithm, threads=2
         )
 
 
@@ -155,7 +155,7 @@ def test_bootstrap_does_not_converge_for_distinct_embeddings(test_numpy_dataset)
     np.random.seed(42)
     random_embeddings = [_random_embedding(test_numpy_dataset.pca) for _ in range(5)]
     bootstraps = random_embeddings + [test_numpy_dataset.pca]
-    assert not _bootstrap_converged(bootstraps)
+    assert not _bootstrap_converged(bootstraps, threads=2)
 
 
 @pytest.mark.parametrize("embedding", [EmbeddingAlgorithm.PCA, EmbeddingAlgorithm.MDS])

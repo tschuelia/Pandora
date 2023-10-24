@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from pandora.bootstrap import STOP_BOOTSTRAP
+from pandora.bootstrap import PAUSE_BOOTSTRAP, STOP_BOOTSTRAP
 from pandora.custom_types import Executable
 from pandora.dataset import EigenDataset, NumpyDataset
 from pandora.embedding import PCA, from_smartpca
@@ -76,6 +76,7 @@ def cleanup_pandora_test_results():
 
 
 @pytest.fixture(autouse=True)
-def cleanup_bootstrap_stop_signal():
-    # reset the bootstrap stop signal after each test to make sure tests don't influence each other
+def cleanup_bootstrap_signals():
+    # reset the bootstrap stop and pause signal after each test to make sure tests don't influence each other
     STOP_BOOTSTRAP.clear()
+    PAUSE_BOOTSTRAP.clear()

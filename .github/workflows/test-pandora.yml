@@ -4,6 +4,7 @@ on: [push]
 jobs:
   Run-Pandora-Tests:
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest]
@@ -37,6 +38,7 @@ jobs:
 
   Install-using-pip:
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
     strategy:
       matrix:
         os: [ ubuntu-latest, macos-latest ]

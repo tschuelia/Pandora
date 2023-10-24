@@ -543,21 +543,24 @@ class Pandora:
                     "Will terminate bootstrap computation once convergence is determined."
                 )
             )
-        self.replicates = bootstrap_and_embed_multiple(
-            self.dataset,
-            self.pandora_config.n_replicates,
-            self.pandora_config.bootstrap_result_dir,
-            self.pandora_config.smartpca,
-            self.pandora_config.embedding_algorithm,
-            self.pandora_config.n_components,
-            self.pandora_config.seed,
-            self.pandora_config.threads,
-            self.pandora_config.redo,
-            self.pandora_config.keep_replicates,
-            self.pandora_config.bootstrap_convergence_check,
-            self.pandora_config.smartpca_optional_settings,
-            logger,
-        )
+        try:
+            self.replicates = bootstrap_and_embed_multiple(
+                self.dataset,
+                self.pandora_config.n_replicates,
+                self.pandora_config.bootstrap_result_dir,
+                self.pandora_config.smartpca,
+                self.pandora_config.embedding_algorithm,
+                self.pandora_config.n_components,
+                self.pandora_config.seed,
+                self.pandora_config.threads,
+                self.pandora_config.redo,
+                self.pandora_config.keep_replicates,
+                self.pandora_config.bootstrap_convergence_check,
+                self.pandora_config.smartpca_optional_settings,
+                logger,
+            )
+        except Exception as e:
+            raise PandoraException("Error running bootstrap computation.") from e
         logger.info(
             fmt_message(
                 f"Bootstrapping done. Number of replicates computed: {len(self.replicates)}"

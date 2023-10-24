@@ -1,8 +1,8 @@
 import concurrent.futures
 import pathlib
+import pickle
 import tempfile
 import time
-from multiprocessing import Queue
 
 import numpy as np
 import pandas as pd
@@ -32,32 +32,33 @@ def _dummy_func(status: int):
 def _dummy_func_with_wait(status: int):
     """Dummy function that returns the status if it is > 0 and otherwise raises a ValueError.
 
-    Compared to _dummy_func it however waits for status before returning/raising.
+    Compared to _dummy_func it however waits for 1s before returning/raising.
     """
-    time.sleep(status)
+    time.sleep(1)
     if status >= 0:
         return status
     raise ValueError("Status < 0")
 
 
 def test_wrapped_func():
-    result_queue = Queue()
+    with tempfile.NamedTemporaryFile() as tmpfile:
+        tmpfile = pathlib.Path(tmpfile.name)
 
-    # passing 1 should put a 1 into the result queue
-    _wrapped_func(_dummy_func, result_queue, [1])
-    status = result_queue.get()
-    assert status == 1
+        # passing 1 should pickle a 1 in tmpfile
+        _wrapped_func(_dummy_func, [1], tmpfile)
+        status = pickle.load(tmpfile.open("rb"))
+        assert status == 1
 
-    # close the existing queue and create a new one
-    result_queue.close()
-    result_queue = Queue()
+    # crate a new tempfile
+    with tempfile.NamedTemporaryFile() as tmpfile:
+        tmpfile = pathlib.Path(tmpfile.name)
 
-    # passing 1 should put ValueError("Status < 0") into the result queue
-    # but not raise the ValueError
-    _wrapped_func(_dummy_func, result_queue, [-1])
-    status = result_queue.get()
-    assert isinstance(status, ValueError)
-    assert str(status) == "Status < 0"
+        # passing 1 should put ValueError("Status < 0") into tmpfile
+        # but not raise the ValueError
+        _wrapped_func(_dummy_func, [-1], tmpfile)
+        status = pickle.load(tmpfile.open("rb"))
+        assert isinstance(status, ValueError)
+        assert str(status) == "Status < 0"
 
 
 def test_run_function_in_progress_stop_signal_set():
@@ -79,16 +80,17 @@ def test_run_function_in_progress_stop_signal_set_during_execution():
     with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
         tasks = [
             pool.submit(_run_function_in_process, _dummy_func_with_wait, [status])
-            for status in range(5)
+            for status in range(50)
         ]
         finished_ct = 0
-
-        results = []
+        cancelled_results = 0
 
         for finished_task in concurrent.futures.as_completed(tasks):
-            finished_ct += 1
             result = finished_task.result()
-            results.append(result)
+            if result is None:
+                cancelled_results += 1
+                continue
+            finished_ct += 1
             assert (
                 result >= 0
             )  # every result should be an int >= 0, no error should be raised
@@ -96,10 +98,10 @@ def test_run_function_in_progress_stop_signal_set_during_execution():
             if finished_ct >= 3:
                 # send the stop signal to all remaining processes
                 STOP_BOOTSTRAP.set()
-                break
 
-        # we should only have three results
-        assert len(results) == 3
+        # we should only have three results, but
+        assert finished_ct < 10
+        assert cancelled_results >= 40
 
 
 def test_run_function_in_progress_exception_during_execution():

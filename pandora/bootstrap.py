@@ -5,10 +5,12 @@ import functools
 import multiprocessing
 import os
 import pathlib
+import pickle
 import random
 import signal
+import tempfile
 import time
-from multiprocessing import Event, Process, Queue
+from multiprocessing import Event, Process
 from typing import Callable, Dict, List, Optional, Tuple, Union
 
 import loguru
@@ -31,16 +33,18 @@ STOP_BOOTSTRAP = Event()
 PAUSE_BOOTSTRAP = Event()
 
 
-def _wrapped_func(func, result_queue, args):
-    """Runs the given function ``func`` with the given arguments ``args`` and stores the result in result_queue.
+def _wrapped_func(func, args, tmpfile):
+    """Runs the given function ``func`` with the given arguments ``args`` and dumps the results as pickle in the
+    tmpfile.
 
-    If the function call raises an exception, the Exception is also stored in the
-    result_queue.
+    If the function call raises an exception, the Exception is also dumped in the
+    tmpfile.
     """
     try:
-        result_queue.put(func(*args))
+        result = func(*args)
     except Exception as e:
-        result_queue.put(e)
+        result = e
+    tmpfile.write_bytes(pickle.dumps(result))
 
 
 def _run_function_in_process(func, args):
@@ -58,37 +62,32 @@ def _run_function_in_process(func, args):
     # since multiprocessing.Process provides no interface to the computed result,
     # we need a Queue to store the bootstrap results in
     # -> we pass this Queue as additional argument to the _wrapped_func
-    result_queue = Queue()
-
-    try:
+    with tempfile.NamedTemporaryFile() as tmpfile:
+        tmpfile = pathlib.Path(tmpfile.name)
         # open a new Process using _wrapped_func
         # _wrapped_func simply calls the specified function ``func`` with the provided arguments ``args``
-        # and stores the result (or Exception) in the result_queue
+        # and stores the result (or Exception) as pickle dump in tmpfile
+        # we can't use a multiprocessing.Queue here since the resulting dataset objects are too large for the Queue
         process = Process(
-            target=functools.partial(_wrapped_func, func, result_queue, args),
+            target=functools.partial(_wrapped_func, func, args, tmpfile),
             daemon=True,
         )
         process.start()
-
         process_paused = False
 
         while 1:
-            if not process.is_alive():
-                # Bootstrapping finished, stop the loop
-                break
-            if STOP_BOOTSTRAP.is_set():
-                # Bootstrapping convergence detected, terminate the running Process
+            if not process.is_alive() or STOP_BOOTSTRAP.is_set():
+                # Bootstrap is done computing or Bootstrapping convergence detected, terminate the running Process
                 process.terminate()
                 break
             if PAUSE_BOOTSTRAP.is_set():
-                # Bootrap convergence check running requiring all provided resources, pause process
                 if not process_paused:
+                    # Bootrap convergence check running requiring all provided resources, pause process
                     os.kill(process.pid, signal.SIGTSTP)
                     process_paused = True
-                time.sleep(0.01)
+                    time.sleep(0.01)
                 continue
             if process_paused:
-                # resume paused process
                 os.kill(process.pid, signal.SIGCONT)
                 process_paused = False
             time.sleep(0.01)
@@ -96,14 +95,12 @@ def _run_function_in_process(func, args):
         process.close()
         if not STOP_BOOTSTRAP.is_set():
             # we can only get the result from the result_queue if the process was not terminated due to the stop signal
-            result = result_queue.get(timeout=1)
+            result = pickle.load(tmpfile.open("rb"))
             if isinstance(result, Exception):
                 # the result_queue also stores the Exception if the underlying func call raises one
                 # in this case we simply re-raise the Exception to be able to properly handle it
                 raise result
             return result
-    finally:
-        result_queue.close()
 
 
 def _bootstrap_convergence_check(
@@ -124,11 +121,13 @@ def _bootstrap_convergence_check(
         )
     # interrupt other running bootstrap processes
     PAUSE_BOOTSTRAP.set()
+    time.sleep(0.1)
     if logger is not None:
         logger.debug(fmt_message("Pausing other bootstrap processes."))
     converged = _bootstrap_converged(embeddings, threads)
     # resume remaining bootstrap processes
     PAUSE_BOOTSTRAP.clear()
+    time.sleep(0.1)
     if logger is not None:
         logger.debug(fmt_message("Resuming other bootstrap processes."))
     return converged
@@ -144,8 +143,6 @@ def _bootstrap_converged(bootstraps: List[Embedding], threads: int):
     for _ in range(10):
         subset = random.sample(bootstraps, k=subset_size)
         comparison = BatchEmbeddingComparison(subset)
-        # TODO: maybe pause all other bootstrap comparisons and then use all cores here
-        # either in compare or do the loop in parallel
         subset_stabilities.append(comparison.compare(threads=threads))
 
     subset_stabilities = np.asarray(subset_stabilities)

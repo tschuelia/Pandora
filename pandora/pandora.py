@@ -62,11 +62,11 @@ class PandoraConfig(BaseModel):
         stored as checkpoints for full reproducibility in any case.
     bootstrap_convergence_check : bool, default=True
         Whether to heuristically determine convergence of the bootstrapping procedure.
-        If true, instead of computing `n_replicates` bootstraps and embeddings, Pandora will check for convergence once
-        every 10 bootstrap embeddings are computed. If according to our heuristic (see `bootstrap.py` for more details)
+        If true, instead of computing ``n_replicates`` bootstraps and embeddings, Pandora will check for convergence once
+        every ``max(10, threads)`` bootstrap embeddings are computed. If according to our heuristic (see ``bootstrap.py`` for more details)
         the bootstrap procedure converged, all remaining tasks are cancelled and the stability is determined uisng
         only the number of replicates computed when convergence is determined.
-        Note that this parameter is only relevant if `analysis_mode` is `AnalysisMode.BOOTSTRAP`.
+        Note that this parameter is only relevant if ``analysis_mode`` is ``AnalysisMode.BOOTSTRAP``.
     n_components : PositiveInt, default=10
         Number of dimensions to output and compare for PCA and MDS analyses.
         The recommended number is 10 for PCA and 2 for MDS. Default is 10 in correspondance to the default PCA embedding.
@@ -556,6 +556,7 @@ class Pandora:
             self.pandora_config.keep_replicates,
             self.pandora_config.bootstrap_convergence_check,
             self.pandora_config.smartpca_optional_settings,
+            logger,
         )
         logger.info(
             fmt_message(

@@ -11,6 +11,7 @@ import time
 from multiprocessing import Event, Process, Queue
 from typing import Callable, Dict, List, Optional, Tuple, Union
 
+import loguru
 import numpy as np
 import pandas as pd
 from numpy import typing as npt
@@ -21,6 +22,7 @@ from pandora.dataset import EigenDataset, NumpyDataset, _smartpca_finished
 from pandora.distance_metrics import euclidean_sample_distance
 from pandora.embedding import Embedding
 from pandora.embedding_comparison import BatchEmbeddingComparison
+from pandora.logger import fmt_message
 
 # Event to terminate waiting and running bootstrap processes in case convergence was detected
 STOP_BOOTSTRAP = Event()
@@ -108,7 +110,10 @@ def _bootstrap_convergence_check(
     bootstraps: List[Union[NumpyDataset, EigenDataset]],
     embedding: EmbeddingAlgorithm,
     threads: int,
+    logger: Optional[loguru.Logger] = None,
 ):
+    if logger is not None:
+        logger.debug(fmt_message("Running convergence check."))
     if embedding == EmbeddingAlgorithm.PCA:
         embeddings = [b.pca for b in bootstraps]
     elif embedding == EmbeddingAlgorithm.MDS:
@@ -119,9 +124,13 @@ def _bootstrap_convergence_check(
         )
     # interrupt other running bootstrap processes
     PAUSE_BOOTSTRAP.set()
+    if logger is not None:
+        logger.debug(fmt_message("Pausing other bootstrap processes."))
     converged = _bootstrap_converged(embeddings, threads)
     # resume remaining bootstrap processes
     PAUSE_BOOTSTRAP.clear()
+    if logger is not None:
+        logger.debug(fmt_message("Resuming other bootstrap processes."))
     return converged
 
 
@@ -205,6 +214,7 @@ def bootstrap_and_embed_multiple(
     keep_bootstraps: bool = False,
     bootstrap_convergence_check: bool = True,
     smartpca_optional_settings: Optional[Dict] = None,
+    logger: Optional[loguru.Logger] = None,
 ) -> List[EigenDataset]:
     """Draws ``n_replicates`` bootstrap datasets of the provided EigenDataset and performs PCA/MDS analysis (as
     specified by embedding) for each bootstrap.
@@ -248,6 +258,8 @@ def bootstrap_and_embed_multiple(
         Additional smartpca settings.
         Not allowed are the following options: ``genotypename``, ``snpname``, ``indivname``,
         ``evecoutname``, ``evaloutname``, ``numoutevec``, ``maxpops``. Note that this option is only used for PCA analyses.
+    logger : loguru.Logger, default=None
+        Optional logger instance, used to log debug messages.
 
     Returns
     -------
@@ -283,10 +295,16 @@ def bootstrap_and_embed_multiple(
     if threads is None:
         threads = multiprocessing.cpu_count()
 
+    if logger is not None:
+        logger.debug(fmt_message(f"Using {threads} threads for bootstrapping."))
+
     result_dir.mkdir(exist_ok=True, parents=True)
 
     if seed is not None:
         random.seed(seed)
+
+        if logger is not None:
+            logger.debug(fmt_message(f"Setting the random seed to {seed}."))
 
     bootstrap_args = [
         (
@@ -304,6 +322,13 @@ def bootstrap_and_embed_multiple(
         for bootstrap_index in range(n_bootstraps)
     ]
 
+    if logger is not None and bootstrap_convergence_check:
+        logger.debug(
+            fmt_message(
+                f"Checking for bootstrap convergence every {max(10, threads)} bootstraps."
+            )
+        )
+
     with concurrent.futures.ThreadPoolExecutor(max_workers=threads) as pool:
         tasks = [
             pool.submit(_run_function_in_process, _bootstrap_and_embed, args)
@@ -312,9 +337,16 @@ def bootstrap_and_embed_multiple(
         bootstraps = []
         finished_indices = []
 
+        if logger is not None:
+            logger.debug(fmt_message("Starting Bootstrap computation."))
+
         for finished_task in concurrent.futures.as_completed(tasks):
             try:
                 bootstrap_dataset, bootstrap_index = finished_task.result()
+                if logger is not None:
+                    logger.debug(
+                        fmt_message(f"Finished computing bootstrap #{bootstrap_index}.")
+                    )
             except Exception as e:
                 STOP_BOOTSTRAP.set()
                 time.sleep(0.1)
@@ -338,13 +370,20 @@ def bootstrap_and_embed_multiple(
                 and len(bootstraps) < n_bootstraps
                 and len(bootstraps) % max(10, threads) == 0
             ):
-                if _bootstrap_convergence_check(bootstraps, embedding, threads):
+                if _bootstrap_convergence_check(bootstraps, embedding, threads, logger):
                     # in case convergence is detected, we set the event that interrupts all running smartpca runs
+                    if logger is not None:
+                        logger.debug(
+                            fmt_message(
+                                "Bootstrap convergence detected. Stopping bootstrapping."
+                            )
+                        )
                     STOP_BOOTSTRAP.set()
                     break
 
-    # reset the convergence flag
+    # reset the convergence and pause flag
     STOP_BOOTSTRAP.clear()
+    PAUSE_BOOTSTRAP.clear()
 
     # we also need to remove all files associated with the interrupted bootstrap calls
     for bootstrap_index in range(n_bootstraps):
@@ -516,6 +555,7 @@ def bootstrap_and_embed_multiple_numpy(
                     STOP_BOOTSTRAP.set()
                     break
 
-    # reset the convergence flag
+    # reset the convergence and pause flag
     STOP_BOOTSTRAP.clear()
+    PAUSE_BOOTSTRAP.clear()
     return bootstraps

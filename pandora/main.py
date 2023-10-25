@@ -1,6 +1,7 @@
 import argparse
 import datetime
 import math
+import multiprocessing
 import pathlib
 import sys
 import textwrap
@@ -133,4 +134,5 @@ def main():
 
 
 if __name__ == "__main__":
+    multiprocessing.set_start_method("spawn")
     main()

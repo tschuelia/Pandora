@@ -9,10 +9,10 @@ import pandas as pd
 import pytest
 
 from pandora.bootstrap import (
-    STOP_BOOTSTRAP,
+    ParallelBoostrapProcessManager,
+    ProcessWrapper,
     _bootstrap_converged,
     _bootstrap_convergence_check,
-    _run_function_in_process,
     _wrapped_func,
     bootstrap_and_embed_multiple,
     bootstrap_and_embed_multiple_numpy,
@@ -29,15 +29,150 @@ def _dummy_func(status: int):
     raise ValueError("Status < 0")
 
 
-def _dummy_func_with_wait(status: int):
-    """Dummy function that returns the status if it is > 0 and otherwise raises a ValueError.
+def _dummy_func_with_wait(wait_seconds: int):
+    """Dummy function that returns the wait_seconds if it is > 0 and otherwise raises a ValueError.
 
-    Compared to _dummy_func it however waits for 1s before returning/raising.
+    Compared to _dummy_func it however sleeps for ``wait_seconds`` before returning/raising.
     """
-    time.sleep(1)
-    if status >= 0:
-        return status
+    # since sleep is based on the CPU time, we can only test the process.pause() function if we do this hack
+    total_wait = 0
+    while total_wait < wait_seconds:
+        # print(total_wait)
+        time.sleep(0.001)
+        total_wait += 0.001
+    if wait_seconds >= 0:
+        return wait_seconds
     raise ValueError("Status < 0")
+
+
+class TestProcessWrapper:
+    def test_run(self):
+        wait_duration = 1
+        proc = ProcessWrapper(_dummy_func_with_wait, [wait_duration])
+        # without any external signals, this should simply run and return the set wait_duration
+        result = proc.run()
+        assert result == wait_duration
+
+    def test_run_with_terminate_signal(self):
+        # setting the terminate signal of the process should prevent the process from starting and return None
+        proc = ProcessWrapper(_dummy_func_with_wait, [1])
+        proc.terminate_execution = True
+        res = proc.run()
+        assert res is None
+
+    def test_run_with_terminate_signal_set_during_execution(self):
+        # we create five processes using concurrent futures but set the stop signal once three are completed
+        processes = [ProcessWrapper(_dummy_func_with_wait, [i]) for i in range(50)]
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+            tasks = [pool.submit(process.run) for process in processes]
+            finished_ct = 0
+            cancelled_ct = 0
+
+            for finished_task in concurrent.futures.as_completed(tasks):
+                result = finished_task.result()
+                if result is None:
+                    cancelled_ct += 1
+                    continue
+                finished_ct += 1
+                assert (
+                    result >= 0
+                )  # every result should be an int >= 0, no error should be raised
+
+                if finished_ct >= 3:
+                    # send the stop signal to all remaining processes
+                    for process in processes:
+                        process.terminate()
+
+            # we should only have three results, but during the termination some other results might finish
+            # so we allow for some margin
+            assert finished_ct < 10
+            assert cancelled_ct >= 40
+            # also all processes should be None
+            assert all(p.process is None for p in processes)
+
+    def test_run_with_exception_during_execution(self):
+        # we create five processes using concurrent futures but one of them raises a ValueError
+        # we catch this error and transform it to a Pandora exception to make sure catching the error works as expected
+        with pytest.raises(PandoraException):
+            processes = [
+                ProcessWrapper(_dummy_func_with_wait, [i]) for i in range(-1, 4)
+            ]
+
+            with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+                tasks = [pool.submit(process.run) for process in processes]
+                for finished_task in concurrent.futures.as_completed(tasks):
+                    try:
+                        finished_task.result()
+                    except ValueError:
+                        # we specifically catch only the ValueError raised by the _dummy_func_with_wait
+                        # there should be no other errors
+                        raise PandoraException()
+
+    def test_pause_and_resume(self):
+        """Since _dummy_func_with_wait only waits for the passed duration of seconds X and then returns, it is
+        reasonable to assume that it's runtime will be about X seconds in total.
+
+        If we pause the process during this wait time for 3 seconds, the total runtime
+        of the function call should be >= 3 + X seconds.
+        """
+        process = ProcessWrapper(_dummy_func_with_wait, [2])
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+            start_time = time.perf_counter()
+            future = pool.submit(process.run)
+            process.pause()
+            time.sleep(3)
+            process.resume()
+            # wait for the process to finish
+            future.result()
+            end_time = time.perf_counter()
+            assert end_time - start_time >= 5
+
+    def test_pause_and_terminate(self):
+        # we should be able to terminate a paused process without any error
+        process = ProcessWrapper(_dummy_func_with_wait, [2])
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+            future = pool.submit(process.run)
+            process.pause()
+            process.terminate()
+            result = future.result()
+            assert result is None
+            assert process.process is None
+
+
+class TestParallelBoostrapProcessManager:
+    def test_terminate(self):
+        # Note: this test is similar to one above, but in this case we explicitly test the termination implementation
+        # of the ParallelBoostrapProcessManager
+        process_manager = ParallelBoostrapProcessManager(
+            _dummy_func_with_wait, [[i] for i in range(50)]
+        )
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+            tasks = [pool.submit(process.run) for process in process_manager.processes]
+
+            finished_ct = 0
+            cancelled_ct = 0
+            for finished_task in concurrent.futures.as_completed(tasks):
+                # once 3 tasks are done, send the pause signal
+                result = finished_task.result()
+                if result is None:
+                    cancelled_ct += 1
+                    continue
+                finished_ct += 1
+
+                if finished_ct == 3:
+                    # terminate bootstraps
+                    process_manager.terminate()
+
+        # we should only have three results, but during the termination some other results might finish
+        # so we allow for some margin
+        assert finished_ct < 10
+        assert cancelled_ct >= 40
+        # also all processes should be None
+        assert all(p.process is None for p in process_manager.processes)
 
 
 def test_wrapped_func():
@@ -59,67 +194,6 @@ def test_wrapped_func():
         status = pickle.load(tmpfile.open("rb"))
         assert isinstance(status, ValueError)
         assert str(status) == "Status < 0"
-
-
-def test_run_function_in_progress_stop_signal_set():
-    # setting the stop signal before calling _run_function_in_progress should return None
-    STOP_BOOTSTRAP.set()
-    status = _run_function_in_process(_dummy_func, [1])
-    assert status is None
-
-
-def test_run_function_in_progress_stop_signal_unset():
-    # if the stop signal is not set, calling _run_function_in_progress with _dummy_func and [1] should return 1
-    STOP_BOOTSTRAP.clear()
-    status = _run_function_in_process(_dummy_func, [1])
-    assert status == 1
-
-
-def test_run_function_in_progress_stop_signal_set_during_execution():
-    # we create five processes using concurrent futures but set the stop signal once three are completed
-    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
-        tasks = [
-            pool.submit(_run_function_in_process, _dummy_func_with_wait, [status])
-            for status in range(50)
-        ]
-        finished_ct = 0
-        cancelled_results = 0
-
-        for finished_task in concurrent.futures.as_completed(tasks):
-            result = finished_task.result()
-            if result is None:
-                cancelled_results += 1
-                continue
-            finished_ct += 1
-            assert (
-                result >= 0
-            )  # every result should be an int >= 0, no error should be raised
-
-            if finished_ct >= 3:
-                # send the stop signal to all remaining processes
-                STOP_BOOTSTRAP.set()
-
-        # we should only have three results, but
-        assert finished_ct < 10
-        assert cancelled_results >= 40
-
-
-def test_run_function_in_progress_exception_during_execution():
-    # we create five processes using concurrent futures but one of them raises a ValueError
-    # we catch this error and transform it to a Pandora exception to make sure catching the error works as expected
-    with pytest.raises(PandoraException):
-        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
-            tasks = [
-                pool.submit(_run_function_in_process, _dummy_func_with_wait, [status])
-                for status in range(-1, 4)
-            ]
-            for finished_task in concurrent.futures.as_completed(tasks):
-                try:
-                    finished_task.result()
-                except ValueError:
-                    # we specifically catch only the ValueError raised by the _dummy_func_with_wait
-                    # there should be no other errors
-                    raise PandoraException()
 
 
 @pytest.mark.parametrize(

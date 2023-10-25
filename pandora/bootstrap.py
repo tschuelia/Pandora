@@ -10,8 +10,7 @@ import random
 import signal
 import tempfile
 import time
-from multiprocessing import Event, Process
-from typing import Callable, Dict, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Union
 
 import loguru
 import numpy as np
@@ -25,82 +24,6 @@ from pandora.distance_metrics import euclidean_sample_distance
 from pandora.embedding import Embedding
 from pandora.embedding_comparison import BatchEmbeddingComparison
 from pandora.logger import fmt_message
-
-# Event to terminate waiting and running bootstrap processes in case convergence was detected
-STOP_BOOTSTRAP = Event()
-# Event to pause waiting and running bootstrap processes during convergence check
-# Using this event allows us to utilize all cores for the convergence check
-PAUSE_BOOTSTRAP = Event()
-
-
-def _wrapped_func(func, args, tmpfile):
-    """Runs the given function ``func`` with the given arguments ``args`` and dumps the results as pickle in the
-    tmpfile.
-
-    If the function call raises an exception, the Exception is also dumped in the
-    tmpfile.
-    """
-    try:
-        result = func(*args)
-    except Exception as e:
-        result = e
-    tmpfile.write_bytes(pickle.dumps(result))
-
-
-def _run_function_in_process(func, args):
-    """Runs the given function ``func`` with the provided arguments ``args`` in a multiprocessing.Process.
-
-    We periodically check for a stop signal (`STOP_BOOTSTRAP`) that signals bootstrap convergence.
-    If this signal is set, we terminate the running process.
-    Returns the result of ``func(*args)`` in case the process terminates without an error.
-    If the underlying ``func`` call raises an exception, the exception is passed through to the caller
-    of this function.
-    """
-    if STOP_BOOTSTRAP.is_set():
-        # instead of starting and immediately stopping the process stop here
-        return
-    # since multiprocessing.Process provides no interface to the computed result,
-    # we need a Queue to store the bootstrap results in
-    # -> we pass this Queue as additional argument to the _wrapped_func
-    with tempfile.NamedTemporaryFile() as tmpfile:
-        tmpfile = pathlib.Path(tmpfile.name)
-        # open a new Process using _wrapped_func
-        # _wrapped_func simply calls the specified function ``func`` with the provided arguments ``args``
-        # and stores the result (or Exception) as pickle dump in tmpfile
-        # we can't use a multiprocessing.Queue here since the resulting dataset objects are too large for the Queue
-        process = Process(
-            target=functools.partial(_wrapped_func, func, args, tmpfile),
-            daemon=True,
-        )
-        process.start()
-        process_paused = False
-
-        while 1:
-            if not process.is_alive() or STOP_BOOTSTRAP.is_set():
-                # Bootstrap is done computing or Bootstrapping convergence detected, terminate the running Process
-                process.terminate()
-                break
-            if PAUSE_BOOTSTRAP.is_set():
-                if not process_paused:
-                    # Bootrap convergence check running requiring all provided resources, pause process
-                    os.kill(process.pid, signal.SIGTSTP)
-                    process_paused = True
-                    time.sleep(0.01)
-                continue
-            if process_paused:
-                os.kill(process.pid, signal.SIGCONT)
-                process_paused = False
-            time.sleep(0.01)
-        process.join()
-        process.close()
-        if not STOP_BOOTSTRAP.is_set():
-            # we can only get the result from the result_queue if the process was not terminated due to the stop signal
-            result = pickle.load(tmpfile.open("rb"))
-            if isinstance(result, Exception):
-                # the result_queue also stores the Exception if the underlying func call raises one
-                # in this case we simply re-raise the Exception to be able to properly handle it
-                raise result
-            return result
 
 
 def _bootstrap_convergence_check(
@@ -119,18 +42,7 @@ def _bootstrap_convergence_check(
         raise PandoraException(
             f"Unrecognized embedding option {embedding}. Supported are 'pca' and 'mds'."
         )
-    # interrupt other running bootstrap processes
-    PAUSE_BOOTSTRAP.set()
-    time.sleep(0.1)
-    if logger is not None:
-        logger.debug(fmt_message("Pausing other bootstrap processes."))
-    converged = _bootstrap_converged(embeddings, threads)
-    # resume remaining bootstrap processes
-    PAUSE_BOOTSTRAP.clear()
-    time.sleep(0.1)
-    if logger is not None:
-        logger.debug(fmt_message("Resuming other bootstrap processes."))
-    return converged
+    return _bootstrap_converged(embeddings, threads)
 
 
 def _bootstrap_converged(bootstraps: List[Embedding], threads: int):
@@ -140,17 +52,257 @@ def _bootstrap_converged(bootstraps: List[Embedding], threads: int):
     subset_size = int(n_bootstraps / 2)
 
     subset_stabilities = []
-    for _ in range(10):
+    for iter in range(10):
+        print("subset :", iter)
         subset = random.sample(bootstraps, k=subset_size)
+        print("hallo10")
         comparison = BatchEmbeddingComparison(subset)
+        print("hallo11")
         subset_stabilities.append(comparison.compare(threads=threads))
+        print("hallo12")
 
+    print("dome with all subsets")
     subset_stabilities = np.asarray(subset_stabilities)
+    print("hallo1")
     subset_stabilities_reshaped = subset_stabilities.reshape(-1, 1)
+    print("hallo2")
     pairwise_relative_differences = (
         np.abs(subset_stabilities - subset_stabilities_reshaped) / subset_stabilities
     )
-    return np.all(pairwise_relative_differences <= 0.05)
+    print("hallo3g")
+    res = np.all(pairwise_relative_differences <= 0.05)
+    print("done")
+    return res
+
+
+def _wrapped_func(func, args, tmpfile):
+    """Runs the given function ``func`` with the given arguments ``args`` and dumps the results as pickle in the
+    tmpfile.
+
+    If the function call raises an exception, the Exception is also dumped in the
+    tmpfile.
+    """
+    try:
+        result = func(*args)
+    except Exception as e:
+        result = e
+    tmpfile.write_bytes(pickle.dumps(result))
+
+
+class ProcessWrapper:
+    """
+    TODO: Docstring
+    """
+
+    def __init__(self, func: Callable, args: Iterable[Any]):
+        self.func = func
+        self.args = args
+
+        self.process = None
+
+        # flags used to send signals to the running process
+        self.pause_execution = False
+        self.terminate_execution = False
+        self.is_paused = False
+
+        # prevent race conditions when handling a signal
+        self.lock = multiprocessing.RLock()
+
+    def run(self):
+        with self.lock:
+            if self.terminate_execution:
+                # received terminate signal before starting, nothing to do
+                return
+
+        with tempfile.NamedTemporaryFile() as result_tmpfile:
+            result_tmpfile = pathlib.Path(result_tmpfile.name)
+            with self.lock:
+                self.process = multiprocessing.Process(
+                    target=functools.partial(
+                        _wrapped_func, self.func, self.args, result_tmpfile
+                    ),
+                    daemon=True,
+                )
+                print(100)
+                self.process.start()
+                print(101)
+
+            while 1:
+                with self.lock:
+                    print(102)
+                    process_complete = not self.process.is_alive()
+                    if self.terminate_execution or process_complete:
+                        # Process finished or termination signal sent from outside
+                        print(103)
+                        break
+                    elif self.pause_execution:
+                        print(104)
+                        self._pause()
+                    else:
+                        print(105)
+                        self._resume()
+                print(106)
+                time.sleep(0.01)
+
+            # Terminate process and get result
+            print(107)
+            self._terminate()
+            print(108)
+            if process_complete:
+                # Only if the process was not externally terminated, can get and return the result
+                print(109)
+                result = pickle.load(result_tmpfile.open("rb"))
+                print(110)
+                if isinstance(result, Exception):
+                    # if the underlying func call raises an Exception, it is also pickled in the result file
+                    # in this case we simply re-raise the Exception to be able to properly handle it in the caller
+                    print(111)
+                    raise result
+                else:
+                    print(112)
+                    return result
+
+    def terminate(self):
+        with self.lock:
+            self.terminate_execution = True
+
+    def pause(self):
+        with self.lock:
+            self.pause_execution = True
+
+    def resume(self):
+        with self.lock:
+            self.pause_execution = False
+
+    def _pause(self):
+        with self.lock:
+            print(300, self.process is not None, self.terminate_execution, self.is_paused)
+            if (
+                self.process is not None
+                and not self.terminate_execution
+                and not self.is_paused
+            ):
+                os.kill(self.process.pid, signal.SIGSTOP)
+                self.is_paused = True
+
+    def _resume(self):
+        with self.lock:
+            print(200, self.process is not None, self.is_paused)
+            if (
+                self.process is not None
+                # and not self.terminate_execution
+                and self.is_paused
+            ):
+                os.kill(self.process.pid, signal.SIGCONT)
+                self.is_paused = False
+
+    def _terminate(self):
+        with self.lock:
+            if self.process is not None and self.process.is_alive():
+                print(113)
+                self.process.terminate()
+                os.kill(self.process.pid, signal.SIGCONT)
+                print(114)
+                self.process.join()
+                print(115)
+                self.process.close()
+                print(116)
+            self.process = None
+
+
+class ParallelBoostrapProcessManager:
+    """
+    TODO: Docstring
+    """
+
+    def __init__(self, func: Callable, args: Iterable[Any]):
+        self.processes = [ProcessWrapper(func, arg) for arg in args]
+
+    def run(
+        self,
+        threads: int,
+        bootstrap_convergence_check: bool,
+        embedding: EmbeddingAlgorithm,
+        logger: Optional[loguru.Logger] = None,
+    ):
+        with concurrent.futures.ThreadPoolExecutor(max_workers=threads) as pool:
+            tasks = [pool.submit(process.run) for process in self.processes]
+
+            bootstraps = []
+            finished_indices = []
+
+            for finished_task in concurrent.futures.as_completed(tasks):
+                print(1)
+                try:
+                    bootstrap, bootstrap_index = finished_task.result()
+                    print(2)
+                except Exception as e:
+                    # terminate all running and waiting processes
+                    print(3)
+                    self.terminate()
+                    # cleanup the ThreadPool
+                    print(4)
+                    pool.shutdown()
+                    print(5)
+                    raise PandoraException(
+                        "Something went wrong during the bootstrap computation."
+                    ) from e
+
+                # collect the finished bootstrap dataset
+                bootstraps.append(bootstrap)
+                # and also collect the index of the finished bootstrap:
+                # we need to keep track of this for cleanup in the caller
+                finished_indices.append(bootstrap_index)
+
+                # perform a convergence check:
+                # If the user wants to do convergence check (`bootstrap_convergence_check`)
+                # AND if not all bootstraps already computed anyway
+                # AND only every max(10, threads) replicates
+                if (
+                    bootstrap_convergence_check
+                    and len(bootstraps) < len(self.processes)
+                    and len(bootstraps) % max(10, threads) == 0
+                ):
+                    # Pause all running/waiting processes for the convergence check
+                    # so we can use all available threads for the parallel convergence check computation
+                    print(6)
+                    self.pause()
+                    # time.sleep(1)
+                    print(7)
+                    converged = _bootstrap_convergence_check(
+                        bootstraps, embedding, threads, logger
+                    )
+                    print(8)
+                    self.resume()
+                    # time.sleep(1)
+                    print(9)
+                    if converged:
+                        # in case convergence is detected, we set the event that interrupts all running processes
+                        if logger is not None:
+                            logger.debug(
+                                fmt_message(
+                                    "Bootstrap convergence detected. Stopping bootstrapping."
+                                )
+                            )
+                        print(10)
+                        self.terminate()
+                        print(11)
+                        break
+
+        print(12)
+        return bootstraps, finished_indices
+
+    def pause(self):
+        for process in self.processes:
+            process.pause()
+
+    def resume(self):
+        for process in self.processes:
+            process.resume()
+
+    def terminate(self):
+        for process in self.processes:
+            process.terminate()
 
 
 def _bootstrap_and_embed(
@@ -285,10 +437,6 @@ def bootstrap_and_embed_multiple(
     the 48 replicates are already computed anyway, might as well use them instead of throwing away 30 in case 10 would
     have been sufficient).
     """
-    # before starting the bootstrap computation, make sure the convergence and pause signals are cleared
-    STOP_BOOTSTRAP.clear()
-    PAUSE_BOOTSTRAP.clear()
-
     if threads is None:
         threads = multiprocessing.cpu_count()
 
@@ -326,61 +474,15 @@ def bootstrap_and_embed_multiple(
             )
         )
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=threads) as pool:
-        tasks = [
-            pool.submit(_run_function_in_process, _bootstrap_and_embed, args)
-            for args in bootstrap_args
-        ]
-        bootstraps = []
-        finished_indices = []
-
-        if logger is not None:
-            logger.debug(fmt_message("Starting Bootstrap computation."))
-
-        for finished_task in concurrent.futures.as_completed(tasks):
-            try:
-                bootstrap_dataset, bootstrap_index = finished_task.result()
-                if logger is not None:
-                    logger.debug(
-                        fmt_message(f"Finished computing bootstrap #{bootstrap_index}.")
-                    )
-            except Exception as e:
-                STOP_BOOTSTRAP.set()
-                time.sleep(0.1)
-                pool.shutdown()
-                raise PandoraException(
-                    "Something went wrong during the bootstrap computation."
-                ) from e
-
-            # collect the finished bootstrap dataset
-            bootstraps.append(bootstrap_dataset)
-            # and also collect the index of the finished bootstrap:
-            # we need to keep track of this for file cleanup later on
-            finished_indices.append(bootstrap_index)
-
-            # perform a convergence check:
-            # If the user wants to do convergence check (`bootstrap_convergence_check`)
-            # AND if not all n_bootstraps already computed anyway
-            # AND only every max(10, threads) replicates
-            if (
-                bootstrap_convergence_check
-                and len(bootstraps) < n_bootstraps
-                and len(bootstraps) % max(10, threads) == 0
-            ):
-                if _bootstrap_convergence_check(bootstraps, embedding, threads, logger):
-                    # in case convergence is detected, we set the event that interrupts all running smartpca runs
-                    if logger is not None:
-                        logger.debug(
-                            fmt_message(
-                                "Bootstrap convergence detected. Stopping bootstrapping."
-                            )
-                        )
-                    STOP_BOOTSTRAP.set()
-                    break
-
-    # reset the convergence and pause flag
-    STOP_BOOTSTRAP.clear()
-    PAUSE_BOOTSTRAP.clear()
+    parallel_bootstrap_process_manager = ParallelBoostrapProcessManager(
+        _bootstrap_and_embed, bootstrap_args
+    )
+    bootstraps, finished_indices = parallel_bootstrap_process_manager.run(
+        threads=threads,
+        bootstrap_convergence_check=bootstrap_convergence_check,
+        embedding=embedding,
+        logger=logger,
+    )
 
     # we also need to remove all files associated with the interrupted bootstrap calls
     for bootstrap_index in range(n_bootstraps):
@@ -413,7 +515,7 @@ def _bootstrap_and_embed_numpy(
             f"Unrecognized embedding option {embedding}. Supported are 'pca' and 'mds'."
         )
 
-    return bootstrap
+    return bootstrap, seed
 
 
 def bootstrap_and_embed_multiple_numpy(
@@ -498,10 +600,6 @@ def bootstrap_and_embed_multiple_numpy(
     the 48 replicates are already computed anyway, might as well use them instead of throwing away 30 in case 10 would
     have been sufficient).
     """
-    # before starting the bootstrap computation, make sure the convergence and pause signals are cleared
-    STOP_BOOTSTRAP.clear()
-    PAUSE_BOOTSTRAP.clear()
-
     if threads is None:
         threads = multiprocessing.cpu_count()
 
@@ -519,40 +617,14 @@ def bootstrap_and_embed_multiple_numpy(
         )
         for _ in range(n_bootstraps)
     ]
-    with concurrent.futures.ThreadPoolExecutor(max_workers=threads) as pool:
-        tasks = [
-            pool.submit(_run_function_in_process, _bootstrap_and_embed_numpy, args)
-            for args in bootstrap_args
-        ]
-        bootstraps = []
 
-        for finished_task in concurrent.futures.as_completed(tasks):
-            try:
-                bootstrap = finished_task.result()
-                bootstraps.append(bootstrap)
-            except Exception as e:
-                STOP_BOOTSTRAP.set()
-                time.sleep(0.1)
-                pool.shutdown()
-                raise PandoraException(
-                    "Something went wrong during the bootstrap computation."
-                ) from e
+    parallel_bootstrap_process_manager = ParallelBoostrapProcessManager(
+        _bootstrap_and_embed_numpy, bootstrap_args
+    )
+    bootstraps, _ = parallel_bootstrap_process_manager.run(
+        threads=threads,
+        bootstrap_convergence_check=bootstrap_convergence_check,
+        embedding=embedding,
+    )
 
-            # perform a convergence check:
-            # If the user wants to do convergence check (`bootstrap_convergence_check`)
-            # AND if not all n_bootstraps already computed anyway
-            # AND only every max(10, threads) replicates
-            if (
-                bootstrap_convergence_check
-                and len(bootstraps) < n_bootstraps
-                and len(bootstraps) % max(10, threads) == 0
-            ):
-                if _bootstrap_convergence_check(bootstraps, embedding, threads):
-                    # in case convergence is detected, we set the event that interrupts all running bootstrap runs
-                    STOP_BOOTSTRAP.set()
-                    break
-
-    # reset the convergence and pause flag
-    STOP_BOOTSTRAP.clear()
-    PAUSE_BOOTSTRAP.clear()
     return bootstraps

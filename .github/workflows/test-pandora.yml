@@ -33,7 +33,7 @@ jobs:
 #        uses: mxschmitt/action-tmate@v3
       - name: Run Pandora tests
         run: |
-          PYTHONPATH=. pytest -v --color=yes
+          PYTHONPATH=. pytest -svx --color=yes
         shell: micromamba-shell {0}
 
   Install-using-pip:

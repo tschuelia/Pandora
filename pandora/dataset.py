@@ -788,9 +788,6 @@ class EigenDataset:
         EigenDataset
             A new dataset object containing the bootstrap replicate data.
         """
-        from pandora.logger import logger
-
-        logger.debug(f"computing bootstrap dataset: {bootstrap_prefix}")
         bs_ind_file = pathlib.Path(f"{bootstrap_prefix}.ind")
         bs_geno_file = pathlib.Path(f"{bootstrap_prefix}.geno")
         bs_snp_file = pathlib.Path(f"{bootstrap_prefix}.snp")
@@ -800,7 +797,6 @@ class EigenDataset:
         )
 
         if files_exist and not redo:
-            logger.debug(f"bootstrap already exists {bootstrap_prefix}")
             return EigenDataset(
                 bootstrap_prefix,
                 self._embedding_populations_file,
@@ -863,7 +859,6 @@ class EigenDataset:
 
         # when bootstrapping on SNP level, the .ind file does not change
         shutil.copy(self._ind_file, bs_ind_file)
-        logger.debug(f"bootstrap computation done: {bootstrap_prefix}")
         return EigenDataset(
             bootstrap_prefix,
             self._embedding_populations_file,

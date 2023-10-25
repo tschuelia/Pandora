@@ -94,7 +94,12 @@ class ProcessWrapper:
     TODO: Docstring
     """
 
-    def __init__(self, func: Callable, args: Iterable[Any], context: multiprocessing.context.BaseContext):
+    def __init__(
+        self,
+        func: Callable,
+        args: Iterable[Any],
+        context: multiprocessing.context.BaseContext,
+    ):
         self.func = func
         self.args = args
         self.context = context
@@ -177,7 +182,9 @@ class ProcessWrapper:
 
     def _pause(self):
         with self.lock:
-            print(300, self.process is not None, self.terminate_execution, self.is_paused)
+            print(
+                300, self.process is not None, self.terminate_execution, self.is_paused
+            )
             if (
                 self.process is not None
                 and not self.terminate_execution
@@ -201,13 +208,14 @@ class ProcessWrapper:
         with self.lock:
             if self.process is not None and self.process.is_alive():
                 print(113)
-                self.process.terminate()
                 os.kill(self.process.pid, signal.SIGCONT)
+                self.process.terminate()
+                # os.kill(self.process.pid, signal.SIGINT)
                 print(114)
-                self.process.join()
-                print(115)
-                self.process.close()
-                print(116)
+            self.process.join()
+            print(115)
+            self.process.close()
+            print(116)
             self.process = None
 
 
@@ -219,7 +227,6 @@ class ParallelBoostrapProcessManager:
     def __init__(self, func: Callable, args: Iterable[Any]):
         self.context = multiprocessing.get_context("spawn")
         self.processes = [ProcessWrapper(func, arg, self.context) for arg in args]
-
 
     def run(
         self,

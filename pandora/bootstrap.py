@@ -94,9 +94,10 @@ class ProcessWrapper:
     TODO: Docstring
     """
 
-    def __init__(self, func: Callable, args: Iterable[Any]):
+    def __init__(self, func: Callable, args: Iterable[Any], context: multiprocessing.context.BaseContext):
         self.func = func
         self.args = args
+        self.context = context
 
         self.process = None
 
@@ -106,7 +107,7 @@ class ProcessWrapper:
         self.is_paused = False
 
         # prevent race conditions when handling a signal
-        self.lock = multiprocessing.RLock()
+        self.lock = self.context.RLock()
 
     def run(self):
         with self.lock:
@@ -117,7 +118,7 @@ class ProcessWrapper:
         with tempfile.NamedTemporaryFile() as result_tmpfile:
             result_tmpfile = pathlib.Path(result_tmpfile.name)
             with self.lock:
-                self.process = multiprocessing.Process(
+                self.process = self.context.Process(
                     target=functools.partial(
                         _wrapped_func, self.func, self.args, result_tmpfile
                     ),
@@ -216,7 +217,9 @@ class ParallelBoostrapProcessManager:
     """
 
     def __init__(self, func: Callable, args: Iterable[Any]):
-        self.processes = [ProcessWrapper(func, arg) for arg in args]
+        self.context = multiprocessing.get_context("spawn")
+        self.processes = [ProcessWrapper(func, arg, self.context) for arg in args]
+
 
     def run(
         self,

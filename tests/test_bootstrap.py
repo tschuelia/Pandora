@@ -1,4 +1,5 @@
 import concurrent.futures
+import multiprocessing
 import pathlib
 import pickle
 import tempfile
@@ -20,6 +21,11 @@ from pandora.bootstrap import (
 from pandora.custom_errors import PandoraException
 from pandora.custom_types import EmbeddingAlgorithm
 from pandora.embedding import MDS, PCA
+
+
+@pytest.fixture
+def mp_context():
+    return multiprocessing.get_context("spawn")
 
 
 def _dummy_func(status: int):
@@ -46,23 +52,23 @@ def _dummy_func_with_wait(wait_seconds: int):
 
 
 class TestProcessWrapper:
-    def test_run(self):
+    def test_run(self, mp_context):
         wait_duration = 1
-        proc = ProcessWrapper(_dummy_func_with_wait, [wait_duration])
+        proc = ProcessWrapper(_dummy_func_with_wait, [wait_duration], mp_context)
         # without any external signals, this should simply run and return the set wait_duration
         result = proc.run()
         assert result == wait_duration
 
-    def test_run_with_terminate_signal(self):
+    def test_run_with_terminate_signal(self, mp_context):
         # setting the terminate signal of the process should prevent the process from starting and return None
-        proc = ProcessWrapper(_dummy_func_with_wait, [1])
+        proc = ProcessWrapper(_dummy_func_with_wait, [1], mp_context)
         proc.terminate_execution = True
         res = proc.run()
         assert res is None
 
-    def test_run_with_terminate_signal_set_during_execution(self):
+    def test_run_with_terminate_signal_set_during_execution(self, mp_context):
         # we create five processes using concurrent futures but set the stop signal once three are completed
-        processes = [ProcessWrapper(_dummy_func_with_wait, [i]) for i in range(50)]
+        processes = [ProcessWrapper(_dummy_func_with_wait, [i], mp_context) for i in range(50)]
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
             tasks = [pool.submit(process.run) for process in processes]
@@ -91,12 +97,12 @@ class TestProcessWrapper:
             # also all processes should be None
             assert all(p.process is None for p in processes)
 
-    def test_run_with_exception_during_execution(self):
+    def test_run_with_exception_during_execution(self, mp_context):
         # we create five processes using concurrent futures but one of them raises a ValueError
         # we catch this error and transform it to a Pandora exception to make sure catching the error works as expected
         with pytest.raises(PandoraException):
             processes = [
-                ProcessWrapper(_dummy_func_with_wait, [i]) for i in range(-1, 4)
+                ProcessWrapper(_dummy_func_with_wait, [i], mp_context) for i in range(-1, 4)
             ]
 
             with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
@@ -109,14 +115,14 @@ class TestProcessWrapper:
                         # there should be no other errors
                         raise PandoraException()
 
-    def test_pause_and_resume(self):
+    def test_pause_and_resume(self, mp_context):
         """Since _dummy_func_with_wait only waits for the passed duration of seconds X and then returns, it is
         reasonable to assume that it's runtime will be about X seconds in total.
 
         If we pause the process during this wait time for 3 seconds, the total runtime
         of the function call should be >= 3 + X seconds.
         """
-        process = ProcessWrapper(_dummy_func_with_wait, [2])
+        process = ProcessWrapper(_dummy_func_with_wait, [2], mp_context)
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
             start_time = time.perf_counter()
@@ -129,9 +135,9 @@ class TestProcessWrapper:
             end_time = time.perf_counter()
             assert end_time - start_time >= 5
 
-    def test_pause_and_terminate(self):
+    def test_pause_and_terminate(self, mp_context):
         # we should be able to terminate a paused process without any error
-        process = ProcessWrapper(_dummy_func_with_wait, [2])
+        process = ProcessWrapper(_dummy_func_with_wait, [2], mp_context)
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
             future = pool.submit(process.run)

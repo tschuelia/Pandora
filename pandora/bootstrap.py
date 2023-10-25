@@ -52,26 +52,17 @@ def _bootstrap_converged(bootstraps: List[Embedding], threads: int):
     subset_size = int(n_bootstraps / 2)
 
     subset_stabilities = []
-    for iter in range(10):
-        print("subset :", iter)
+    for _ in range(10):
         subset = random.sample(bootstraps, k=subset_size)
-        print("hallo10")
         comparison = BatchEmbeddingComparison(subset)
-        print("hallo11")
         subset_stabilities.append(comparison.compare(threads=threads))
-        print("hallo12")
 
-    print("dome with all subsets")
     subset_stabilities = np.asarray(subset_stabilities)
-    print("hallo1")
     subset_stabilities_reshaped = subset_stabilities.reshape(-1, 1)
-    print("hallo2")
     pairwise_relative_differences = (
         np.abs(subset_stabilities - subset_stabilities_reshaped) / subset_stabilities
     )
-    print("hallo3g")
     res = np.all(pairwise_relative_differences <= 0.05)
-    print("done")
     return res
 
 
@@ -129,43 +120,30 @@ class ProcessWrapper:
                     ),
                     daemon=True,
                 )
-                print(100)
                 self.process.start()
-                print(101)
 
             while 1:
                 with self.lock:
-                    print(102)
                     process_complete = not self.process.is_alive()
                     if self.terminate_execution or process_complete:
                         # Process finished or termination signal sent from outside
-                        print(103)
                         break
                     elif self.pause_execution:
-                        print(104)
                         self._pause()
                     else:
-                        print(105)
                         self._resume()
-                print(106)
                 time.sleep(0.01)
 
             # Terminate process and get result
-            print(107)
             self._terminate()
-            print(108)
             if process_complete:
                 # Only if the process was not externally terminated, can get and return the result
-                print(109)
                 result = pickle.load(result_tmpfile.open("rb"))
-                print(110)
                 if isinstance(result, Exception):
                     # if the underlying func call raises an Exception, it is also pickled in the result file
                     # in this case we simply re-raise the Exception to be able to properly handle it in the caller
-                    print(111)
                     raise result
                 else:
-                    print(112)
                     return result
 
     def terminate(self):
@@ -182,9 +160,6 @@ class ProcessWrapper:
 
     def _pause(self):
         with self.lock:
-            print(
-                300, self.process is not None, self.terminate_execution, self.is_paused
-            )
             if (
                 self.process is not None
                 and not self.terminate_execution
@@ -195,7 +170,6 @@ class ProcessWrapper:
 
     def _resume(self):
         with self.lock:
-            print(200, self.process is not None, self.is_paused)
             if (
                 self.process is not None
                 # and not self.terminate_execution
@@ -207,15 +181,11 @@ class ProcessWrapper:
     def _terminate(self):
         with self.lock:
             if self.process is not None and self.process.is_alive():
-                print(113)
                 os.kill(self.process.pid, signal.SIGCONT)
                 self.process.terminate()
                 # os.kill(self.process.pid, signal.SIGINT)
-                print(114)
             self.process.join()
-            print(115)
             self.process.close()
-            print(116)
             self.process = None
 
 
@@ -242,18 +212,13 @@ class ParallelBoostrapProcessManager:
             finished_indices = []
 
             for finished_task in concurrent.futures.as_completed(tasks):
-                print(1)
                 try:
                     bootstrap, bootstrap_index = finished_task.result()
-                    print(2)
                 except Exception as e:
                     # terminate all running and waiting processes
-                    print(3)
                     self.terminate()
                     # cleanup the ThreadPool
-                    print(4)
                     pool.shutdown()
-                    print(5)
                     raise PandoraException(
                         "Something went wrong during the bootstrap computation."
                     ) from e
@@ -275,17 +240,11 @@ class ParallelBoostrapProcessManager:
                 ):
                     # Pause all running/waiting processes for the convergence check
                     # so we can use all available threads for the parallel convergence check computation
-                    print(6)
                     self.pause()
-                    # time.sleep(1)
-                    print(7)
                     converged = _bootstrap_convergence_check(
                         bootstraps, embedding, threads, logger
                     )
-                    print(8)
                     self.resume()
-                    # time.sleep(1)
-                    print(9)
                     if converged:
                         # in case convergence is detected, we set the event that interrupts all running processes
                         if logger is not None:
@@ -294,12 +253,8 @@ class ParallelBoostrapProcessManager:
                                     "Bootstrap convergence detected. Stopping bootstrapping."
                                 )
                             )
-                        print(10)
                         self.terminate()
-                        print(11)
                         break
-
-        print(12)
         return bootstraps, finished_indices
 
     def pause(self):

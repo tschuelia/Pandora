@@ -367,7 +367,7 @@ class BatchEmbeddingComparison:
 
             Each value is between 0 and 1 with higher values indicating a higher stability.
         """
-        with concurrent.futures.ThreadPoolExecutor(max_workers=threads) as pool:
+        with concurrent.futures.ProcessPoolExecutor(max_workers=threads) as pool:
             pairwise_stabilities = pool.map(
                 _stability_for_pair,
                 itertools.combinations(enumerate(self.embeddings), r=2),
@@ -428,7 +428,7 @@ class BatchEmbeddingComparison:
                 enumerate(self.embeddings), r=2
             )
         ]
-        with concurrent.futures.ThreadPoolExecutor(max_workers=threads) as pool:
+        with concurrent.futures.ProcessPoolExecutor(max_workers=threads) as pool:
             pairwise_cluster_stabilities = pool.map(_cluster_stability_for_pair, args)
 
         pairwise_cluster_stabilities = pd.concat(pairwise_cluster_stabilities)
@@ -463,7 +463,7 @@ class BatchEmbeddingComparison:
             (embedding1, embedding2, sample_ids)
             for embedding1, embedding2 in itertools.permutations(self.embeddings, r=2)
         ]
-        with concurrent.futures.ThreadPoolExecutor(max_workers=threads) as pool:
+        with concurrent.futures.ProcessPoolExecutor(max_workers=threads) as pool:
             diffs = pool.map(_difference_for_pair, args)
         return diffs
 
@@ -496,7 +496,7 @@ class BatchEmbeddingComparison:
         )
 
         args = [(embedding, sample_ids_superset) for embedding in self.embeddings]
-        with concurrent.futures.ThreadPoolExecutor(max_workers=threads) as pool:
+        with concurrent.futures.ProcessPoolExecutor(max_workers=threads) as pool:
             embedding_norms = pool.map(_get_embedding_norm, args)
 
         denominator = 2 * len(self.embeddings) * np.sum(embedding_norms, axis=0) + 1e-6

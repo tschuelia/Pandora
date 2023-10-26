@@ -180,13 +180,13 @@ class ProcessWrapper:
 
     def _terminate(self):
         with self.lock:
-            if self.process is not None and self.process.is_alive():
-                os.kill(self.process.pid, signal.SIGCONT)
-                self.process.terminate()
-                # os.kill(self.process.pid, signal.SIGINT)
-            self.process.join()
-            self.process.close()
-            self.process = None
+            if self.process is not None:
+                if self.process.is_alive():
+                    os.kill(self.process.pid, signal.SIGCONT)
+                    self.process.terminate()
+                self.process.join()
+                self.process.close()
+                self.process = None
 
 
 class ParallelBoostrapProcessManager:

@@ -68,7 +68,9 @@ class TestProcessWrapper:
 
     def test_run_with_terminate_signal_set_during_execution(self, mp_context):
         # we create five processes using concurrent futures but set the stop signal once three are completed
-        processes = [ProcessWrapper(_dummy_func_with_wait, [i], mp_context) for i in range(50)]
+        processes = [
+            ProcessWrapper(_dummy_func_with_wait, [i], mp_context) for i in range(50)
+        ]
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
             tasks = [pool.submit(process.run) for process in processes]
@@ -102,7 +104,8 @@ class TestProcessWrapper:
         # we catch this error and transform it to a Pandora exception to make sure catching the error works as expected
         with pytest.raises(PandoraException):
             processes = [
-                ProcessWrapper(_dummy_func_with_wait, [i], mp_context) for i in range(-1, 4)
+                ProcessWrapper(_dummy_func_with_wait, [i], mp_context)
+                for i in range(-1, 4)
             ]
 
             with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:

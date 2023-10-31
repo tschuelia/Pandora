@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import concurrent.futures
 import functools
+import itertools
 import multiprocessing
 import os
 import pathlib
@@ -13,7 +14,6 @@ import time
 from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Union
 
 import loguru
-import numpy as np
 import pandas as pd
 from numpy import typing as npt
 
@@ -29,6 +29,7 @@ from pandora.logger import fmt_message
 def _bootstrap_convergence_check(
     bootstraps: List[Union[NumpyDataset, EigenDataset]],
     embedding: EmbeddingAlgorithm,
+    bootstrap_convergence_confidence_level: float,
     threads: int,
     logger: Optional[loguru.Logger] = None,
 ):
@@ -42,36 +43,53 @@ def _bootstrap_convergence_check(
         raise PandoraException(
             f"Unrecognized embedding option {embedding}. Supported are 'pca' and 'mds'."
         )
-    return _bootstrap_converged(embeddings, threads)
+
+    return _bootstrap_converged(
+        embeddings, bootstrap_convergence_confidence_level, threads
+    )
 
 
-def _bootstrap_converged(bootstraps: List[Embedding], threads: int):
+def _bootstrap_converged(
+    bootstraps: List[Embedding],
+    bootstrap_convergence_confidence_level: float,
+    threads: int,
+):
     """Checks for convergence by comparing the Pandora Stabilities for 10 subsets of the given list of bootstraps."""
     n_bootstraps = len(bootstraps)
 
     subset_size = int(n_bootstraps / 2)
 
-    subset_stabilities = []
-    for _ in range(10):
-        subset = random.sample(bootstraps, k=subset_size)
-        comparison = BatchEmbeddingComparison(subset)
-        subset_stabilities.append(comparison.compare(threads=threads))
+    subsets = [random.sample(bootstraps, k=subset_size) for _ in range(10)]
+    stabilities = dict()
 
-    subset_stabilities = np.asarray(subset_stabilities)
-    subset_stabilities_reshaped = subset_stabilities.reshape(-1, 1)
-    pairwise_relative_differences = (
-        np.abs(subset_stabilities - subset_stabilities_reshaped) / subset_stabilities
-    )
-    res = np.all(pairwise_relative_differences <= 0.05)
-    return res
+    for (i, s1), (j, s2) in itertools.combinations(enumerate(subsets), r=2):
+        if i in stabilities:
+            stability_s1 = stabilities[i]
+        else:
+            stability_s1 = BatchEmbeddingComparison(s1).compare(threads=threads)
+            stabilities[i] = stability_s1
+
+        if j in stabilities:
+            stability_s2 = stabilities[j]
+        else:
+            stability_s2 = BatchEmbeddingComparison(s2).compare(threads=threads)
+            stabilities[j] = stability_s2
+
+        relative_difference = abs(stability_s2 - stability_s1) / (stability_s1 + 1e-6)
+        if round(relative_difference, 2) > bootstrap_convergence_confidence_level:
+            return False
+    return True
 
 
 def _wrapped_func(func, args, tmpfile):
     """Runs the given function ``func`` with the given arguments ``args`` and dumps the results as pickle in the
     tmpfile.
 
-    If the function call raises an exception, the Exception is also dumped in the
-    tmpfile.
+    If the function call raises an exception, the Exception is also dumped in the tmpfile.
+
+    Note that we use a tmpfile and pickles here instead of a ``multiprocessing.Queue``. The reason is that the
+    Queue object only allows for a limited number of bytes to be written before being consumed. However, for our
+    use case of bootstrap datasets with associated embeddings, this limit was reached even for small datasets.
     """
     try:
         result = func(*args)
@@ -80,9 +98,23 @@ def _wrapped_func(func, args, tmpfile):
     tmpfile.write_bytes(pickle.dumps(result))
 
 
-class ProcessWrapper:
-    """
-    TODO: Docstring
+class _ProcessWrapper:
+    """Wrapper class that orchestrates and monitors the execution of a multiprocessing.Process.
+
+    On ``run()``, the process starts computing the given function (``func``) with the given arguments (``args``).
+    It then continuously loops to check for termination (i.e. the process finished) and events set from the outside.
+    These events can be triggered by calling ``pause()``, ``resume()``, and ``terminate()``.
+
+    If ``pause()`` is called (and the process is not already paused), a stop signal (``signal.SIGSTOP``) is sent to the
+    process causing it to Stop, but not terminate. This paused process still requires blocks the allocated RAM,
+    but frees the CPUs to allow for other computations.
+
+    If ``resume()`` is called (and the process is paused), a continue signal (``signal.SIGCONT``) is sent to the process
+    causing it to resume its execution.
+
+    If ``terminate()`` is called, the process is gracefully terminated to free all its resources.
+
+    All calls only trigger the respective event if the process is still active.
     """
 
     def __init__(
@@ -114,13 +146,16 @@ class ProcessWrapper:
         with tempfile.NamedTemporaryFile() as result_tmpfile:
             result_tmpfile = pathlib.Path(result_tmpfile.name)
             with self.lock:
-                self.process = self.context.Process(
-                    target=functools.partial(
-                        _wrapped_func, self.func, self.args, result_tmpfile
-                    ),
-                    daemon=True,
-                )
-                self.process.start()
+                try:
+                    self.process = self.context.Process(
+                        target=functools.partial(
+                            _wrapped_func, self.func, self.args, result_tmpfile
+                        ),
+                        daemon=True,
+                    )
+                    self.process.start()
+                except Exception as e:
+                    raise PandoraException("Error starting bootstrap process") from e
 
             while 1:
                 with self.lock:
@@ -165,8 +200,12 @@ class ProcessWrapper:
                 and not self.terminate_execution
                 and not self.is_paused
             ):
-                os.kill(self.process.pid, signal.SIGSTOP)
-                self.is_paused = True
+                try:
+                    os.kill(self.process.pid, signal.SIGSTOP)
+                    self.is_paused = True
+                except ProcessLookupError:
+                    # process finished just before sending the signal
+                    pass
 
     def _resume(self):
         with self.lock:
@@ -175,8 +214,12 @@ class ProcessWrapper:
                 # and not self.terminate_execution
                 and self.is_paused
             ):
-                os.kill(self.process.pid, signal.SIGCONT)
-                self.is_paused = False
+                try:
+                    os.kill(self.process.pid, signal.SIGCONT)
+                    self.is_paused = False
+                except ProcessLookupError:
+                    # process finished just before sending the signal
+                    pass
 
     def _terminate(self):
         with self.lock:
@@ -189,19 +232,24 @@ class ProcessWrapper:
                 self.process = None
 
 
-class ParallelBoostrapProcessManager:
-    """
-    TODO: Docstring
+class _ParallelBoostrapProcessManager:
+    """Wrapper class that orchestrates all bootstrap subprocesses.
+
+    The run() method will start all bootstrap processes, wait for them to finish and
+    triggers the convergence check. For the convergence check, the manager will pause
+    all running processes. On convergence, the manager will terminate all paused and
+    waiting processes.
     """
 
     def __init__(self, func: Callable, args: Iterable[Any]):
         self.context = multiprocessing.get_context("spawn")
-        self.processes = [ProcessWrapper(func, arg, self.context) for arg in args]
+        self.processes = [_ProcessWrapper(func, arg, self.context) for arg in args]
 
     def run(
         self,
         threads: int,
         bootstrap_convergence_check: bool,
+        bootstrap_convergence_confidence_level: float,
         embedding: EmbeddingAlgorithm,
         logger: Optional[loguru.Logger] = None,
     ):
@@ -238,12 +286,23 @@ class ParallelBoostrapProcessManager:
                     and len(bootstraps) < len(self.processes)
                     and len(bootstraps) % max(10, threads) == 0
                 ):
-                    # Pause all running/waiting processes for the convergence check
+                    # Pause all running/waiting processes for the convergence check,
                     # so we can use all available threads for the parallel convergence check computation
                     self.pause()
-                    converged = _bootstrap_convergence_check(
-                        bootstraps, embedding, threads, logger
-                    )
+                    try:
+                        converged = _bootstrap_convergence_check(
+                            bootstraps,
+                            embedding,
+                            bootstrap_convergence_confidence_level,
+                            threads,
+                            logger,
+                        )
+                    except Exception as e:
+                        # an error occurred during the convergence check, gracefully terminate, then reraise
+                        self.terminate()
+                        pool.shutdown()
+                        raise e
+
                     self.resume()
                     if converged:
                         # in case convergence is detected, we set the event that interrupts all running processes
@@ -327,6 +386,7 @@ def bootstrap_and_embed_multiple(
     redo: bool = False,
     keep_bootstraps: bool = False,
     bootstrap_convergence_check: bool = True,
+    bootstrap_convergence_confidence_level: float = 0.05,
     smartpca_optional_settings: Optional[Dict] = None,
     logger: Optional[loguru.Logger] = None,
 ) -> List[EigenDataset]:
@@ -368,6 +428,9 @@ def bootstrap_and_embed_multiple(
     bootstrap_convergence_check : bool, default=True
         Whether to automatically determine bootstrap convergence. If ``True``, will only compute as many replicates as
         required for convergence according to our heuristic (see Notes below).
+    bootstrap_convergence_confidence_level : float, default=0.05
+        Determines the level of confidence when checking for bootstrap convergence. A value of X means that we allow
+        deviations of up to :math:`X * 100\\%` between pairwise bootstrap comparisons and still assume convergence.
     smartpca_optional_settings : Dict, default=None
         Additional smartpca settings.
         Not allowed are the following options: ``genotypename``, ``snpname``, ``indivname``,
@@ -393,7 +456,7 @@ def bootstrap_and_embed_multiple(
     We first create 10 random subsets of size :math:`int(N/2)` by sampling from all :math:`N` replicates.
     We then compute the Pandora Stability (PS) for each of the 10 subsets and compute the relative difference of PS
     values between all possible pairs of subsets :math:`(PS_1, PS_2)` by computing :math:`\\frac{\\left|PS_1 - PS_2\\right|}{PS_2}`.
-    We assume convergence if all pairwise relative differences are below 5%.
+    We assume convergence if all pairwise relative differences are below X * 100% were X is the set confidence level.
     If we determine that the bootstrap has converged, all remaining bootstrap computations are cancelled.
 
     (*) The reasoning for checking every ``max(10, threads)`` is the following: if Pandora runs on a machine with e.g. 48
@@ -439,12 +502,13 @@ def bootstrap_and_embed_multiple(
             )
         )
 
-    parallel_bootstrap_process_manager = ParallelBoostrapProcessManager(
+    parallel_bootstrap_process_manager = _ParallelBoostrapProcessManager(
         _bootstrap_and_embed, bootstrap_args
     )
     bootstraps, finished_indices = parallel_bootstrap_process_manager.run(
         threads=threads,
         bootstrap_convergence_check=bootstrap_convergence_check,
+        bootstrap_convergence_confidence_level=bootstrap_convergence_confidence_level,
         embedding=embedding,
         logger=logger,
     )
@@ -495,6 +559,7 @@ def bootstrap_and_embed_multiple_numpy(
     ] = euclidean_sample_distance,
     imputation: Optional[str] = "mean",
     bootstrap_convergence_check: bool = True,
+    bootstrap_convergence_confidence_level: float = 0.05,
 ) -> List[NumpyDataset]:
     """Draws ``n_replicates`` bootstrap datasets of the provided NumpyDataset and performs PCA/MDS analysis (as
     specified by ``embedding``) for each bootstrap.
@@ -537,6 +602,9 @@ def bootstrap_and_embed_multiple_numpy(
     bootstrap_convergence_check : bool, default=True
         Whether to automatically determine bootstrap convergence. If ``True``, will only compute as many replicates as
         required for convergence according to our heuristic (see Notes below).
+    bootstrap_convergence_confidence_level : float, default=0.05
+        Determines the level of confidence when checking for bootstrap convergence. A value of X means that we allow
+        deviations of up to :math:`X * 100\\%` between pairwise bootstrap comparisons and still assume convergence.
 
     Returns
     -------
@@ -556,7 +624,7 @@ def bootstrap_and_embed_multiple_numpy(
     We first create 10 random subsets of size :math:`int(N/2)` by sampling from all :math:`N` replicates.
     We then compute the Pandora Stability (PS) for each of the 10 subsets and compute the relative difference of PS
     values between all possible pairs of subsets :math:`(PS_1, PS_2)` by computing :math:`\\frac{\\left|PS_1 - PS_2\\right|}{PS_2}`.
-    We assume convergence if all pairwise relative differences are below 5%.
+    We assume convergence if all pairwise relative differences are below X * 100% were X is the set confidence level.
     If we determine that the bootstrap has converged, all remaining bootstrap computations are cancelled.
 
     (*) The reasoning for checking every ``max(10, threads)`` is the following: if Pandora runs on a machine with e.g. 48
@@ -583,12 +651,13 @@ def bootstrap_and_embed_multiple_numpy(
         for _ in range(n_bootstraps)
     ]
 
-    parallel_bootstrap_process_manager = ParallelBoostrapProcessManager(
+    parallel_bootstrap_process_manager = _ParallelBoostrapProcessManager(
         _bootstrap_and_embed_numpy, bootstrap_args
     )
     bootstraps, _ = parallel_bootstrap_process_manager.run(
         threads=threads,
         bootstrap_convergence_check=bootstrap_convergence_check,
+        bootstrap_convergence_confidence_level=bootstrap_convergence_confidence_level,
         embedding=embedding,
     )
 

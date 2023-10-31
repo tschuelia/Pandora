@@ -10,10 +10,10 @@ import pandas as pd
 import pytest
 
 from pandora.bootstrap import (
-    ParallelBoostrapProcessManager,
-    ProcessWrapper,
     _bootstrap_converged,
     _bootstrap_convergence_check,
+    _ParallelBoostrapProcessManager,
+    _ProcessWrapper,
     _wrapped_func,
     bootstrap_and_embed_multiple,
     bootstrap_and_embed_multiple_numpy,
@@ -54,14 +54,14 @@ def _dummy_func_with_wait(wait_seconds: int):
 class TestProcessWrapper:
     def test_run(self, mp_context):
         wait_duration = 1
-        proc = ProcessWrapper(_dummy_func_with_wait, [wait_duration], mp_context)
+        proc = _ProcessWrapper(_dummy_func_with_wait, [wait_duration], mp_context)
         # without any external signals, this should simply run and return the set wait_duration
         result = proc.run()
         assert result == wait_duration
 
     def test_run_with_terminate_signal(self, mp_context):
         # setting the terminate signal of the process should prevent the process from starting and return None
-        proc = ProcessWrapper(_dummy_func_with_wait, [1], mp_context)
+        proc = _ProcessWrapper(_dummy_func_with_wait, [1], mp_context)
         proc.terminate_execution = True
         res = proc.run()
         assert res is None
@@ -69,7 +69,7 @@ class TestProcessWrapper:
     def test_run_with_terminate_signal_set_during_execution(self, mp_context):
         # we create five processes using concurrent futures but set the stop signal once three are completed
         processes = [
-            ProcessWrapper(_dummy_func_with_wait, [i], mp_context) for i in range(50)
+            _ProcessWrapper(_dummy_func_with_wait, [i], mp_context) for i in range(50)
         ]
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
@@ -104,7 +104,7 @@ class TestProcessWrapper:
         # we catch this error and transform it to a Pandora exception to make sure catching the error works as expected
         with pytest.raises(PandoraException):
             processes = [
-                ProcessWrapper(_dummy_func_with_wait, [i], mp_context)
+                _ProcessWrapper(_dummy_func_with_wait, [i], mp_context)
                 for i in range(-1, 4)
             ]
 
@@ -125,7 +125,7 @@ class TestProcessWrapper:
         If we pause the process during this wait time for 3 seconds, the total runtime
         of the function call should be >= 3 + X seconds.
         """
-        process = ProcessWrapper(_dummy_func_with_wait, [2], mp_context)
+        process = _ProcessWrapper(_dummy_func_with_wait, [2], mp_context)
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
             start_time = time.perf_counter()
@@ -140,7 +140,7 @@ class TestProcessWrapper:
 
     def test_pause_and_terminate(self, mp_context):
         # we should be able to terminate a paused process without any error
-        process = ProcessWrapper(_dummy_func_with_wait, [2], mp_context)
+        process = _ProcessWrapper(_dummy_func_with_wait, [2], mp_context)
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
             future = pool.submit(process.run)
@@ -155,7 +155,7 @@ class TestParallelBoostrapProcessManager:
     def test_terminate(self):
         # Note: this test is similar to one above, but in this case we explicitly test the termination implementation
         # of the ParallelBoostrapProcessManager
-        process_manager = ParallelBoostrapProcessManager(
+        process_manager = _ParallelBoostrapProcessManager(
             _dummy_func_with_wait, [[i] for i in range(50)]
         )
 
@@ -221,7 +221,10 @@ def test_bootstrap_converged_for_identical_embeddings(
     for n_replicates in range(6, 10):
         # _bootstrap_convergence_check should determine convergence
         assert _bootstrap_convergence_check(
-            [test_numpy_dataset] * n_replicates, embedding_algorithm, threads=2
+            [test_numpy_dataset] * n_replicates,
+            embedding_algorithm,
+            bootstrap_convergence_confidence_level=0.05,
+            threads=2,
         )
 
 
@@ -240,7 +243,9 @@ def test_bootstrap_does_not_converge_for_distinct_embeddings(test_numpy_dataset)
     np.random.seed(42)
     random_embeddings = [_random_embedding(test_numpy_dataset.pca) for _ in range(5)]
     bootstraps = random_embeddings + [test_numpy_dataset.pca]
-    assert not _bootstrap_converged(bootstraps, threads=2)
+    assert not _bootstrap_converged(
+        bootstraps, bootstrap_convergence_confidence_level=0.01, threads=2
+    )
 
 
 @pytest.mark.parametrize("embedding", [EmbeddingAlgorithm.PCA, EmbeddingAlgorithm.MDS])
@@ -319,6 +324,7 @@ def test_bootstrap_and_embed_multiple_with_convergence_check_pca(
 ):
     # example_dataset actually does not require all 100 bootstraps to converge
     # so if we run bootstrap_and_embed_multiple with the convergence check enabled
+    # and the convergence confidence level to 0.05
     # we should get less than 100 bootstraps as result
 
     n_bootstraps = 100
@@ -337,6 +343,33 @@ def test_bootstrap_and_embed_multiple_with_convergence_check_pca(
         )
 
         assert len(bootstraps) < n_bootstraps
+
+
+def test_bootstrap_and_embed_multiple_with_convergence_check_pca_no_convergence_with_high_confidence_level(
+    example_dataset, smartpca
+):
+    # when setting the confidence level to 0.01, we should see no convergence
+    # so if we run bootstrap_and_embed_multiple with the convergence check enabled
+    # and the convergence confidence limit to 0.01
+    # we should get exactly 100 bootstraps as result
+
+    n_bootstraps = 100
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmpdir = pathlib.Path(tmpdir)
+        bootstraps = bootstrap_and_embed_multiple(
+            dataset=example_dataset,
+            n_bootstraps=n_bootstraps,
+            result_dir=tmpdir,
+            smartpca=smartpca,
+            embedding=EmbeddingAlgorithm.PCA,
+            n_components=2,
+            seed=0,
+            keep_bootstraps=False,
+            bootstrap_convergence_check=True,
+            bootstrap_convergence_confidence_level=0.01,
+        )
+
+        assert len(bootstraps) == n_bootstraps
 
 
 @pytest.mark.parametrize("embedding", [EmbeddingAlgorithm.PCA, EmbeddingAlgorithm.MDS])

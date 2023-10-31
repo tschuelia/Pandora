@@ -10,7 +10,14 @@ from typing import Any, Dict, List, Optional
 import pandas as pd
 import yaml
 from plotly import graph_objects as go
-from pydantic import BaseModel, ConfigDict, NonNegativeInt, PositiveInt, ValidationError
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    NonNegativeFloat,
+    NonNegativeInt,
+    PositiveInt,
+    ValidationError,
+)
 from pydantic.dataclasses import dataclass
 
 from pandora import __version__
@@ -67,6 +74,9 @@ class PandoraConfig(BaseModel):
         the bootstrap procedure converged, all remaining tasks are cancelled and the stability is determined uisng
         only the number of replicates computed when convergence is determined.
         Note that this parameter is only relevant if ``analysis_mode`` is ``AnalysisMode.BOOTSTRAP``.
+    bootstrap_convergence_confidence_level : NonNegativeFloat, default=0.05
+        Determines the level of confidence when checking for bootstrap convergence. A value of :math:`X` means that we
+        allow deviations of up to :math:`X * 100\\%` between pairwise bootstrap comparisons and still assume convergence.
     n_components : PositiveInt, default=10
         Number of dimensions to output and compare for PCA and MDS analyses.
         The recommended number is 10 for PCA and 2 for MDS. Default is 10 in correspondance to the default PCA embedding.
@@ -135,6 +145,7 @@ class PandoraConfig(BaseModel):
 
     # Bootstrap specific setting (convergence check)
     bootstrap_convergence_check: bool = True
+    bootstrap_convergence_confidence_level: NonNegativeFloat = 0.05
 
     # Embedding related
     n_components: NonNegativeInt = 10
@@ -540,7 +551,8 @@ class Pandora:
             logger.info(
                 fmt_message(
                     "NOTE: Bootstrap convergence check is enabled. "
-                    "Will terminate bootstrap computation once convergence is determined."
+                    "Will terminate bootstrap computation once convergence is determined. "
+                    f"Convergence confidence level: {self.pandora_config.bootstrap_convergence_confidence_level}"
                 )
             )
         try:
@@ -556,6 +568,7 @@ class Pandora:
                 self.pandora_config.redo,
                 self.pandora_config.keep_replicates,
                 self.pandora_config.bootstrap_convergence_check,
+                self.pandora_config.bootstrap_convergence_confidence_level,
                 self.pandora_config.smartpca_optional_settings,
                 logger,
             )

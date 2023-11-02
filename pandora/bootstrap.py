@@ -76,7 +76,7 @@ def _bootstrap_converged(
             stabilities[j] = stability_s2
 
         relative_difference = abs(stability_s2 - stability_s1) / (stability_s1 + 1e-6)
-        if round(relative_difference, 2) > bootstrap_convergence_confidence_level:
+        if round(relative_difference, 3) > bootstrap_convergence_confidence_level:
             return False
     return True
 

@@ -11,10 +11,9 @@ all results you obtain should be handled with care.**
 <hr>
 
 
-Pandora's Box for PCA and MDS analyses. Pandora is a command line tool that estimates the stability of your PCA or MDS analyses under bootstrapping.
-As the name suggests: there might be results surfacing that you don't like :-)
-
-Pandora is specifically designed for population genetics and ancient DNA data.
+Pandora is an uncertainty estimation toolkit for dimensionality reduction on population genetics data. Pandora works based
+on bootstrapping, and estimates the stability of your genotype data running PCA or MDS analyses.
+As the name suggests: there might be results surfacing that you don't like 🏺🙂
 
 ## Boostrap Stability Analysis
 Pandora estimates the stability of your dimensionality reduction based on bootstrapping the SNPs in your data. Bootstrapping is a standard analysis technique

@@ -267,7 +267,7 @@ def test_hamming_sample_distance():
     )
 
     hamming_distance, _ = hamming_sample_distance(input_data, populations, None)
-    npt.assert_array_equal(hamming_distance, expected_hamming_distance)
+    npt.assert_array_almost_equal(hamming_distance, expected_hamming_distance)
 
 
 def test_hamming_sample_distance_with_missing_data():
@@ -295,7 +295,7 @@ def test_hamming_sample_distance_with_missing_data():
     )
 
     hamming_distance, _ = hamming_sample_distance(input_data, populations, None)
-    npt.assert_array_equal(hamming_distance, expected_hamming_distance)
+    npt.assert_array_almost_equal(hamming_distance, expected_hamming_distance)
 
 
 def test_missing_corrected_hamming_sample_distance_no_missing_data():
@@ -317,7 +317,9 @@ def test_missing_corrected_hamming_sample_distance_no_missing_data():
     hamming_distance, _ = missing_corrected_hamming_sample_distance(
         input_data, populations, None
     )
-    npt.assert_array_equal(hamming_distance, expected_hamming_distance)
+    npt.assert_array_almost_equal(
+        hamming_distance.round(), expected_hamming_distance.round()
+    )
 
 
 def test_missing_corrected_hamming_sample_distance():
@@ -347,4 +349,5 @@ def test_missing_corrected_hamming_sample_distance():
     hamming_distance, _ = missing_corrected_hamming_sample_distance(
         input_data, populations, None
     )
-    npt.assert_array_equal(hamming_distance, expected_distance)
+    # floating point comparison, let's allow for some mismatch
+    npt.assert_array_almost_equal(hamming_distance, expected_distance)

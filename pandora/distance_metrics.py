@@ -42,7 +42,7 @@ def euclidean_sample_distance(
     Returns
     -------
     distance_matrix : npt.NDArray
-        Distance matrix of pairwise Euclidean distances between all unique populations.
+        Distance matrix of pairwise Euclidean distances between all samples.
         The array is of shape ``(n_samples, n_samples)``.
     populations : pd.Series
         Pandas Series containing a population name for each row in the distance matrix. This is identical to the passed
@@ -86,7 +86,7 @@ def manhattan_sample_distance(
     Returns
     -------
     distance_matrix : npt.NDArray
-        Distance matrix of pairwise manhattan distances between all unique populations.
+        Distance matrix of pairwise manhattan distances between all samples.
         The array is of shape ``(n_samples, n_samples)``.
     populations : pd.Series
         Pandas Series containing a population name for each row in the distance matrix. This is identical to the passed
@@ -105,6 +105,106 @@ def manhattan_sample_distance(
     input_data = impute_data(input_data, imputation)
     _check_input(input_data, populations)
     return manhattan_distances(input_data, input_data), populations
+
+
+def hamming_sample_distance(
+    input_data: npt.NDArray, populations: pd.Series, imputation: Optional[str]
+) -> Tuple[npt.NDArray, pd.Series]:
+    """Computes and returns the distance matrix of pairwise hamming distances between all samples (rows) in input_data.
+
+    Parameters
+    ----------
+    input_data : npt.NDArray
+        Numpy Array containing the genetic input data to use.
+    populations : pd.Series[str]
+        Pandas Series containing a population name for each row in ``input_data``. Note that this population info is not
+        used for distance computation as the distance is computed per sample. The parameter is only required to provide
+        a unique interface for per-sample and per-population distances.
+    imputation : Optional[str]
+        Imputation method to use. This parameter is not used and exists only for compatibility with the interface
+        required for the ``dataset.run_mds`` method.
+
+    Returns
+    -------
+    distance_matrix : npt.NDArray
+        Distance matrix of pairwise hamming distances between all samples.
+        The array is of shape ``(n_samples, n_samples)``.
+    populations : pd.Series
+        Pandas Series containing a population name for each row in the distance matrix. This is identical to the passed
+        series of populations since this information is not used for distance computation.
+    """
+    n_samples = input_data.shape[0]
+    distance_matrix = np.empty(shape=(n_samples, n_samples))
+
+    for (i, s1), (j, s2) in itertools.combinations(enumerate(input_data), r=2):
+        hamming_distance = np.nansum([abs(v1 - v2) for v1, v2 in zip(s1, s2)])
+        distance_matrix[i, j] = hamming_distance
+        # distance matrix should be symmetric
+        distance_matrix[j, i] = hamming_distance
+
+    return distance_matrix, populations
+
+
+def missing_corrected_hamming_sample_distance(
+    input_data: npt.NDArray, populations: pd.Series, imputation: Optional[str]
+) -> Tuple[npt.NDArray, pd.Series]:
+    """Computes and returns the distance matrix of pairwise, hamming distances between all samples (rows) in input_data.
+    Compared to ``hamming_sample_distance``, this method additionally corrects for missing samples (see Notes below).
+
+    Parameters
+    ----------
+    input_data : npt.NDArray
+        Numpy Array containing the genetic input data to use.
+    populations : pd.Series[str]
+        Pandas Series containing a population name for each row in ``input_data``. Note that this population info is not
+        used for distance computation as the distance is computed per sample. The parameter is only required to provide
+        a unique interface for per-sample and per-population distances.
+    imputation : Optional[str]
+        Imputation method to use. This parameter is not used and exists only for compatibility with the interface
+        required for the ``dataset.run_mds`` method.
+
+    Returns
+    -------
+    distance_matrix : npt.NDArray
+        Distance matrix of pairwise hamming distances between all samples.
+        The array is of shape ``(n_samples, n_samples)``.
+    populations : pd.Series
+        Pandas Series containing a population name for each row in the distance matrix. This is identical to the passed
+        series of populations since this information is not used for distance computation.
+
+    Notes
+    -----
+    Instead of the plain hamming distance :math:`d(i, j)` between two samples :math:`i` and :math:`j`, it corrects for
+    the fraction of missing data in both samples (:math:`m_i`, :math:`m_j`). However, for the correction, we only
+    consider missing values if they are missing in either of the two samples, but not in both. We denote the fraction of
+    data missing in both samples as :math:`m_{i,j}`
+    Thus, the missing correct hamming distance :math:`d_m(i, j)` computes as:
+
+    .. math:: d_m(i, j) = \\frac{d(i, j)}{m_i + m_j - m_{i, j}}
+
+    Note that this distance metric corresponds to the ``PLINK --distance 'flat-missing'`` computation.
+    """
+    n_samples = input_data.shape[0]
+    distance_matrix = np.empty(shape=(n_samples, n_samples))
+
+    for (i, s1), (j, s2) in itertools.combinations(enumerate(input_data), r=2):
+        hamming_distance = np.nansum([abs(v1 - v2) for v1, v2 in zip(s1, s2)])
+
+        # compute the fraction of missing values in both sequences
+        missing_s1 = np.sum(np.isnan(s1)) / len(s1)
+        missing_s2 = np.sum(np.isnan(s2)) / len(s2)
+        # compute the fraction of missing values
+        missing_in_both = np.sum(
+            [np.isnan(v1) and np.isnan(v2) for v1, v2 in zip(s1, s2)]
+        ) / len(s1)
+
+        normalization_factor = missing_s1 + missing_s2 - missing_in_both
+        hamming_distance /= 1 - normalization_factor
+        distance_matrix[i, j] = hamming_distance
+        # distance matrix should be symmetric
+        distance_matrix[j, i] = hamming_distance
+
+    return distance_matrix, populations
 
 
 def population_distance(
@@ -334,6 +434,8 @@ def _geno_data_to_geno_array(geno_data):
 DISTANCE_METRICS = [
     euclidean_sample_distance,
     manhattan_sample_distance,
+    hamming_sample_distance,
+    missing_corrected_hamming_sample_distance,
     euclidean_population_distance,
     manhattan_population_distance,
     fst_population_distance,

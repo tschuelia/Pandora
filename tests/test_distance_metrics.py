@@ -12,8 +12,10 @@ from pandora.distance_metrics import (
     euclidean_population_distance,
     euclidean_sample_distance,
     fst_population_distance,
+    hamming_sample_distance,
     manhattan_population_distance,
     manhattan_sample_distance,
+    missing_corrected_hamming_sample_distance,
 )
 
 # scikit-allel throws these two errors most likely due to the small examples we are looking at in these tests
@@ -24,7 +26,13 @@ pytestmark = pytest.mark.filterwarnings(
 
 
 @pytest.mark.parametrize(
-    "sample_distance_metric", [euclidean_sample_distance, manhattan_sample_distance]
+    "sample_distance_metric",
+    [
+        euclidean_sample_distance,
+        manhattan_sample_distance,
+        hamming_sample_distance,
+        missing_corrected_hamming_sample_distance,
+    ],
 )
 def test_sample_distance_no_imputation(sample_distance_metric):
     # create some test data without missing data
@@ -233,3 +241,110 @@ def test_fst_population_distance_missing_data():
 
     # the input_data contains missing values, but the FST computation should work anyway
     fst_population_distance(input_data, populations, imputation=None)
+
+
+def test_hamming_sample_distance():
+    input_data = np.asarray(
+        [
+            [1, 0, 2, 0, 2, 0, 2],
+            [1, 1, 1, 0, 1, 0, 2],
+            [1, 2, 1, 1, 1, 1, 1],
+            [0, 1, 0, 2, 0, 1, 1],
+            [0, 2, 1, 2, 0, 1, 0],
+        ]
+    )
+    populations = pd.Series(["p1", "p2", "p3", "p4", "p5"])
+
+    # manually computed expected hamming distance
+    expected_hamming_distance = np.asarray(
+        [
+            [0, 3, 7, 10, 11],
+            [3, 0, 4, 7, 8],
+            [7, 4, 0, 5, 4],
+            [10, 7, 5, 0, 3],
+            [11, 8, 4, 3, 0],
+        ]
+    )
+
+    hamming_distance, _ = hamming_sample_distance(input_data, populations, None)
+    npt.assert_array_equal(hamming_distance, expected_hamming_distance)
+
+
+def test_hamming_sample_distance_with_missing_data():
+    # missing data in the uncorrected hamming distance should simply be counted as zero
+    input_data = np.asarray(
+        [
+            [1, 0, 2, 0, 2, 0, np.nan],
+            [1, 1, 1, 0, 1, 0, 2],
+            [1, 2, 1, 1, 1, 1, 1],
+            [0, 1, 0, 2, 0, 1, 1],
+            [0, 2, 1, 2, 0, 1, 0],
+        ]
+    )
+    populations = pd.Series(["p1", "p2", "p3", "p4", "p5"])
+
+    # manually computed expected hamming distance
+    expected_hamming_distance = np.asarray(
+        [
+            [0, 3, 6, 9, 9],
+            [3, 0, 4, 7, 8],
+            [6, 4, 0, 5, 4],
+            [9, 7, 5, 0, 3],
+            [9, 8, 4, 3, 0],
+        ]
+    )
+
+    hamming_distance, _ = hamming_sample_distance(input_data, populations, None)
+    npt.assert_array_equal(hamming_distance, expected_hamming_distance)
+
+
+def test_missing_corrected_hamming_sample_distance_no_missing_data():
+    input_data = np.asarray(
+        [
+            [1, 0, 2, 0, 2, 0, 2],
+            [1, 1, 1, 0, 1, 0, 2],
+            [1, 2, 1, 1, 1, 1, 1],
+            [0, 1, 0, 2, 0, 1, 1],
+            [0, 2, 1, 2, 0, 1, 0],
+        ]
+    )
+    populations = pd.Series(["p1", "p2", "p3", "p4", "p5"])
+
+    # without missing data, the corrected sample distance should be identical to the plain hamming distance
+    expected_hamming_distance, _ = hamming_sample_distance(
+        input_data, populations, None
+    )
+    hamming_distance, _ = missing_corrected_hamming_sample_distance(
+        input_data, populations, None
+    )
+    npt.assert_array_equal(hamming_distance, expected_hamming_distance)
+
+
+def test_missing_corrected_hamming_sample_distance():
+    # this input data contains missing data and overlapping missing data between s0 and s1
+    input_data = np.asarray(
+        [
+            [1, 0, 2, 0, 2, 0, np.nan],
+            [1, 1, 1, 0, np.nan, np.nan, 2],
+            [1, 2, 1, np.nan, np.nan, 1, 1],
+            [0, 1, 0, 2, 0, 1, 1],
+            [0, 2, 1, 2, 0, 1, 0],
+        ]
+    )
+    populations = pd.Series(["p1", "p2", "p3", "p4", "p5"])
+
+    # manually computed expected hamming distance
+    expected_distance = np.asarray(
+        [
+            [0, 3.5, 7, 10.5, 10.5],
+            [3.5, 0, 3.5, 7, 8.4],
+            [7, 3.5, 0, 4.2, 2.8],
+            [10.5, 7, 4.2, 0, 3],
+            [10.5, 8.4, 2.8, 3, 0],
+        ]
+    )
+
+    hamming_distance, _ = missing_corrected_hamming_sample_distance(
+        input_data, populations, None
+    )
+    npt.assert_array_equal(hamming_distance, expected_distance)

@@ -106,7 +106,8 @@ file and run it from command line. The reason for this is the custom distance me
 
 Again we will se an output like ``Pandora Stability (PS):  0.91.``
 
-**Custom distance metric**
+Custom distance metric
+^^^^^^^^^^^^^^^^^^^^^^
 If you want to use a distance metric that is not implemented in Pandora, you can define one very easily as I will show you with the following
 example in which we will use the ``scikit-learn`` pairwise ``cosine_distances`` function. You can define a per-sample and a per-population metric like this:
 
@@ -114,19 +115,28 @@ example in which we will use the ``scikit-learn`` pairwise ``cosine_distances`` 
 
     from sklearn.metrics.pairwise import cosine_distances
 
-    from pandora.distance_metrics import *
+    from pandora.distance_metrics import population_distance
+    from pandora.imputation import impute_data
 
 
-    def cosine_sample_distance(input_data: npt.NDArray, populations: pd.Series) -> Tuple[npt.NDArray, pd.Series]:
+    def cosine_sample_distance(input_data: npt.NDArray, populations: pd.Series, imputation: Optional[str]) -> Tuple[npt.NDArray, pd.Series]:
+        # first we impute the data, note that depending on the distance metric you are using not all imputations make sense
+        # you can of course also implement your own custom imputation method and not use the provided ``impute_data`` functionality.
+        input_data = impute_data(input_data, imputation)
         return cosine_distances(input_data, input_data), populations
 
-    def cosine_population_distance(input_data: npt.NDArray, populations: pd.Series) -> Tuple[npt.NDArray, pd.Series]:
+    def cosine_population_distance(input_data: npt.NDArray, populations: pd.Series, imputation: Optional[str]) -> Tuple[npt.NDArray, pd.Series]:
+        # first we impute the data, note that depending on the distance metric you are using not all imputations make sense
+        # you can of course also implement your own custom imputation method and not use the provided ``impute_data`` functionality.
+        input_data = impute_data(input_data, imputation)
         return population_distance(input_data, populations, cosine_distances)
 
 
 For the per-population metric, we make use of Pandora's ``population_distance`` function. Provided a numpy data array and the respective populations,
 as well as the desired pairwise distance metric, ``population_distance`` will take care of the population grouping.
-Of course you can implement an arbitrarily complex distance metric suited for your needs.
+You can then use one of your custom distance metrics by passing it as ``distance_metric`` to the respective function calls in Pandora
+(e.g. the above example of ``bootstrap_and_embed_multiple_numpy``).
+
 
 
 Sliding-Window Analysis
@@ -181,3 +191,20 @@ This will print something like ``Pandora Stability (PS):  0.93``.
 
 Loading Eigen-files as NumpyDataset
 -----------------------------------
+Instead of defining your data as a numpy dataset manually, you can also load genotype dataset files in EIGENSTRAT format.
+You can simply use the ``pandora.dataset.numpy_dataset_from_eigenfiles`` method to do so:
+
+.. code-block:: python
+
+    import pathlib
+
+    from pandora.dataset import numpy_dataset_from_eigenfiles
+
+    # set the prefix to the .geno, .ind, and .snp files
+    # if your dataset is not in EIGENSTRAT format, check out Pandora's conversion module
+    dataset_prefix = pathlib.Path("path/to/eigenfiles")
+    # numpy_dataset_from_eigenfiles expects three files:
+    # - path/to/eigenfiles.snp
+    # - path/to/eigenfiles.geno
+    # - path/to/eigenfiles.ind
+    dataset = numpy_dataset_from_eigenfiles(dataset_prefix)

@@ -23,12 +23,6 @@ jobs:
           cache-environment: true
           create-args:
             python=${{ matrix.python-version }}
-      - name: Install Pandora and setup requirements
-        run: |
-          rm tests/test_config.py
-          echo "SMARTPCA = 'smartpca'" > tests/test_config.py
-          echo "CONVERTF = 'convertf'" >> tests/test_config.py
-          cat tests/test_config.py
 #      - name: Setup tmate session
 #        uses: mxschmitt/action-tmate@v3
       - name: Run Pandora tests

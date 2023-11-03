@@ -9,17 +9,15 @@ from pandora.custom_types import Executable
 from pandora.dataset import EigenDataset, NumpyDataset
 from pandora.embedding import PCA, from_smartpca
 
-from .test_config import CONVERTF, SMARTPCA
-
 
 @pytest.fixture
 def smartpca() -> Executable:
-    return SMARTPCA
+    return "smartpca"
 
 
 @pytest.fixture
 def convertf() -> Executable:
-    return CONVERTF
+    return "convertf"
 
 
 @pytest.fixture

@@ -14,7 +14,7 @@ dependencies:
   - pytest
   - pyarrow
   - eigensoft
-  - scikit-allel
+  - scikit-allel >= 1.3.7
   - pip
   - pydantic >= 2
   - loguru

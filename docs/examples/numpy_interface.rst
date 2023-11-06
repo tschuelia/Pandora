@@ -13,8 +13,9 @@ Instead of providing the file path to EIGEN files, you directly provide Pandora 
     import pandas as pd
     import numpy as np
 
+    from pandora.bootstrap import bootstrap_and_embed_multiple_numpy
     from pandora.custom_types import EmbeddingAlgorithm
-    from pandora.dataset import NumpyDataset, bootstrap_and_embed_multiple_numpy
+    from pandora.dataset import NumpyDataset
     from pandora.embedding_comparison import BatchEmbeddingComparison
 
     # this is the same geno type data as we used above, but already typed out as numpy matrix
@@ -66,8 +67,9 @@ file and run it from command line. The reason for this is the custom distance me
     import pandas as pd
     import numpy as np
 
+    from pandora.bootstrap import bootstrap_and_embed_multiple_numpy
     from pandora.custom_types import EmbeddingAlgorithm
-    from pandora.dataset import NumpyDataset, bootstrap_and_embed_multiple_numpy
+    from pandora.dataset import NumpyDataset
     from pandora.distance_metrics import manhattan_population_distance
     from pandora.embedding_comparison import BatchEmbeddingComparison
 
@@ -104,7 +106,7 @@ file and run it from command line. The reason for this is the custom distance me
         print("Pandora Stability (PS): ", round(pandora_stability, 2))
 
 
-Again we will se an output like ``Pandora Stability (PS):  0.91.``
+Again we will se an output like ``Pandora Stability (PS):  0.92.``
 
 Custom distance metric
 ^^^^^^^^^^^^^^^^^^^^^^
@@ -151,8 +153,9 @@ The following example demonstrates a sliding-window PCA analysis.
     import numpy as np
 
     from pandora.custom_types import EmbeddingAlgorithm
-    from pandora.dataset import NumpyDataset, sliding_window_embedding_numpy
+    from pandora.dataset import NumpyDataset
     from pandora.embedding_comparison import BatchEmbeddingComparison
+    from pandora.sliding_window import sliding_window_embedding_numpy
 
     # for the sliding window analysis we use a larger array as example
     geno_data = np.asarray([
@@ -176,7 +179,6 @@ The following example demonstrates a sliding-window PCA analysis.
         embedding=EmbeddingAlgorithm.PCA,  # tell Pandora to compute PCA for each of the windows
         n_components=2,  # here we only compute 2 PCs
         threads=2,  # compute the bootstraps in parallel using 2 threads
-        impute_missing=False  # set impute_missing False since we don't have missing data anyway
     )
 
     # finally, using all windowed PCA objects, we create a container for comparing all replicates and getting the overall PS score

@@ -10,8 +10,9 @@ This interface is specifically targeted for analyses with genotype data provided
     import pathlib
     import tempfile
 
+    from pandora.bootstrap import bootstrap_and_embed_multiple
     from pandora.custom_types import EmbeddingAlgorithm
-    from pandora.dataset import EigenDataset, bootstrap_and_embed_multiple
+    from pandora.dataset import EigenDataset
     from pandora.embedding_comparison import BatchEmbeddingComparison
 
 

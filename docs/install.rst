@@ -4,27 +4,15 @@
 Installation
 ============
 
-Requirements
-------------
-Pandora makes use of the `Eigensoft <https://github.com/DReichLab/EIG>`_ software package, more specifically the ``smartpca`` and ``convertf`` tools.
-Before using Pandora, make sure you have smartpca and convertf installed. The easiest way to install Eigensoft is to use conda:
-
-.. code-block:: bash
-
-    conda install eigensoft -c bioconda
-
-If you don't want to use conda, you can also follow the instructions in the linked Eigensoft repo.
-
-Note that both options will not work if you are working on a MacBook with an M1 or M2 chip! If this is the case,
-follow the instructions below to get Eigensoft running on your laptop. Note, that we recommend running Pandora on a
-larger machine than your laptop since the implemented bootstrap procedure runs multiple PCA/MDS analyses and will likely
-take a while and might not even be feasible on a machine with only little RAM.
-
 Installing Pandora
 ------------------
 Install using conda (recommended)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-Coming soon, stay tuned :-)
+The recommended way to install Pandora is using conda:
+
+.. code-block:: bash
+
+    conda install pandora-geno -c conda-forge
 
 Install using pip
 ^^^^^^^^^^^^^^^^^
@@ -36,6 +24,21 @@ You can also install Pandora using the python package manager pip:
 
 Please note that this can lead to issues with package versions and dependencies when installing in an existing (conda) environment.
 Verify the correct installation by running ``pandora -h``.
+
+
+Requirements
+------------
+Pandora makes use of the `Eigensoft <https://github.com/DReichLab/EIG>`_ software package, more specifically the ``smartpca`` and ``convertf`` tools.
+Before using Pandora, make sure you have smartpca and convertf installed. The easiest way to install Eigensoft is to use conda:
+
+.. code-block:: bash
+
+    conda install eigensoft -c bioconda
+
+If you don't want to use conda, you can also follow the instructions in the linked Eigensoft repo.
+
+Note that this won't work if you are working on a MacBook with M1/M2 chip (OSX-ARM) just yet. See the Troubleshooting
+section below for instructions on how to deal with this.
 
 
 Troubleshooting
@@ -100,3 +103,16 @@ to the respective paths. So your config should then contain the following:
 
     smartpca: /Users/julia/micromamba/envs/eigensoft_env/bin/smartpca
     convertf: /Users/julia/micromamba/envs/eigensoft_env/bin/convertf
+
+
+Error: too many open files
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+When running Pandora, especially when setting the number of replicates to a high number, you might see an error saying
+something like ``OSError: [Errno 24] Too many open files``. You can fix this by increasing the number of allowed open
+files to e.g. 10000:
+
+.. code-block:: bash
+
+    ulimit -n 10000
+
+Especially with Apple MacBooks this number is typicall set very low per default.

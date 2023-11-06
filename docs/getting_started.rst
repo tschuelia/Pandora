@@ -14,7 +14,7 @@ This example demonstrates the basic usage of Pandora using the command line inte
     git clone https://github.com/tschuelia/Pandora.git
 
 
-3. In this repo, you will find an example configuration file ``example/config-example.yaml`` that looks like this:
+3. In this repo, you will find an example configuration file ``example/config_example.yaml`` that looks like this:
 
 .. code-block:: yaml
 
@@ -46,18 +46,24 @@ have to add the path to ``smartpca`` to the ``config-example.yaml``.
 
 You should then see an output similar to this:::
 
-    Pandora version 1.0.0 released by The Exelixis Lab
+    Pandora version 1.0.3 released by The Exelixis Lab
     Developed by: Julia Haag
     Latest version: https://github.com/tschuelia/Pandora
     Questions/problems/suggestions? Please open an issue on GitHub.
 
+    Pandora was called at 06-Nov-2023 16:26:50 as follows:
+
+    /Users/julia/micromamba/envs/pandora/bin/pandora -c config_example.yaml
+
     --------- PANDORA CONFIGURATION ---------
-    dataset_prefix: /path/to/example/example
-    result_dir: /path/to/example/results
+    dataset_prefix: /Users/julia/Desktop/Promotion/ADNA_Popgen/Pandora/example/example
+    result_dir: /Users/julia/Desktop/Promotion/ADNA_Popgen/Pandora/example/results
     file_format: EIGENSTRAT
     convertf: convertf
     n_replicates: 10
     keep_replicates: False
+    bootstrap_convergence_check: True
+    bootstrap_convergence_confidence_level: 0.05
     n_components: 10
     embedding_algorithm: PCA
     smartpca: smartpca
@@ -75,75 +81,75 @@ You should then see an output similar to this:::
     plot_dim_x: 0
     plot_dim_y: 1
 
-    Command line: pandora -c config_example.yaml
-
     --------- STARTING COMPUTATION ---------
-    [00:00:00] Running SmartPCA on the input dataset.
-    [00:00:00] Plotting embedding results for the input dataset.
-    [00:00:02] Drawing 10 bootstrapped datasets and running PCA.
-    [00:00:03] Comparing bootstrap embedding results.
-    [00:00:04] Plotting bootstrap embedding results.
+    [00:00:02] Running SmartPCA on the input dataset.
+    [00:00:02] Plotting embedding results for the input dataset.
+    [00:00:18] Drawing 10 bootstrapped datasets and running PCA.
+    [00:00:18] NOTE: Bootstrap convergence check is enabled. Will terminate bootstrap computation once convergence is determined. Convergence confidence level: 0.05
+    [00:00:27] Bootstrapping done. Number of replicates computed: 10
+    [00:00:27] Comparing bootstrapping embedding results.
+    [00:00:34] Plotting bootstrapping embedding results.
 
 
     ========= PANDORA RESULTS =========
-    > Input dataset: /path/to/example/example
+    > Input dataset: /Users/julia/Desktop/Promotion/ADNA_Popgen/Pandora/example/example
 
-    > Number of Bootstrap replicates computed: 10
+    > Performed Analysis: BOOTSTRAP
+    > Number of replicates computed: 10
     > Number of Kmeans clusters: 2
 
     ------------------
-    Bootstrapping Results
+    Results
     ------------------
     Pandora Stability: 1.0
-    Pandora Cluster Stability: 0.38
+    Pandora Cluster Stability: 0.39
 
     ------------------
     All Samples: Support values
     ------------------
-    > average ± standard deviation: 0.95 ± 0.01
-    > median: 0.95
-    > lowest support value: 0.94
-    > highest support value: 0.95
+    > average ± standard deviation: 0.98 ± 0.0
+    > median: 0.98
+    > lowest support value: 0.98
+    > highest support value: 0.99
 
 
     ------------------
     Result Files
     ------------------
-    > Pandora results: /path/to/example/results/pandora.txt
-    > Pairwise stabilities:  /path/to/example/results/pandora.replicates.csv
-    > Sample Support values:  /path/to/example/results/pandora.supportValues.csv
-    > All plots saved in directory:  /path/to/example/results/plots
+    > Pandora results: /Users/julia/Desktop/Promotion/ADNA_Popgen/Pandora/example/results/pandora.txt
+    > Pairwise stabilities: /Users/julia/Desktop/Promotion/ADNA_Popgen/Pandora/example/results/pandora.replicates.csv
+    > Sample Support values: /Users/julia/Desktop/Promotion/ADNA_Popgen/Pandora/example/results/pandora.supportValues.csv
+    > All plots saved in directory: /Users/julia/Desktop/Promotion/ADNA_Popgen/Pandora/example/results/plots
 
-    Total runtime: 0:00:06 (6 seconds)
+    Total runtime: 0:00:37 (37 seconds)
 
 
 So what is this telling us? First of all, Pandora will print all configurations. For all values you have not specifically
-set in the ``config.yaml``, Pandora will use the default values as specified in the documentation.
+set in the ``config_example.yaml``, Pandora will use the default values as specified in the documentation.
 Then it will continuously keep you updated on what it is currently working on and what it is computing.
 Once everything is done, Pandora will print the results. This is probably the most interesting section to you and we will go into
 more detail just a little below. Pandora will also tell you where you can find more detailed result files and where
 it stored all results.
 Finally, Pandora will print the total runtime to do the entire analysis. Since this is a very small dataset the computations
-took only six seconds on my MacBook. For empirical population genetics datasets this will be more in the range of a few hours.
+took only about halb a minute on my MacBook. For empirical population genetics datasets this will be more in the range of a few hours.
 So, let's talk a bit about the results of this Pandora run:::
 
     ------------------
-    Bootstrapping Results
+    Results
     ------------------
     Pandora Stability: 1.0
-    Pandora Cluster Stability: 0.38
+    Pandora Cluster Stability: 0.39
 
     ------------------
     All Samples: Support values
     ------------------
-    > average ± standard deviation: 0.95 ± 0.01
-    > median: 0.95
-    > lowest support value: 0.94
-    > highest support value: 0.95
+    > average ± standard deviation: 0.98 ± 0.0
+    > median: 0.98
+    > lowest support value: 0.98
+    > highest support value: 0.99
 
-
-This tells you that based on the ten bootstraps Pandora computed, all bootstraps were overall basically the same, so we
-obtain a Pandora Stability of 1.0. However, the Pandora Cluster Stability is only 0.38, how is that possible?
+The results tell you that based on the ten bootstraps Pandora computed, all bootstraps were overall basically the same, so we
+obtain a Pandora Stability of 1.0. However, the Pandora Cluster Stability is only 0.39, how is that possible?
 We can make sense of that by plotting two of the bootstrap PCAs. In the following figure, the circles are the projections
 of the samples in one bootstrap, the stars the projection of the same samples in the other bootstrap.
 First of all we can see that the two bootstraps match pretty closely, hence the high Pandora stability appears to make sense.
@@ -155,7 +161,7 @@ So apparently these little "distortions" in projecting the samples results in di
    :width: 700
 
 Pandora further reports some summary statistics of the support values for all samples. The support values are values between
-0 and 1, the higher the better. The lowest support value is 0.94 so we could say that all samples are stable in terms of
+0 and 1, the higher the better. The lowest support value is 0.98 so we could say that all samples are stable in terms of
 their projections across all bootstrap replicates. The reason why they are not all 1, despite a Pandora Stability of 1
 makes sense if we again look at the plot above. The samples are in general projected pretty close to each other in both
-bootstraps, but there is some distortion so the support values are not exactly 1.
+bootstraps, but there is a small distortion so the support values are not exactly 1.

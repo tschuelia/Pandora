@@ -11,6 +11,27 @@ import os
 os.environ["OMP_NUM_THREADS"] = "1"
 os.environ["OPENBLAS_NUM_THREADS"] = "1"
 
+
+# Fix a race condition in the internal ``multiprocessing.process`` cleanup logic that could manifest as an unintended
+# ``AttributeError`` during ``process.start``.
+# Backport of '_cleanup' from Python 3.12 to older Python distributions
+# https://github.com/python/cpython/pull/104537
+import multiprocessing
+import sys
+
+
+def multiprocessing_process_cleanup():
+    # check for processes which have finished
+    for p in list(multiprocessing.process._children):
+        if (child_popen := p._popen) and child_popen.poll() is not None:
+            multiprocessing.process._children.discard(p)
+
+
+if sys.version_info.major == 3 and sys.version_info.minor < 12:
+    # race condition is fixed in Python 3.12
+    multiprocessing.process._cleanup = multiprocessing_process_cleanup
+
+
 import importlib.metadata
 
 try:

@@ -472,7 +472,7 @@ class BatchEmbeddingComparison:
             max_workers=threads, mp_context=multiprocessing.get_context("spawn")
         ) as pool:
             diffs = pool.map(_difference_for_pair, args)
-        return diffs
+        return list(diffs)
 
     def get_sample_support_values(self, threads: Optional[int] = None) -> pd.Series:
         """Computes the sample support value for each sample respective all ``self.embeddings``.
@@ -508,7 +508,9 @@ class BatchEmbeddingComparison:
         ) as pool:
             embedding_norms = pool.map(_get_embedding_norm, args)
 
-        denominator = 2 * len(self.embeddings) * np.sum(embedding_norms, axis=0) + 1e-6
+        denominator = (
+            2 * len(self.embeddings) * np.sum(list(embedding_norms), axis=0) + 1e-6
+        )
         gini_coefficients = pd.Series(
             numerator / denominator, index=sample_ids_superset.values, name="PSV"
         ).sort_index()

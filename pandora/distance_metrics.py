@@ -134,7 +134,7 @@ def hamming_sample_distance(
         series of populations since this information is not used for distance computation.
     """
     n_samples = input_data.shape[0]
-    distance_matrix = np.empty(shape=(n_samples, n_samples))
+    distance_matrix = np.zeros(shape=(n_samples, n_samples))
 
     for (i, s1), (j, s2) in itertools.combinations(enumerate(input_data), r=2):
         hamming_distance = np.nansum([abs(v1 - v2) for v1, v2 in zip(s1, s2)])
@@ -185,7 +185,7 @@ def missing_corrected_hamming_sample_distance(
     Note that this distance metric corresponds to the ``PLINK --distance 'flat-missing'`` computation.
     """
     n_samples = input_data.shape[0]
-    distance_matrix = np.empty(shape=(n_samples, n_samples))
+    distance_matrix = np.zeros(shape=(n_samples, n_samples))
 
     for (i, s1), (j, s2) in itertools.combinations(enumerate(input_data), r=2):
         hamming_distance = np.nansum([abs(v1 - v2) for v1, v2 in zip(s1, s2)])

@@ -1147,22 +1147,23 @@ class NumpyDataset:
             embedding, self.sample_ids, self.populations, mds.stress_
         )
 
-    def bootstrap(self, seed: int) -> NumpyDataset:
+    def bootstrap(self, seed: Optional[int] = None) -> NumpyDataset:
         """Creates a bootstrap dataset based on the content of self.
 
         Bootstraps the dataset by resampling SNPs with replacement.
 
         Parameters
         ----------
-        seed : int
-            Seed to initialize the random number generator before drawing the replicates.
+        seed : Optional[int], default=None
+            Optional seed to initialize the random number generator before drawing the replicates.
 
         Returns
         -------
         NumpyDataset
             A new dataset object containing the bootstrapped ``input_data``.
         """
-        random.seed(seed)
+        if seed is not None:
+            random.seed(seed)
         num_snps = self.input_data.shape[1]
         bootstrap_data = self.input_data[
             :, np.random.choice(range(num_snps), size=num_snps)

@@ -376,11 +376,11 @@ def _bootstrap_and_embed(
 
 def bootstrap_and_embed_multiple(
     dataset: EigenDataset,
-    n_bootstraps: int,
-    result_dir: pathlib.Path,
-    smartpca: Executable,
-    embedding: EmbeddingAlgorithm,
-    n_components: int,
+    n_bootstraps: int = 100,
+    result_dir: Optional[pathlib.Path] = None,
+    smartpca: Executable = "smartpca",
+    embedding: EmbeddingAlgorithm = EmbeddingAlgorithm.PCA,
+    n_components: int = 10,
     seed: Optional[int] = None,
     threads: Optional[int] = None,
     redo: bool = False,
@@ -401,17 +401,19 @@ def bootstrap_and_embed_multiple(
     ----------
     dataset : EigenDataset
         Dataset object to base the bootstrap replicates on.
-    n_bootstraps : int
+    n_bootstraps : int, default=100
         Number of bootstrap replicates to draw.
         In case ``bootstrap_convergence_check`` is set, this is the upper limit of number of replicates.
-    result_dir : pathlib.Path
+    result_dir : Optional[pathlib.Path], default=None
         Directory where to store all result files.
-    smartpca : Executable
+        If None, it will store the bootstraps in the directory of the input dataset.
+    smartpca : Executable, default="smartpca"
         Path pointing to an executable of the EIGENSOFT smartpca tool.
-    embedding : EmbeddingAlgorithm
+        Per default, Pandora expects "smartpca" in the PATH variable.
+    embedding : EmbeddingAlgorithm, default=EmbeddingAlgorithm.PCA
         Dimensionality reduction technique to apply. Allowed options are
         ``EmbeddingAlgorithm.PCA`` for PCA analysis and ``EmbeddingAlgorithm.MDS`` for MDS analysis.
-    n_components : int
+    n_components : int, default=10
         Number of dimensions to reduce the data to.
         The recommended number is 10 for PCA and 2 for MDS.
     seed : int, default=None
@@ -471,7 +473,10 @@ def bootstrap_and_embed_multiple(
     if logger is not None:
         logger.debug(fmt_message(f"Using {threads} threads for bootstrapping."))
 
-    result_dir.mkdir(exist_ok=True, parents=True)
+    if result_dir is not None:
+        result_dir.mkdir(exist_ok=True, parents=True)
+    else:
+        result_dir = dataset.file_prefix.parent
 
     if seed is not None:
         random.seed(seed)
@@ -549,9 +554,9 @@ def _bootstrap_and_embed_numpy(
 
 def bootstrap_and_embed_multiple_numpy(
     dataset: NumpyDataset,
-    n_bootstraps: int,
-    embedding: EmbeddingAlgorithm,
-    n_components: int,
+    n_bootstraps: int = 100,
+    embedding: EmbeddingAlgorithm = EmbeddingAlgorithm.PCA,
+    n_components: int = 10,
     seed: Optional[int] = None,
     threads: Optional[int] = None,
     distance_metric: Callable[
@@ -572,12 +577,12 @@ def bootstrap_and_embed_multiple_numpy(
     ----------
     dataset : NumpyDataset
         Dataset object to base the bootstrap replicates on.
-    n_bootstraps : int
+    n_bootstraps : int, default=100
         Number of bootstrap replicates to draw.
-    embedding : EmbeddingAlgorithm
+    embedding : EmbeddingAlgorithm, default=EmbeddingAlgorithm.PCA
         Dimensionality reduction technique to apply. Allowed options are
         ``EmbeddingAlgorithm.PCA`` for PCA analysis and ``EmbeddingAlgorithm.MDS`` for MDS analysis.
-    n_components : int
+    n_components : int, default=10
         Number of dimensions to reduce the data to.
         The recommended number is 10 for PCA and 2 for MDS.
     seed : int, default=None

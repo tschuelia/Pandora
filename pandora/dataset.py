@@ -257,6 +257,49 @@ def _deduplicate_snp_id(snp_id: str, seen_snps: Set[str]):
     return deduplicate
 
 
+def _safe_cast(data: npt.NDArray, dtype: np.dtype) -> npt.NDArray:
+    """Helper method to make sure that the numpy dtype casts do not yield unexpected values."""
+    cast_data = data.astype(dtype)
+    diffs = cast_data != data
+    if np.any(diffs) and not np.isnan(data[diffs]).all():
+        raise PandoraException(
+            f"Could not safely cast to {dtype}. Incompatible values: {data[diffs]}."
+        )
+    return cast_data
+
+
+def _process_input_data(
+    input_data: npt.NDArray,
+    missing_value: Union[np.nan, int],
+    dtype: np.dtype,
+):
+    # Depending on the dtype, we need to have a different nan value representation.
+    # For float types we can use np.nan
+    # For signed int types we use -1
+    # For unsigned int types we use the respective max value
+    # Note that we only allow integer and floating types
+    if np.issubdtype(dtype, np.floating):
+        nan_value = np.nan
+    elif np.issubdtype(dtype, np.unsignedinteger):
+        nan_value = np.iinfo(dtype).max
+    elif np.issubdtype(dtype, np.signedinteger):
+        # signed int
+        nan_value = -1
+    else:
+        raise PandoraException(
+            f"Unsupported numpy dtype passed: {dtype}. Only int and float dtypes are supported."
+        )
+
+    input_data = _safe_cast(input_data, np.float64)
+    if np.isnan(missing_value):
+        input_data[np.isnan(input_data)] = nan_value
+    else:
+        input_data[input_data == missing_value] = nan_value
+    input_data = _safe_cast(input_data, dtype)
+
+    return input_data, nan_value
+
+
 class EigenDataset:
     """Class structure to represent a population genetics dataset in Eigenstrat format.
 
@@ -990,7 +1033,15 @@ class NumpyDataset:
         Pandas Series containing the populations of the sequences contained in ``input_data``.
         Expects the number of ``populations`` to match the first dimension of ``input_data``.
     missing_value : Union[np.nan, int], default=np.nan
-            Value to treat as missing value. All missing values in ``input_data`` will be replaced with ``np.nan``
+        Value to treat as missing value. All missing values in ``input_data`` will be replaced with a special value
+        depending on the specified dtype:
+        For floating point types: np.nan
+        For signed integer types: -1
+        For unsigned integer types: the highest possible integer for the respective type
+    dtype: np.dtype, default=np.uint8
+        Numpy datatype to use to represent the input data. The more complex the data type, the higher it's memory footprint.
+        The default is the datatype with the smallest possible memory footprint: np.uint8 (unsigned 8Bit integer).
+        For most genotype data with only ``0``, ``1``, ``2``, and missing as genotype calls this is the best option.
 
     Attributes
     ----------
@@ -1018,6 +1069,7 @@ class NumpyDataset:
         sample_ids: pd.Series,
         populations: pd.Series,
         missing_value: Union[np.nan, int] = np.nan,
+        dtype: np.dtype = np.uint8,
     ):
         if sample_ids.shape[0] != populations.shape[0]:
             raise PandoraException(
@@ -1029,9 +1081,10 @@ class NumpyDataset:
                 f"Provide a sample ID for each sample in input_data. "
                 f"Got {sample_ids.shape[0]} sample_ids but input_data has shape {input_data.shape}"
             )
-        input_data = input_data.astype("float")
-        input_data[input_data == missing_value] = np.nan
-        self.input_data = input_data
+
+        self.input_data, self._missing_value = _process_input_data(
+            input_data, missing_value, dtype
+        )
         self.sample_ids = sample_ids
         self.populations = populations
 
@@ -1074,12 +1127,23 @@ class NumpyDataset:
                 f"Got {n_snps} SNPs, but asked for {n_components}."
             )
 
-        if imputation is None and np.isnan(self.input_data).any():
+        has_missing_values = (
+            np.any(np.isnan(self.input_data))
+            if np.isnan(self._missing_value)
+            else np.any(self.input_data == self._missing_value)
+        )
+
+        if imputation is None and has_missing_values:
             raise PandoraException(
-                "Imputation method cannot be None if self.input_data contains NaN values."
+                "Imputation method cannot be None if self.input_data contains missing data."
             )
 
-        pca_input = impute_data(self.input_data, imputation)
+        # For the imputation, we first transform the input data into a float numpy array and set the
+        # missing value to np.nan
+        input_data = self.input_data.astype("float")
+        # this will work for every value other than np.nan, but no need to modify the data in that case anyway
+        input_data[input_data == self._missing_value] = np.nan
+        pca_input = impute_data(input_data, imputation)
 
         pca = sklearnPCA(n_components)
         embedding = pca.fit_transform(pca_input)
@@ -1133,6 +1197,11 @@ class NumpyDataset:
             - If the ``distance_metric`` did not return one population per row in the returned distance matrix.
             - If the number of components is >= the number of rows in the distance matrix.
         """
+        # Before applying the distance metric, transform the input data to a floating point array
+        # and set the missing value to nan
+        input_data = self.input_data.astype("float")
+        input_data[input_data == self._missing_value] = np.nan
+
         distance_matrix, populations = distance_metric(
             self.input_data, self.populations, imputation
         )

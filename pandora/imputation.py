@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Union
 
 import numpy as np
 from numpy import typing as npt
@@ -7,7 +7,11 @@ from sklearn.impute import SimpleImputer
 from pandora.custom_errors import PandoraException
 
 
-def impute_data(input_data: npt.NDArray, imputation: Optional[str]) -> npt.NDArray:
+def impute_data(
+    input_data: npt.NDArray,
+    imputation: Optional[str],
+    missing_value: Union[np.nan, int] = np.nan,
+) -> npt.NDArray:
     """Imputes missing values in the given input data using the given imputation strategy.
 
     Parameters
@@ -19,6 +23,8 @@ def impute_data(input_data: npt.NDArray, imputation: Optional[str]) -> npt.NDArr
         - ``"mean"``: Imputes missing values with the average of the respective column.
         - ``"remove"``: Removes all columns with at least one missing value.
         - ``None``: Does not impute the given data.
+    missing_value : Union[np.nan, int], default=np.nan
+        Value to treat as missing value.
 
     Returns
     -------
@@ -33,7 +39,13 @@ def impute_data(input_data: npt.NDArray, imputation: Optional[str]) -> npt.NDArr
     """
     if imputation is None:
         return input_data
-    elif imputation == "mean":
+
+    # If the missing value is not np.nan, this will convert all missing values to np.nan which is required for the
+    # imputation to work
+    input_data = input_data.astype("float")
+    input_data[input_data == missing_value] = np.nan
+
+    if imputation == "mean":
         imputer = SimpleImputer()
         return imputer.fit_transform(input_data)
     elif imputation == "remove":

@@ -12,6 +12,7 @@ from pandora.dataset import (
     NumpyDataset,
     _deduplicate_snp_id,
     _get_embedding_populations,
+    _process_input_data,
     _smartpca_finished,
     numpy_dataset_from_eigenfiles,
 )
@@ -28,7 +29,6 @@ DTYPES_AND_MISSING_VALUES = [
     (np.uint8, 255),
     (np.uint16, 65535),
     (np.uint32, 4294967295),
-    (np.uint64, 18446744073709551615),
     # floating point values
     (np.float16, np.nan),
     (np.float32, np.nan),
@@ -375,10 +375,6 @@ def _modify_population(
 
 
 class TestEigenDatasetMDS:
-    pass
-
-    # TODO: implement MDS tests
-    # ein Test mit dash im population Namen einbauen
     def test_run_mds_with_dash_in_population_name(
         self, smartpca, example_eigen_dataset_prefix
     ):
@@ -607,3 +603,65 @@ class TestNumpyDataset:
     ):
         with pytest.raises(PandoraException, match="Not all required input files"):
             numpy_dataset_from_eigenfiles(example_ped_dataset_prefix)
+
+
+@pytest.mark.parametrize("dtype, expected_missing_value", DTYPES_AND_MISSING_VALUES)
+def test_process_input_data_no_missing_values(dtype, expected_missing_value):
+    test_data_no_missing = np.asarray(
+        [[0, 1, 1, 1, 1, 1, 1], [2, 2, 0, 2, 2, 2, 2], [0, 1, 2, 0, 1, 2, 0]]
+    )
+    data, nan_value = _process_input_data(test_data_no_missing, np.nan, dtype)
+    # the missing value should not be present in data since there was not missing data initially
+    assert not np.any(data == nan_value)
+    # nan_value should be the expected one
+    if np.isnan(expected_missing_value):
+        assert np.isnan(nan_value)
+    else:
+        assert nan_value == expected_missing_value
+
+
+@pytest.mark.parametrize("dtype, expected_missing_value", DTYPES_AND_MISSING_VALUES)
+def test_process_input_data_with_missing_values(dtype, expected_missing_value):
+    test_data_with_missing = np.asarray(
+        [
+            [np.nan, 1, 1, 1, 1, 1, 1],
+            [np.nan, 2, 0, 2, 2, 2, 2],
+            [0, 1, 2, 0, np.nan, 2, 0],
+        ]
+    )
+    data, nan_value = _process_input_data(test_data_with_missing, np.nan, dtype)
+    if np.isnan(expected_missing_value):
+        assert np.isnan(nan_value)
+    else:
+        assert nan_value == expected_missing_value
+    # the missing value should be present three times now
+    if np.isnan(nan_value):
+        n_missing = np.sum(np.isnan(data))
+    else:
+        # missing value is not np.nan
+        n_missing = np.sum(data == nan_value)
+    assert n_missing == 3
+
+
+@pytest.mark.parametrize("dtype", [np.bool_, np.str_, np.bytes_])
+def test_process_input_data_fails_for_unsupported_dtype(dtype):
+    test_data_no_missing = np.asarray(
+        [[0, 1, 1, 1, 1, 1, 1], [2, 2, 0, 2, 2, 2, 2], [0, 1, 2, 0, 1, 2, 0]]
+    )
+    with pytest.raises(PandoraException, match="Unsupported numpy dtype passed"):
+        _process_input_data(test_data_no_missing, np.nan, dtype)
+
+
+def test_process_input_data_fails_for_uint64_dtype_conversion():
+    # since float64 cannot represent the computed max value for np.uint64, the _safe_cast should fail
+    with pytest.raises(PandoraException, match="Could not safely cast to"):
+        test_data_with_missing = np.asarray(
+            [
+                [np.nan, 1, 1, 1, 1, 1, 1],
+                [np.nan, 2, 0, 2, 2, 2, 2],
+                [0, 1, 2, 0, np.nan, 2, 0],
+            ]
+        )
+        _process_input_data(
+            test_data_with_missing, missing_value=np.nan, dtype=np.uint64
+        )

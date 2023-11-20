@@ -17,7 +17,23 @@ from pandora.dataset import (
 )
 from pandora.distance_metrics import DISTANCE_METRICS, fst_population_distance
 from pandora.embedding import MDS, PCA
-from pandora.imputation import impute_data
+
+DTYPES_AND_MISSING_VALUES = [
+    # signed integers
+    (np.int8, -1),
+    (np.int16, -1),
+    (np.int32, -1),
+    (np.int64, -1),
+    # unsigned integers
+    (np.uint8, 255),
+    (np.uint16, 65535),
+    (np.uint32, 4294967295),
+    (np.uint64, 18446744073709551615),
+    # floating point values
+    (np.float16, np.nan),
+    (np.float32, np.nan),
+    (np.float64, np.nan),
+]
 
 
 @pytest.fixture
@@ -328,6 +344,86 @@ class TestEigenDatasetPCA:
             example_dataset.run_pca(smartpca, n_pcs)
 
 
+def _modify_population(
+    original_prefix: pathlib.Path, new_prefix: pathlib.Path, new_population: str
+):
+    old_geno = pathlib.Path(f"{original_prefix}.geno")
+    old_snp = pathlib.Path(f"{original_prefix}.snp")
+    old_ind = pathlib.Path(f"{original_prefix}.ind")
+
+    new_geno = pathlib.Path(f"{new_prefix}.geno")
+    new_snp = pathlib.Path(f"{new_prefix}.snp")
+    new_ind = pathlib.Path(f"{new_prefix}.ind")
+
+    # we only need to modify the .indfile and can copy the .geno and .snp files
+    shutil.copy(old_geno, new_geno)
+    shutil.copy(old_snp, new_snp)
+
+    with new_ind.open("w") as new_ind_handle:
+        for i, l in enumerate(old_ind.open()):
+            # only for the first line, we change the population to the passsed new_population
+            if i > 0:
+                new_ind_handle.write(l)
+                continue
+
+            sample_id, sex, population = l.split()
+            new_ind_handle.write(
+                f"{sample_id.strip()}\t{sex.strip()}\t{new_population}\n"
+            )
+
+    print(new_ind.open().read())
+
+
+class TestEigenDatasetMDS:
+    pass
+
+    # TODO: implement MDS tests
+    # ein Test mit dash im population Namen einbauen
+    def test_run_mds_with_dash_in_population_name(
+        self, smartpca, example_eigen_dataset_prefix
+    ):
+        # a bug in a previous Pandora version caused MDS to fail if there is a dash in the populatjon name
+        # to make sure we fixed it, we explicitly test for this here
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # first, we need to modify the example dataset a bit to include a dash in one of the population names
+            new_prefix = pathlib.Path(tmpdir) / "dataset"
+            _modify_population(
+                example_eigen_dataset_prefix, new_prefix, "popname-with-dash"
+            )
+            dataset = EigenDataset(new_prefix)
+            dataset.run_mds(smartpca)
+            assert dataset.mds is not None
+
+    def test_run_mds_with_population_ignore(
+        self, smartpca, example_eigen_dataset_prefix
+    ):
+        # smartpca ignores all samples with "IGNORE" as population
+        # in a previous pandora version, we were not aware of this so the MDS computation failed
+        # We now remove all such samples for the MDS computation and with this test we want to make sure that
+        # the dimensions of the resulting MDS are correct
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # first, we need to modify the example dataset to change one population to "Ignore"
+            new_prefix = pathlib.Path(tmpdir) / "dataset"
+            _modify_population(example_eigen_dataset_prefix, new_prefix, "Ignore")
+            dataset = EigenDataset(new_prefix)
+            dataset.run_mds(smartpca)
+
+            # the number of unique populations in this MDS should be one less than when not modifying the population name
+            number_of_populations_ignore_dataset = (
+                dataset.mds.populations.unique().shape[0]
+            )
+            # to compare, we need to perform MDS for the unmodified dataset
+            unmodified_dataset = EigenDataset(example_eigen_dataset_prefix)
+            unmodified_dataset.run_mds(smartpca)
+            number_of_populations_orig_dataset = (
+                unmodified_dataset.mds.populations.unique().shape[0]
+            )
+            assert (
+                number_of_populations_ignore_dataset
+                == number_of_populations_orig_dataset - 1
+            )
+
+
 class TestNumpyDataset:
     def test_init(self):
         test_data = np.asarray([[1, 1, 1], [2, 2, 2], [3, 3, 3]])
@@ -469,31 +565,6 @@ class TestNumpyDataset:
             test_numpy_dataset.populations,
             check_names=False,
         )
-
-    def test_data_imputation(self):
-        test_data = np.asarray([[np.nan, 1, 1], [2, np.nan, 2], [3, 3, 3]])
-        sample_ids = pd.Series(["sample1", "sample2", "sample3"])
-        populations = pd.Series(["population1", "population2", "population3"])
-        dataset = NumpyDataset(test_data, sample_ids, populations)
-
-        # imputation remove -> should result in a single column being left
-        imputed_data = impute_data(dataset.input_data, imputation="remove")
-        assert imputed_data.shape == (test_data.shape[0], 1)
-
-        # mean imputation should result in the following data matrix:
-        expected_imputed_data = np.asarray(
-            [[2.5, 1, 1], [2, 2, 2], [3, 3, 3]], dtype="float"
-        )
-        imputed_data = impute_data(dataset.input_data, imputation="mean")
-        np.testing.assert_equal(imputed_data, expected_imputed_data)
-
-    def test_data_imputation_remove_fails_for_snps_with_all_nan(self):
-        test_data = np.asarray([[np.nan, 1, 1], [2, np.nan, 2], [3, 3, np.nan]])
-        sample_ids = pd.Series(["sample1", "sample2", "sample3"])
-        populations = pd.Series(["population1", "population2", "population3"])
-        dataset = NumpyDataset(test_data, sample_ids, populations)
-        with pytest.raises(PandoraException, match="No data left after imputation."):
-            impute_data(dataset.input_data, imputation="remove")
 
     def test_numpy_dataset_from_eigenfiles(self, example_eigen_dataset_prefix):
         np_dataset = numpy_dataset_from_eigenfiles(example_eigen_dataset_prefix)

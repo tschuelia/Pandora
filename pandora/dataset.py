@@ -4,6 +4,7 @@ from __future__ import (  # allows type hint EigenDataset inside EigenDataset cl
 
 import pathlib
 import random
+import re
 import shutil
 import subprocess
 import tempfile
@@ -126,7 +127,9 @@ def _parse_smartpca_fst_results(
     smartpca_log = pathlib.Path(f"{result_prefix}.smartpca.log")
 
     fst_content = fst_file.open().read()
-    fst_content = fst_content.replace("-", " -")
+    # The smartpca output does not delimite negative numbers with a space, so we have to manually fix it
+    # But we don't want to potentially split population names with dashes, so we match for a digit
+    fst_content = re.sub(r"-(\d)", r" -\g<1>", fst_content)
     fst_file.open("w").write(fst_content)
 
     with fst_file.open() as f:
@@ -713,6 +716,9 @@ class EigenDataset:
         The FST matrix is generated using the EIGENSOFT smartpca tool.
         The subsequent MDS analysis is performed using the scikit-learn MDS implementation.
 
+        Please note that since EIGENSOFT is used for the FST computation, all samples with the population set to
+        ``Ignore`` will not be used for the MDS computation.
+
         Parameters
         ----------
         smartpca : Executable
@@ -762,8 +768,18 @@ class EigenDataset:
         )
         embedding["population"] = populations
 
+        # since we are using EIGENSOFT to compute the FST distance matrix, we remove all sample IDs with poopulation
+        # set to ``Ignore`` as they are not present in the distance matrix
+        sample_ids, populations = zip(
+            *[
+                (s, p)
+                for s, p in zip(self.sample_ids, self.populations)
+                if p.lower() != "ignore"
+            ]
+        )
+
         self.mds = from_sklearn_mds(
-            embedding, self.sample_ids, self.populations, mds.stress_
+            embedding, pd.Series(sample_ids), pd.Series(populations), mds.stress_
         )
 
     def bootstrap(

@@ -216,13 +216,23 @@ def test_fst_population_distance_fails_with_imputation_not_none(
         )
 
 
-def test_fst_population_distance_fails_for_wrong_geno_data(test_numpy_dataset):
-    # test_numpy_dataset contains the value 3 in its input_data. This is not a valid geno type in scikit-allel
+def test_fst_population_distance_fails_for_wrong_geno_data():
+    input_data = np.asarray(
+        [
+            [3, 2, 1, 0, 1, 1, 2, 0, 1, 1],
+            [2, 1, 0, 2, 1, 0, 2, np.nan, 2, 2],
+            [1, 2, 2, 2, 1, 0, 1, 1, 2, np.nan],
+            [1, 2, 0, 2, 1, 0, 2, 1, 2, 2],
+            [0, 1, 2, 0, 1, 2, 0, 1, 0, np.nan],
+        ]
+    )
+    populations = pd.Series(["p1", "p2", "p3", "p4", "p5"])
+    # input_data contains the value 3 in its input_data. This is not a valid geno type in scikit-allel
     # thus we should get an exception
     with pytest.raises(PandoraException, match="Unrecognized geno type value: 3"):
         fst_population_distance(
-            test_numpy_dataset.input_data,
-            test_numpy_dataset.populations,
+            input_data,
+            populations,
             imputation=None,
         )
 

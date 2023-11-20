@@ -10,7 +10,7 @@ from pandora.custom_errors import PandoraException
 def impute_data(
     input_data: npt.NDArray,
     imputation: Optional[str],
-    missing_value: Union[np.nan, int] = np.nan,
+    missing_value: Union[float, int] = np.nan,
 ) -> npt.NDArray:
     """Imputes missing values in the given input data using the given imputation strategy.
 
@@ -23,7 +23,7 @@ def impute_data(
         - ``"mean"``: Imputes missing values with the average of the respective column.
         - ``"remove"``: Removes all columns with at least one missing value.
         - ``None``: Does not impute the given data.
-    missing_value : Union[np.nan, int], default=np.nan
+    missing_value : Union[float, int], default=np.nan
         Value to treat as missing value.
 
     Returns

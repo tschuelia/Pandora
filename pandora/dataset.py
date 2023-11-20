@@ -270,7 +270,7 @@ def _safe_cast(data: npt.NDArray, dtype: np.dtype) -> npt.NDArray:
 
 def _process_input_data(
     input_data: npt.NDArray,
-    missing_value: Union[np.nan, int],
+    missing_value: Union[float, int],
     dtype: np.dtype,
 ):
     # Depending on the dtype, we need to have a different nan value representation.
@@ -420,8 +420,8 @@ class EigenDataset:
         else:
             self.n_snps = n_snps
 
-        self.pca: Union[None, PCA] = None
-        self.mds: Union[None, MDS] = None
+        self.pca: Optional[PCA] = None
+        self.mds: Optional[MDS] = None
 
     def get_sample_info(self) -> pd.Series:
         """Reads the sample IDs from ``self._ind_file``.
@@ -1032,7 +1032,7 @@ class NumpyDataset:
     populations : pd.Series[str]
         Pandas Series containing the populations of the sequences contained in ``input_data``.
         Expects the number of ``populations`` to match the first dimension of ``input_data``.
-    missing_value : Union[np.nan, int], default=np.nan
+    missing_value : Union[float, int], default=np.nan
         Value to treat as missing value. All missing values in ``input_data`` will be replaced with a special value
         depending on the specified dtype:
         For floating point types: np.nan
@@ -1068,7 +1068,7 @@ class NumpyDataset:
         input_data: npt.NDArray,
         sample_ids: pd.Series,
         populations: pd.Series,
-        missing_value: Union[np.nan, int] = np.nan,
+        missing_value: Union[float, int] = np.nan,
         dtype: np.dtype = np.uint8,
     ):
         if sample_ids.shape[0] != populations.shape[0]:
@@ -1088,8 +1088,8 @@ class NumpyDataset:
         self.sample_ids = sample_ids
         self.populations = populations
 
-        self.pca: Union[None, PCA] = None
-        self.mds: Union[None, MDS] = None
+        self.pca: Optional[PCA] = None
+        self.mds: Optional[MDS] = None
 
     def run_pca(
         self,

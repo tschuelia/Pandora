@@ -211,7 +211,7 @@ class _ProcessWrapper:
         with self.lock:
             if (
                 self.process is not None
-                # and not self.terminate_execution
+                and not self.terminate_execution
                 and self.is_paused
             ):
                 try:
@@ -219,14 +219,17 @@ class _ProcessWrapper:
                     self.is_paused = False
                 except ProcessLookupError:
                     # process finished just before sending the signal
-                    pass
+                    self.is_paused = False
 
     def _terminate(self):
         with self.lock:
             if self.process is not None:
                 if self.process.is_alive():
-                    os.kill(self.process.pid, signal.SIGCONT)
-                    self.process.terminate()
+                    try:
+                        os.kill(self.process.pid, signal.SIGCONT)
+                    except ProcessLookupError:
+                        pass
+                self.process.terminate()
                 self.process.join()
                 self.process.close()
                 self.process = None
@@ -299,6 +302,7 @@ class _ParallelBoostrapProcessManager:
                         )
                     except Exception as e:
                         # an error occurred during the convergence check, gracefully terminate, then reraise
+                        self.resume()
                         self.terminate()
                         pool.shutdown()
                         raise e
@@ -312,8 +316,8 @@ class _ParallelBoostrapProcessManager:
                                     "Bootstrap convergence detected. Stopping bootstrapping."
                                 )
                             )
-                        self.terminate()
                         break
+        self.terminate()
         return bootstraps, finished_indices
 
     def pause(self):

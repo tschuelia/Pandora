@@ -562,6 +562,23 @@ class TestNumpyDataset:
             check_names=False,
         )
 
+    def test_run_mds_fst_distance_with_missing_data(self):
+        # the following dataset contains missing data
+        # since the default dtype is uint8, missing values should be represented by the value 255
+        # however, prior to the distance matrix computation, 255 should be replaced by np.nan
+        # if this does not work properly, the matrix compuation will fail
+        test_data = np.asarray(
+            [[0, 1, 1, 1, 1, 1, 1], [2, 2, 0, 2, 2, 2, 2], [1, 2, 1, 0, 2, 1, 1]]
+        )
+        sample_ids = pd.Series(["sample1", "sample2", "sample3"])
+        populations = pd.Series(["population1", "population2", "population3"])
+        dataset = NumpyDataset(
+            test_data, sample_ids, populations, missing_value=0, dtype=np.uint8
+        )
+        dataset.run_mds(
+            n_components=2, distance_metric=fst_population_distance, imputation=None
+        )
+
     def test_numpy_dataset_from_eigenfiles(self, example_eigen_dataset_prefix):
         np_dataset = numpy_dataset_from_eigenfiles(example_eigen_dataset_prefix)
 

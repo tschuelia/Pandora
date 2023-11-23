@@ -1203,7 +1203,7 @@ class NumpyDataset:
         input_data[input_data == self._missing_value] = np.nan
 
         distance_matrix, populations = distance_metric(
-            self.input_data, self.populations, imputation
+            input_data, self.populations, imputation
         )
         if distance_matrix.shape[0] != populations.shape[0]:
             raise PandoraException(

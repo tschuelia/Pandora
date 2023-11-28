@@ -811,7 +811,7 @@ class EigenDataset:
         embedding = pd.DataFrame(
             data=embedding, columns=[f"D{i}" for i in range(n_components)]
         )
-        embedding["population"] = populations
+        embedding["population"] = populations.values
 
         # since we are using EIGENSOFT to compute the FST distance matrix, we remove all sample IDs with poopulation
         # set to ``Ignore`` as they are not present in the distance matrix
@@ -1152,8 +1152,8 @@ class NumpyDataset:
         embedding = pd.DataFrame(
             data=embedding, columns=[f"D{i}" for i in range(n_components)]
         )
-        embedding["sample_id"] = self.sample_ids
-        embedding["population"] = self.populations
+        embedding["sample_id"] = self.sample_ids.values
+        embedding["population"] = self.populations.values
         self.pca = PCA(embedding, n_components, pca.explained_variance_ratio_)
 
     def run_mds(
@@ -1231,7 +1231,7 @@ class NumpyDataset:
         embedding = pd.DataFrame(
             data=embedding, columns=[f"D{i}" for i in range(n_components)]
         )
-        embedding["population"] = populations
+        embedding["population"] = populations.values
 
         self.mds = from_sklearn_mds(
             embedding, self.sample_ids, self.populations, mds.stress_

@@ -805,6 +805,7 @@ class EigenDataset:
             n_components=n_components,
             dissimilarity="precomputed",
             normalized_stress=False,
+            random_state=42,
         )
         embedding = mds.fit_transform(fst_matrix)
         embedding = pd.DataFrame(
@@ -1146,7 +1147,7 @@ class NumpyDataset:
         input_data[input_data == self._missing_value] = np.nan
         pca_input = impute_data(input_data, imputation)
 
-        pca = sklearnPCA(n_components)
+        pca = sklearnPCA(n_components, random_state=42)
         embedding = pca.fit_transform(pca_input)
         embedding = pd.DataFrame(
             data=embedding, columns=[f"D{i}" for i in range(n_components)]
@@ -1221,7 +1222,10 @@ class NumpyDataset:
             )
 
         mds = sklearnMDS(
-            n_components, dissimilarity="precomputed", normalized_stress=False
+            n_components,
+            dissimilarity="precomputed",
+            normalized_stress=False,
+            random_state=42,
         )
         embedding = mds.fit_transform(distance_matrix)
         embedding = pd.DataFrame(

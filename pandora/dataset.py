@@ -564,7 +564,7 @@ class EigenDataset:
 
     def run_pca(
         self,
-        smartpca: Executable,
+        smartpca: Executable = "smartpca",
         n_components: int = 10,
         result_dir: Optional[pathlib.Path] = None,
         redo: bool = False,
@@ -577,8 +577,9 @@ class EigenDataset:
 
         Parameters
         ----------
-        smartpca : Executable
+        smartpca : Executable, default="smartpca"
             Path pointing to an executable of the EIGENSOFT smartpca tool.
+            Default is 'smartpca'. This will only work if smartpca is installed systemwide.
         n_components : int, default=10
             Number of principal components to output.
         result_dir : pathlib.Path, default=self._file_dir

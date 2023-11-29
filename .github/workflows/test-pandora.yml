@@ -1,6 +1,9 @@
 name: Build and test Pandora
 run-name: Build and run the tests of the Pandora python library.
-on: [push]
+on:
+  push:
+    paths-ignore:
+      - 'docs/**'
 jobs:
   Run-Pandora-Tests:
     runs-on: ${{ matrix.os }}

@@ -97,4 +97,4 @@ Running Pandora in the command line will produce a number of (intermediate) outp
     - ``*.fst``: The results of ``smartpca`` Fst computation (in case of MDS analyses)
     - In case you specified ``keep_replicates: true`` in your config, there will also be the dataset files for the windows (``*.geno``, ``*.snp``, ``*.ind``).
 
-- ``plots/``: If you set ``plot_results: true`` in your config, this directory will contain all plots Pandora generated during the execution. The names of the files should be self-explanatory.
+- ``plots/``: If you set ``plot_results: true`` in your config, this directory will contain all plots Pandora generated during the execution. The names of the files should be self-explanatory. As of version 1.0.8, we provide each plot in two formats: pdf and HTML. You can open the HTML file in any browser to see an interactive version of the plot.

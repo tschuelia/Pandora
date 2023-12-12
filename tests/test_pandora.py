@@ -226,8 +226,8 @@ class TestPandora:
 
         # pandora's dataset's PCA should be a PCA object now and not None
         assert isinstance(pandora.dataset.pca, PCA)
-        # plot directory should contain two plots
-        assert len(list(pandora.pandora_config.plot_dir.iterdir())) == 2
+        # plot directory should contain four plots (two pdf, two html)
+        assert len(list(pandora.pandora_config.plot_dir.iterdir())) == 4
 
     def test_do_mds(self, pandora_test_config_mds):
         pandora = Pandora(pandora_test_config_mds)
@@ -238,8 +238,8 @@ class TestPandora:
 
         # pandora's dataset's MDS should be a MDS object now and not None
         assert isinstance(pandora.dataset.mds, MDS)
-        # plot directory should contain two plots
-        assert len(list(pandora.pandora_config.plot_dir.iterdir())) == 2
+        # plot directory should contain four plots (two pdf, two html)
+        assert len(list(pandora.pandora_config.plot_dir.iterdir())) == 4
 
     def test_do_pca_with_pca_populations(
         self, pandora_test_config_with_embedding_populations
@@ -254,8 +254,8 @@ class TestPandora:
         # pandora's dataset's PCA should be a PCA object now and not None
         assert isinstance(pandora.dataset.pca, PCA)
 
-        # plot directory should contain three plots
-        assert len(list(pandora.pandora_config.plot_dir.iterdir())) == 3
+        # plot directory should contain six plots (3 pdf, 3 html)
+        assert len(list(pandora.pandora_config.plot_dir.iterdir())) == 6
 
     def test_plot_dataset_fails_if_pca_is_missing(self, pandora_test_config):
         pandora = Pandora(pandora_test_config)

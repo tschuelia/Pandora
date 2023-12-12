@@ -500,6 +500,9 @@ class Pandora:
         fig.write_image(
             self.pandora_config.plot_dir / f"{plot_prefix}_with_populations.pdf"
         )
+        fig.write_html(
+            self.pandora_config.plot_dir / f"{plot_prefix}_with_populations.html"
+        )
 
         # plot with annotated clusters
         fig = plot_clusters(
@@ -511,6 +514,9 @@ class Pandora:
         fig.write_image(
             self.pandora_config.plot_dir / f"{plot_prefix}_with_clusters.pdf"
         )
+        fig.write_html(
+            self.pandora_config.plot_dir / f"{plot_prefix}_with_clusters.html"
+        )
 
         if len(self.dataset.embedding_populations) > 0:
             fig = plot_projections(
@@ -521,6 +527,9 @@ class Pandora:
             )
             fig.write_image(
                 self.pandora_config.plot_dir / f"{plot_prefix}_projections.pdf"
+            )
+            fig.write_html(
+                self.pandora_config.plot_dir / f"{plot_prefix}_projections.html"
             )
 
     def bootstrap_embeddings(self) -> None:
@@ -681,10 +690,13 @@ class Pandora:
 
         if projected_samples_only:
             fig_name = "projected_sample_support_values.pdf"
+            fig_name_html = "projected_sample_support_values.html"
         else:
             fig_name = "sample_support_values.pdf"
+            fig_name_html = "sample_support_values.html"
 
         fig.write_image(self.pandora_config.plot_dir / fig_name)
+        fig.write_html(self.pandora_config.plot_dir / fig_name_html)
         return fig
 
     def _compare_replicates_similarity(self) -> None:

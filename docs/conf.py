@@ -33,11 +33,7 @@ project = "Pandora"
 copyright = f"{datetime.date.today().year}, Julia Haag"
 author = "Julia Haag"
 
-extensions = [
-    "numpydoc",
-    "sphinx.ext.linkcode",
-    "sphinxcontrib.apidoc",
-]
+extensions = ["numpydoc", "sphinx.ext.linkcode", "sphinxcontrib.apidoc", "nbsphinx"]
 
 apidoc_module_dir = "../pandora"
 apidoc_output_dir = "api"
@@ -50,6 +46,11 @@ html_theme = "sphinx_rtd_theme"
 html_static_path = ["_static"]
 
 # numpydoc_show_class_members = False
+
+html_js_files = [
+    "require.min.js",
+    "custom.js",
+]
 
 
 # Copied and adapted from

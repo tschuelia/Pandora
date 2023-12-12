@@ -1,3 +1,6 @@
+
+.. _Examples:
+
 Pandora Python Library Examples
 ===============================
 In addition to the command line, all of Pandora's functionality can be used as Python library with an additional interface
@@ -14,5 +17,5 @@ of course also has the Eigenfiles-based interface available in the Python librar
 
    NumPy-based interface <numpy_interface.rst>
    EIGEN-based interface <eigen_interface.rst>
-   Plotting <plotting.rst>
+   Plotting and further insights <inspections.ipynb>
    Working with R exports <r_import_export.rst>

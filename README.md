@@ -3,13 +3,6 @@
 [![Documentation](https://readthedocs.org/projects/pandorageno/badge/?version=latest)](https://pandorageno.readthedocs.io/en/latest/?badge=latest)
 
 
-<hr>
-
-**Warning: Pandora is still under development and the documentation and wiki are not complete yet. Until everything is properly tested,
-all results you obtain should be handled with care.**
-
-<hr>
-
 
 Pandora is an uncertainty estimation toolkit for dimensionality reduction on population genetics data. Pandora works based
 on bootstrapping, and estimates the stability of your genotype data running PCA or MDS analyses.

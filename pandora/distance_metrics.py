@@ -137,7 +137,7 @@ def hamming_sample_distance(
     distance_matrix = np.zeros(shape=(n_samples, n_samples))
 
     for (i, s1), (j, s2) in itertools.combinations(enumerate(input_data), r=2):
-        hamming_distance = np.nansum([abs(v1 - v2) for v1, v2 in zip(s1, s2)])
+        hamming_distance = np.nansum(np.abs(s1 - s2))
         distance_matrix[i, j] = hamming_distance
         # distance matrix should be symmetric
         distance_matrix[j, i] = hamming_distance
@@ -184,25 +184,25 @@ def missing_corrected_hamming_sample_distance(
 
     Note that this distance metric corresponds to the ``PLINK --distance 'flat-missing'`` computation.
     """
-    n_samples = input_data.shape[0]
+    n_samples, n_snps = input_data.shape
     distance_matrix = np.zeros(shape=(n_samples, n_samples))
 
+    # compute the fraction of missing values for each sequence
+    fractions_missing = np.sum(np.isnan(input_data), axis=1) / n_snps
+
     for (i, s1), (j, s2) in itertools.combinations(enumerate(input_data), r=2):
-        hamming_distance = np.nansum([abs(v1 - v2) for v1, v2 in zip(s1, s2)])
+        dist = np.nansum(np.abs(s1 - s2))
 
-        # compute the fraction of missing values in both sequences
-        missing_s1 = np.sum(np.isnan(s1)) / len(s1)
-        missing_s2 = np.sum(np.isnan(s2)) / len(s2)
-        # compute the fraction of missing values
-        missing_in_both = np.sum(
-            [np.isnan(v1) and np.isnan(v2) for v1, v2 in zip(s1, s2)]
-        ) / len(s1)
+        # compute the fraction of values missing in both sequences at the same locus
+        missing_in_both = np.sum(np.isnan(s1) & np.isnan(s2)) / n_snps
 
-        normalization_factor = missing_s1 + missing_s2 - missing_in_both
-        hamming_distance /= 1 - normalization_factor
-        distance_matrix[i, j] = hamming_distance
+        normalization_factor = (
+            fractions_missing[i] + fractions_missing[j] - missing_in_both
+        )
+        dist /= 1 - normalization_factor
+        distance_matrix[i, j] = dist
         # distance matrix should be symmetric
-        distance_matrix[j, i] = hamming_distance
+        distance_matrix[j, i] = dist
 
     return distance_matrix, populations
 

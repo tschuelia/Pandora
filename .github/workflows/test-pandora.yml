@@ -26,8 +26,8 @@ jobs:
           cache-environment: true
           create-args:
             python=${{ matrix.python-version }}
-#      - name: Setup tmate session
-#        uses: mxschmitt/action-tmate@v3
+      - name: Setup tmate session
+        uses: mxschmitt/action-tmate@v3
       - name: Run Pandora tests
         run: |
           pwd && ls && PYTHONPATH=. pytest -svx --color=yes

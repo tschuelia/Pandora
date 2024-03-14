@@ -641,7 +641,7 @@ class EigenDataset:
                 evecoutname: {evec_out}
                 evaloutname: {eval_out}
                 numoutevec: {n_components}
-                maxpops: {self.populations.unique().shape[0]}
+                maxpops: {self.populations.nunique()}
                 """
 
             smartpca_params = textwrap.dedent(smartpca_params)
@@ -724,7 +724,7 @@ class EigenDataset:
                 indivname: {self._ind_file}
                 phylipoutname: {fst_file}
                 fstonly: YES
-                maxpops: {self.populations.unique().shape[0]}
+                maxpops: {self.populations.nunique()}
                 """
 
             tmpfile.write(smartpca_fst_params)

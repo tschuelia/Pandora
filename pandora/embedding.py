@@ -73,7 +73,7 @@ class Embedding:
         """
         if k_boundaries is None:
             # check whether there are distinct populations given
-            n_populations = self.embedding.population.unique().shape[0]
+            n_populations = self.embedding.population.nunique()
             if n_populations > 1:
                 max_k = n_populations
             else:

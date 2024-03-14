@@ -386,7 +386,7 @@ def fst_population_distance(
         subpopulations.append(population_indices)
 
     # 3. for each pair of populations, get the fst value and store it in the fst-matrix
-    n_populations = populations.unique().shape[0]
+    n_populations = populations.nunique()
     fst_matrix = np.zeros(shape=(n_populations, n_populations))
 
     allel_counts = [

@@ -48,4 +48,6 @@ If you encounter any trouble using Pandora, have a question, or you find a bug, 
 
 
 ## Publication
-The paper explaining the details of Pandora is soon available as preprint on bioRxiv. Stay tuned!
+The paper explaining the details of Pandora is available as preprint on bioRxiv:
+
+Haag, J., Jordan A. I. & Stamatakis, A. (2024). **Pandora: A Tool to Estimate Dimensionality Reduction Stability of Genotype Data.** *bioRxiv*. [https://doi.org/10.1101/2024.03.14.584962](https://doi.org/10.1101/2024.03.14.584962)

@@ -224,6 +224,8 @@ def _smartpca_fst_finished(result_prefix: pathlib.Path) -> bool:
     if not run_finished:
         return False
 
+    return True
+
 
 def _get_embedding_populations(
     embedding_populations: Optional[pathlib.Path],

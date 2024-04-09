@@ -13,14 +13,14 @@ from typing import Callable, Dict, List, Optional, Set, Tuple, Union
 
 import numpy as np
 import pandas as pd
+from allel.stats.distance import pcoa
 from numpy import typing as npt
 from sklearn.decomposition import PCA as sklearnPCA
-from sklearn.manifold import MDS as sklearnMDS
 
 from pandora.custom_errors import PandoraConfigException, PandoraException
 from pandora.custom_types import Executable
 from pandora.distance_metrics import euclidean_sample_distance
-from pandora.embedding import Embedding, from_sklearn_mds, from_smartpca
+from pandora.embedding import Embedding, from_smartpca, mds_from_dataframe
 from pandora.imputation import impute_data
 
 
@@ -760,7 +760,7 @@ class EigenDataset:
         """Performs MDS analysis using the data provided in this class and assigns its MDS Embedding result to self.mds.
 
         The FST matrix is generated using the EIGENSOFT smartpca tool.
-        The subsequent MDS analysis is performed using the scikit-learn MDS implementation.
+        The subsequent MDS analysis is performed using the scikit-allel MDS implementation (PCoA).
 
         Please note that since EIGENSOFT is used for the FST computation, all samples with the population set to
         ``Ignore`` will not be used for the MDS computation.
@@ -803,16 +803,10 @@ class EigenDataset:
             smartpca=smartpca, result_prefix=result_dir / self.name, redo=redo
         )
 
-        # TODO: replace with scikit-allel (adjust documentation)
-        mds = sklearnMDS(
-            n_components=n_components,
-            dissimilarity="precomputed",
-            normalized_stress=False,
-            random_state=42,
-        )
-        embedding = mds.fit_transform(fst_matrix)
+        embedding, explained_variance = pcoa(fst_matrix)
         embedding = pd.DataFrame(
-            data=embedding, columns=[f"D{i}" for i in range(n_components)]
+            data=embedding[:, :n_components],
+            columns=[f"D{i}" for i in range(n_components)],
         )
         embedding["population"] = populations.values
 
@@ -826,11 +820,11 @@ class EigenDataset:
             ]
         )
 
-        self.mds = from_sklearn_mds(
+        self.mds = mds_from_dataframe(
             embedding,
             pd.Series(sample_ids),
             pd.Series(populations),
-            np.asarray([mds.stress_] * n_components),
+            explained_variance[:n_components],
         )
 
     def bootstrap(
@@ -1026,7 +1020,8 @@ class EigenDataset:
 class NumpyDataset:
     """Class structure to represent a population genetics dataset in numerical format.
 
-    This class provides methods to perform PCA and MDS analyses on the provided numerical data using scikit-learn.
+    This class provides methods to perform PCA (using scikit-learn) and MDS (using scikit-allel) analyses on the
+    provided numerical data.
     It further provides methods to generate a bootstrap replicate dataset (SNPs resampled with replacement) and
     to generate overlapping sliding windows of sub-datasets.
 
@@ -1173,9 +1168,9 @@ class NumpyDataset:
     ) -> None:
         """Performs MDS analysis using the data provided in this class.
 
-        The distance matrix is generated using the
-        provided distance_metric callable. The subsequent MDS analysis is performed using the scikit-learn MDS
-        implementation. The result of the MDS analysis is an Embedding object assigned to ``self.mds``.
+        The distance matrix is generated using the provided distance_metric callable.
+        The subsequent MDS analysis is performed using the scikit-allel MDS implementation (PCoA).
+        The result of the MDS analysis is an Embedding object assigned to ``self.mds``.
 
         Parameters
         ----------
@@ -1228,25 +1223,18 @@ class NumpyDataset:
                 f"Got {n_dims} dimensions in the distance matrix, but asked for {n_components}."
             )
 
-        # TODO: replace with scikit-allel (adjust documentation)
-        mds = sklearnMDS(
-            n_components,
-            dissimilarity="precomputed",
-            normalized_stress=False,
-            random_state=42,
-        )
-        embedding = mds.fit_transform(distance_matrix)
-
+        embedding, explained_variance = pcoa(distance_matrix)
         embedding = pd.DataFrame(
-            data=embedding, columns=[f"D{i}" for i in range(n_components)]
+            data=embedding[:, :n_components],
+            columns=[f"D{i}" for i in range(n_components)],
         )
         embedding["population"] = populations.values
 
-        self.mds = from_sklearn_mds(
+        self.mds = mds_from_dataframe(
             embedding,
             self.sample_ids,
             self.populations,
-            np.asarray([mds.stress_] * n_components),
+            explained_variance[:n_components],
         )
 
     def bootstrap(self, seed: Optional[int] = None) -> NumpyDataset:

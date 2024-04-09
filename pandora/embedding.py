@@ -284,7 +284,7 @@ def from_smartpca(evec: pathlib.Path, eval: pathlib.Path) -> Embedding:
     )
 
 
-def from_sklearn_mds(
+def mds_from_dataframe(
     embedding: pd.DataFrame,
     sample_ids: pd.Series,
     populations: pd.Series,
@@ -343,7 +343,7 @@ def from_sklearn_mds(
         # we can directly use the embedding data as mds_data
         mds_data = embedding
         # add the sample_id column
-        mds_data["sample_id"] = sample_ids
+        mds_data["sample_id"] = sample_ids.values
     else:
         # otherwise we need to iterate the embedding data and duplicate the results for each sample in sample_ids
         mds_data = []

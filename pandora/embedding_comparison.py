@@ -19,7 +19,7 @@ from pandora.custom_errors import PandoraException
 from pandora.embedding import Embedding
 
 
-def filter_samples(embedding: Embedding, samples_to_keep: List[str]) -> Embedding:
+def _filter_samples(embedding: Embedding, samples_to_keep: List[str]) -> Embedding:
     """Filters the given Embedding object by removing all samples not contained in samples_to_keep.
 
     Parameters
@@ -97,7 +97,6 @@ def _clip_missing_samples_for_comparison(
     reference : Embedding
         Passed ``reference`` Embedding, but only containing the samples present in both Embeddings (``comparable``, ``reference``).
     """
-    # TODO: this can be simplified using the pandas `align` method...
     comp_data = comparable.embedding
     ref_data = reference.embedding
 
@@ -106,8 +105,8 @@ def _clip_missing_samples_for_comparison(
 
     shared_samples = sorted(comp_ids.intersection(ref_ids))
 
-    comparable_clipped = filter_samples(comparable, shared_samples)
-    reference_clipped = filter_samples(reference, shared_samples)
+    comparable_clipped = _filter_samples(comparable, shared_samples)
+    reference_clipped = _filter_samples(reference, shared_samples)
 
     assert (
         comparable_clipped.embedding_matrix.shape

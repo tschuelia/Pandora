@@ -17,7 +17,7 @@ from pandora.dataset import (
     numpy_dataset_from_eigenfiles,
 )
 from pandora.distance_metrics import DISTANCE_METRICS, fst_population_distance
-from pandora.embedding import MDS, PCA
+from pandora.embedding import Embedding
 
 DTYPES_AND_MISSING_VALUES = [
     # signed integers
@@ -284,7 +284,7 @@ class TestEigenDatasetPCA:
             assert example_dataset.pca is None
             result_dir = pathlib.Path(result_dir)
             example_dataset.run_pca(smartpca, n_pcs, result_dir)
-            assert isinstance(example_dataset.pca, PCA)
+            assert isinstance(example_dataset.pca, Embedding)
 
     def test_smartpca_with_additional_settings(self, smartpca, example_dataset):
         n_pcs = 2
@@ -298,7 +298,7 @@ class TestEigenDatasetPCA:
                 result_dir,
                 smartpca_optional_settings=smartpca_settings,
             )
-            assert isinstance(example_dataset.pca, PCA)
+            assert isinstance(example_dataset.pca, Embedding)
 
     def test_smartpca_from_existing(self, smartpca, example_dataset):
         n_pcs = 2
@@ -306,7 +306,7 @@ class TestEigenDatasetPCA:
             assert example_dataset.pca is None
             result_dir = pathlib.Path(result_dir)
             example_dataset.run_pca(smartpca, n_pcs, result_dir)
-            assert isinstance(example_dataset.pca, PCA)
+            assert isinstance(example_dataset.pca, Embedding)
 
             # rerun with redo=False to make sure loading from previous finished runs works
             example_dataset.run_pca(smartpca, n_pcs, result_dir, redo=False)
@@ -317,7 +317,7 @@ class TestEigenDatasetPCA:
             assert example_dataset_with_poplist.pca is None
             result_dir = pathlib.Path(result_dir)
             example_dataset_with_poplist.run_pca(smartpca, n_pcs, result_dir)
-            assert isinstance(example_dataset_with_poplist.pca, PCA)
+            assert isinstance(example_dataset_with_poplist.pca, Embedding)
 
     def test_smartpca_ignores_nonsense_setting(self, smartpca, example_dataset):
         n_pcs = 2
@@ -333,7 +333,7 @@ class TestEigenDatasetPCA:
                 result_dir,
                 smartpca_optional_settings=smartpca_settings,
             )
-            assert isinstance(example_dataset.pca, PCA)
+            assert isinstance(example_dataset.pca, Embedding)
 
     def test_smartpca_fails_for_too_many_components(self, smartpca, example_dataset):
         n_pcs = example_dataset.get_sequence_length() + 10
@@ -455,7 +455,7 @@ class TestNumpyDataset:
         # dataset.mds should still be None
         assert test_numpy_dataset.pca is not None
         assert test_numpy_dataset.mds is None
-        assert isinstance(test_numpy_dataset.pca, PCA)
+        assert isinstance(test_numpy_dataset.pca, Embedding)
         assert test_numpy_dataset.pca.embedding_matrix.shape == (
             test_numpy_dataset.input_data.shape[0],
             n_pcs,
@@ -546,7 +546,7 @@ class TestNumpyDataset:
         # test_numpy_dataset.pca should still be None
         assert test_numpy_dataset.mds is not None
         assert test_numpy_dataset.pca is None
-        assert isinstance(test_numpy_dataset.mds, MDS)
+        assert isinstance(test_numpy_dataset.mds, Embedding)
         assert test_numpy_dataset.mds.embedding_matrix.shape == (
             test_numpy_dataset.input_data.shape[0],
             n_components,

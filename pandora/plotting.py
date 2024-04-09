@@ -6,7 +6,7 @@ import pandas as pd
 from plotly import graph_objects as go
 
 from pandora.custom_errors import PandoraException
-from pandora.embedding import MDS, PCA, Embedding
+from pandora.embedding import Embedding
 from pandora.embedding_comparison import EmbeddingComparison
 
 
@@ -92,7 +92,7 @@ def _check_plot_dimensions(embedding: Embedding, dim_x: int, dim_y: int) -> None
     ------
     PandoraException
         - if ``dim_x == dim_y``
-        - if either ``dim_x`` or ``dim_y`` does not exist in the PCA data.
+        - if either ``dim_x`` or ``dim_y`` does not exist in the Embedding data.
     """
     if dim_x == dim_y:
         raise PandoraException("dim_x and dim_y cannot be identical.")
@@ -124,37 +124,6 @@ def _update_fig(
     dim_y : int
         Index of the dimension plotted on the y-axis (zero-indexed).
     show_variance_in_axes : bool
-        If true, also includes embedding.explained_variance data in the x-, and y-axis titles for PCA plots.
-
-    Returns
-    -------
-    go.Figure
-        Figure with updated x- and y-axes as well as an updated layout.
-    """
-    if isinstance(embedding, PCA):
-        return _update_pca_fig(embedding, fig, dim_x, dim_y, show_variance_in_axes)
-    elif isinstance(embedding, MDS):
-        return _update_mds_fig(fig, dim_x, dim_y)
-    else:
-        raise PandoraException("Embedding needs to be of type PCA or MDS.")
-
-
-def _update_pca_fig(
-    pca: PCA, fig: go.Figure, dim_x: int, dim_y: int, show_variance_in_axes: bool
-) -> go.Figure:
-    """Updates a figure depicting a PCA plot (x-axis, y-axis, layout).
-
-    Parameters
-    ----------
-    pca : PCA
-        PCA object to plot.
-    fig : go.Figure
-        Plotly figure to update.
-    dim_x : int
-        Index of the dimension plotted on the x-axis (zero-indexed).
-    dim_y : int
-        Index of the dimension plotted on the y-axis (zero-indexed).
-    show_variance_in_axes : bool
         If true, also includes embedding.explained_variance data in the x-, and y-axis titles.
 
     Returns
@@ -166,35 +135,8 @@ def _update_pca_fig(
     ytitle = f"PC {dim_y + 1}"
 
     if show_variance_in_axes:
-        xtitle += f" ({round(pca.explained_variances[dim_x] * 100, 1)}%)"
-        ytitle += f" ({round(pca.explained_variances[dim_y] * 100, 1)}%)"
-
-    fig.update_xaxes(title=xtitle)
-    fig.update_yaxes(title=ytitle)
-    fig.update_layout(template="plotly_white", height=1000, width=1000)
-
-    return fig
-
-
-def _update_mds_fig(fig: go.Figure, dim_x: int, dim_y: int) -> go.Figure:
-    """Updates a figure depicting an MDS plot (x-axis, y-axis, layout).
-
-    Parameters
-    ----------
-    fig : go.Figure
-        Plotly figure to update.
-    dim_x : int
-        Index of the dimension plotted on the x-axis (zero-indexed).
-    dim_y : int
-        Index of the dimension plotted on the y-axis (zero-indexed).
-
-    Returns
-    -------
-    go.Figure
-        Figure with updated x- and y-axes as well as an updated layout.
-    """
-    xtitle = f"Coordinate {dim_x + 1}"
-    ytitle = f"Coordinate {dim_y + 1}"
+        xtitle += f" ({round(embedding.explained_variances[dim_x] * 100, 1)}%)"
+        ytitle += f" ({round(embedding.explained_variances[dim_y] * 100, 1)}%)"
 
     fig.update_xaxes(title=xtitle)
     fig.update_yaxes(title=ytitle)
@@ -222,7 +164,7 @@ def plot_populations(
     dim_y : int
         Index of the dimension plotted on the y-axis (zero-indexed).
     fig : go.Figure, default=None
-        Optional figure containing previous plotting data (e.g. another PCA plot).
+        Optional figure containing previous plotting data (e.g. another Embedding plot).
     **kwargs
         Optional plot arguments passed to go.Scatter. Refer to the plotly documentation for options.
         The following settings are not allowed: [``x``, ``y``, ``mode``, ``marker``, ``marker_color``, ``name``]
@@ -230,7 +172,7 @@ def plot_populations(
     Returns
     -------
     go.Figure
-        Plotly figure depicting the PCA data
+        Plotly figure depicting the Embedding data
 
     Raises
     ------
@@ -243,7 +185,7 @@ def plot_populations(
 
     if embedding.embedding.population.isna().all():
         raise PandoraException(
-            "Cannot plot populations: no populations associated with PCA data."
+            "Cannot plot populations: no populations associated with Embedding data."
         )
 
     populations = embedding.embedding.population.unique()
@@ -320,8 +262,8 @@ def plot_projections(
 
     if embedding_populations.empty:
         raise PandoraException(
-            "It appears that all populations were used for the PCA. "
-            "To plot projections provide a non-empty list of populations with which the PCA was performed!"
+            "It appears that all populations were used for the Embedding. "
+            "To plot projections provide a non-empty list of populations with which the Embedding was performed!"
         )
 
     populations = embedding.embedding.population.unique()
@@ -377,7 +319,7 @@ def plot_clusters(
         Index of the dimension plotted on the y-axis (zero-indexed).
     kmeans_k : int
         Optional k to use for K-Means clustering. If not set, the optimal number of clusters k
-        is automatically determined based on the data provided by PCA.
+        is automatically determined based on the data provided by Embedding.
     fig : go.Figure
         Optional figure containing previous plotting data (e.g. another Embedding plot).
     **kwargs
@@ -469,7 +411,7 @@ def plot_support_values(
     Returns
     -------
     go.Figure
-        Plotly figure depicting the PCA data.
+        Plotly figure depicting the Embedding data.
 
     Warns
     -----
@@ -639,7 +581,7 @@ def plot_embedding_comparison(
                 x=embedding_comparison.reference.embedding[xcol],
                 y=embedding_comparison.reference.embedding[ycol],
                 marker_color="darkblue",
-                name="Standardized reference PCA",
+                name="Standardized reference Embedding",
                 mode="markers",
                 customdata=embedding_comparison.reference.embedding[hover_cols].values,
                 hovertemplate=_get_hovertemplate(hover_cols_display),
@@ -650,7 +592,7 @@ def plot_embedding_comparison(
                 y=embedding_comparison.comparable.embedding[ycol],
                 marker_color="orange",
                 marker_symbol="star",
-                name="Transformed comparable PCA",
+                name="Transformed comparable Embedding",
                 mode="markers",
                 customdata=embedding_comparison.comparable.embedding[hover_cols].values,
                 hovertemplate=_get_hovertemplate(hover_cols_display),
@@ -734,7 +676,7 @@ def plot_embedding_comparison_rogue_samples(
                 x=embedding_comparison.reference.embedding[xcol],
                 y=embedding_comparison.reference.embedding[ycol],
                 marker_color="lightgray",
-                name="Standardized reference PCA",
+                name="Standardized reference Embedding",
                 mode="markers",
                 customdata=embedding_comparison.reference.embedding[hover_cols].values,
                 hovertemplate=_get_hovertemplate(hover_cols_display),
@@ -745,7 +687,7 @@ def plot_embedding_comparison_rogue_samples(
                 y=embedding_comparison.comparable.embedding[ycol],
                 marker_color="lightgray",
                 marker_symbol="star",
-                name="Transformed comparable PCA",
+                name="Transformed comparable Embedding",
                 mode="markers",
                 customdata=embedding_comparison.comparable.embedding[hover_cols].values,
                 hovertemplate=_get_hovertemplate(hover_cols_display),

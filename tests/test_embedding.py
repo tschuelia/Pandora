@@ -5,7 +5,7 @@ import pandas as pd
 import pytest
 
 from pandora.custom_errors import PandoraException
-from pandora.embedding import PCA, check_smartpca_results
+from pandora.embedding import Embedding, check_smartpca_results
 
 
 class TestPCA:
@@ -23,20 +23,20 @@ class TestPCA:
             }
         )
 
-        pca = PCA(data, n_components, explained_variances)
+        pca = Embedding(data, n_components, explained_variances)
 
-        assert isinstance(pca, PCA)
+        assert isinstance(pca, Embedding)
         assert isinstance(pca.embedding, pd.DataFrame)
 
         # incorrect dimensions of explained variances
         with pytest.raises(PandoraException, match="1D numpy array"):
-            PCA(data, n_components, np.asarray([[0.0, 0.0]]))
+            Embedding(data, n_components, np.asarray([[0.0, 0.0]]))
 
         # incorrect number of explained variances
         with pytest.raises(
             PandoraException, match="Explained variance required for each PC"
         ):
-            PCA(data, n_components, np.asarray([0.0, 0.0, 0.0]))
+            Embedding(data, n_components, np.asarray([0.0, 0.0, 0.0]))
 
         # missing sample_id column
         with pytest.raises(PandoraException, match="`sample_id`"):
@@ -47,7 +47,7 @@ class TestPCA:
                     "population": ["pop1", "pop2", "pop3"],
                 }
             )
-            PCA(data, n_components, explained_variances)
+            Embedding(data, n_components, explained_variances)
 
         # missing population column
         with pytest.raises(PandoraException, match="`population`"):
@@ -58,7 +58,7 @@ class TestPCA:
                     "sample_id": ["sample1", "sample2", "sample3"],
                 }
             )
-            PCA(data, n_components, explained_variances)
+            Embedding(data, n_components, explained_variances)
 
         # incorrect number of columns compared to n_components
         with pytest.raises(
@@ -73,7 +73,7 @@ class TestPCA:
                     "population": ["pop1", "pop2", "pop3"],
                 }
             )
-            PCA(data, n_components, explained_variances)
+            Embedding(data, n_components, explained_variances)
 
         # incorrect PC columns
         with pytest.raises(
@@ -88,7 +88,7 @@ class TestPCA:
                 }
             )
             # column PC1 incorrectly named
-            PCA(data, n_components, explained_variances)
+            Embedding(data, n_components, explained_variances)
 
 
 def test_check_smartpca_results_passes_for_correct_results(

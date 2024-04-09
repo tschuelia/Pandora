@@ -20,7 +20,7 @@ from pandora.bootstrap import (
 )
 from pandora.custom_errors import PandoraException
 from pandora.custom_types import EmbeddingAlgorithm
-from pandora.embedding import MDS, PCA
+from pandora.embedding import Embedding
 
 
 @pytest.fixture
@@ -235,7 +235,7 @@ def test_bootstrap_does_not_converge_for_distinct_embeddings(test_numpy_dataset)
         new_data = pd.DataFrame(data=new_data, columns=[f"D{i}" for i in range(2)])
         new_data["sample_id"] = embedding.sample_ids
         new_data["population"] = embedding.populations
-        return PCA(new_data, 2, embedding.explained_variances)
+        return Embedding(new_data, 2, embedding.explained_variances)
 
     # first we need to compute the embedding
     test_numpy_dataset.run_pca(n_components=2)
@@ -273,12 +273,12 @@ def test_bootstrap_and_embed_multiple(example_dataset, smartpca, embedding, keep
         if embedding == EmbeddingAlgorithm.PCA:
             # each bootstrap should have embedding.pca != None, but embedding.mds == None
             assert all(b.pca is not None for b in bootstraps)
-            assert all(isinstance(b.pca, PCA) for b in bootstraps)
+            assert all(isinstance(b.pca, Embedding) for b in bootstraps)
             assert all(b.mds is None for b in bootstraps)
         elif embedding == EmbeddingAlgorithm.MDS:
             # each bootstrap should have embedding.mds != None, but embedding.pca == None
             assert all(b.mds is not None for b in bootstraps)
-            assert all(isinstance(b.mds, MDS) for b in bootstraps)
+            assert all(isinstance(b.mds, Embedding) for b in bootstraps)
             assert all(b.pca is None for b in bootstraps)
 
         # make sure that all files are present if keep_files == True, otherwise check that they are deleted
@@ -310,12 +310,12 @@ def test_bootstrap_and_embed_multiple_numpy(test_numpy_dataset, embedding):
     if embedding == EmbeddingAlgorithm.PCA:
         # each bootstrap should have embedding.pca != None, but embedding.mds == None
         assert all(b.pca is not None for b in bootstraps)
-        assert all(isinstance(b.pca, PCA) for b in bootstraps)
+        assert all(isinstance(b.pca, Embedding) for b in bootstraps)
         assert all(b.mds is None for b in bootstraps)
     elif embedding == EmbeddingAlgorithm.MDS:
         # each bootstrap should have embedding.mds != None, but embedding.pca == None
         assert all(b.mds is not None for b in bootstraps)
-        assert all(isinstance(b.mds, MDS) for b in bootstraps)
+        assert all(isinstance(b.mds, Embedding) for b in bootstraps)
         assert all(b.pca is None for b in bootstraps)
 
 

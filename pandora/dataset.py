@@ -20,7 +20,7 @@ from sklearn.manifold import MDS as sklearnMDS
 from pandora.custom_errors import PandoraConfigException, PandoraException
 from pandora.custom_types import Executable
 from pandora.distance_metrics import euclidean_sample_distance
-from pandora.embedding import MDS, PCA, from_sklearn_mds, from_smartpca
+from pandora.embedding import Embedding, from_sklearn_mds, from_smartpca
 from pandora.imputation import impute_data
 
 
@@ -355,11 +355,11 @@ class EigenDataset:
         embedding_populations.
     n_snps : int
         Number of SNPs in the dataset.
-    pca : PCA
-        PCA object as result of a smartpca run on the provided dataset.
+    pca : Embedding
+        PCA Embedding object as result of a smartpca run on the provided dataset.
         This is ``None`` until ``self.run_pca()`` was called.
-    mds : MDS
-        MDS object as a result of an MDS computation. This is ``None`` until ``self.run_mds()`` was called.
+    mds : Embedding
+        MDS Embedding object as a result of an MDS computation. This is ``None`` until ``self.run_mds()`` was called.
 
     Raises
     ------
@@ -422,8 +422,8 @@ class EigenDataset:
         else:
             self.n_snps = n_snps
 
-        self.pca: Optional[PCA] = None
-        self.mds: Optional[MDS] = None
+        self.pca: Optional[Embedding] = None
+        self.mds: Optional[Embedding] = None
 
     def get_sample_info(self) -> pd.Series:
         """Reads the sample IDs from ``self._ind_file``.
@@ -572,7 +572,7 @@ class EigenDataset:
         redo: bool = False,
         smartpca_optional_settings: Optional[Dict] = None,
     ) -> None:
-        """Runs the EIGENSOFT smartpca on the dataset and assigns its PCA result to self.pca.
+        """Runs the EIGENSOFT smartpca on the dataset and assigns its PCA Embedding result to self.pca.
 
         Additional smartpca options can be passed as dictionary in smartpca_optional_settings, e.g.
         ``smartpca_optional_settings = dict(numoutlieriter=0, shrinkmode=True)``.
@@ -757,7 +757,7 @@ class EigenDataset:
         result_dir: Optional[pathlib.Path] = None,
         redo: bool = False,
     ) -> None:
-        """Performs MDS analysis using the data provided in this class.
+        """Performs MDS analysis using the data provided in this class and assigns its MDS Embedding result to self.mds.
 
         The FST matrix is generated using the EIGENSOFT smartpca tool.
         The subsequent MDS analysis is performed using the scikit-learn MDS implementation.
@@ -803,6 +803,7 @@ class EigenDataset:
             smartpca=smartpca, result_prefix=result_dir / self.name, redo=redo
         )
 
+        # TODO: replace with scikit-allel (adjust documentation)
         mds = sklearnMDS(
             n_components=n_components,
             dissimilarity="precomputed",
@@ -826,7 +827,10 @@ class EigenDataset:
         )
 
         self.mds = from_sklearn_mds(
-            embedding, pd.Series(sample_ids), pd.Series(populations), mds.stress_
+            embedding,
+            pd.Series(sample_ids),
+            pd.Series(populations),
+            np.asarray([mds.stress_] * n_components),
         )
 
     def bootstrap(
@@ -1055,11 +1059,11 @@ class NumpyDataset:
         Pandas Series containing a sample ID for each row in ``input_data``.
     populations : pd.Series[str]
         Pandas Series containing a population name for each row in ``input_data``.
-    pca : PCA
-        PCA object as result of a PCA analysis run on the provided dataset.
+    pca : Embedding
+        PCA Embedding object as result of a PCA analysis run on the provided dataset.
         This is ``None`` until ``self.run_pca()`` was called.
-    mds : MDS
-        MDS object as a result of an MDS computation. This is ``None`` until ``self.run_mds()`` was called.
+    mds : Embedding
+        MDS Embedding object as a result of an MDS computation. This is ``None`` until ``self.run_mds()`` was called.
 
     Raises
     ------
@@ -1092,8 +1096,8 @@ class NumpyDataset:
         self.sample_ids = sample_ids
         self.populations = populations
 
-        self.pca: Optional[PCA] = None
-        self.mds: Optional[MDS] = None
+        self.pca: Optional[Embedding] = None
+        self.mds: Optional[Embedding] = None
 
     def run_pca(
         self,
@@ -1102,7 +1106,8 @@ class NumpyDataset:
     ) -> None:
         """Performs PCA analysis on ``self.input_data`` reducing the data to ``n_components`` dimensions.
 
-        Uses the scikit-learn PCA implementation. The result of the PCA analysis is a PCA object assigned to ``self.pca``.
+        Uses the scikit-learn PCA implementation. The result of the PCA analysis is an Embedding object
+        assigned to ``self.pca``.
 
         Parameters
         ----------
@@ -1156,7 +1161,7 @@ class NumpyDataset:
         )
         embedding["sample_id"] = self.sample_ids.values
         embedding["population"] = self.populations.values
-        self.pca = PCA(embedding, n_components, pca.explained_variance_ratio_)
+        self.pca = Embedding(embedding, n_components, pca.explained_variance_ratio_)
 
     def run_mds(
         self,
@@ -1170,7 +1175,7 @@ class NumpyDataset:
 
         The distance matrix is generated using the
         provided distance_metric callable. The subsequent MDS analysis is performed using the scikit-learn MDS
-        implementation. The result of the MDS analysis is an MDS object assigned to ``self.mds``.
+        implementation. The result of the MDS analysis is an Embedding object assigned to ``self.mds``.
 
         Parameters
         ----------
@@ -1223,6 +1228,7 @@ class NumpyDataset:
                 f"Got {n_dims} dimensions in the distance matrix, but asked for {n_components}."
             )
 
+        # TODO: replace with scikit-allel (adjust documentation)
         mds = sklearnMDS(
             n_components,
             dissimilarity="precomputed",
@@ -1230,13 +1236,17 @@ class NumpyDataset:
             random_state=42,
         )
         embedding = mds.fit_transform(distance_matrix)
+
         embedding = pd.DataFrame(
             data=embedding, columns=[f"D{i}" for i in range(n_components)]
         )
         embedding["population"] = populations.values
 
         self.mds = from_sklearn_mds(
-            embedding, self.sample_ids, self.populations, mds.stress_
+            embedding,
+            self.sample_ids,
+            self.populations,
+            np.asarray([mds.stress_] * n_components),
         )
 
     def bootstrap(self, seed: Optional[int] = None) -> NumpyDataset:

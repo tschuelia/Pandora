@@ -4,7 +4,7 @@ import pytest
 
 from pandora.custom_errors import PandoraException
 from pandora.custom_types import EmbeddingAlgorithm
-from pandora.embedding import MDS, PCA
+from pandora.embedding import Embedding
 from pandora.embedding_comparison import (
     BatchEmbeddingComparison,
     EmbeddingComparison,
@@ -31,7 +31,7 @@ def test_match_and_transform_identical_pcas(pca_example):
 def test_clip_missing_samples_for_comparison(pca_example):
     # use only four of the samples from pca_reference
     pca_data = pca_example.embedding.copy()[:4]
-    pca_comparable_fewer_samples = PCA(
+    pca_comparable_fewer_samples = Embedding(
         pca_data, pca_example.n_components, pca_example.explained_variances
     )
 
@@ -60,7 +60,7 @@ def test_match_and_transform_fails_for_different_sample_ids(pca_example):
     ):
         pca_data = pca_example.embedding.copy()
         pca_data.sample_id += "_foo"
-        pca_comparable_with_different_sample_ids = PCA(
+        pca_comparable_with_different_sample_ids = Embedding(
             pca_data, pca_example.n_components, pca_example.explained_variances
         )
         match_and_transform(pca_comparable_with_different_sample_ids, pca_example)
@@ -78,10 +78,7 @@ def test_pad_missing_samples(embedding_type):
             ["p1", "p2", "p3"],
         ),
     )
-    if embedding_type == EmbeddingAlgorithm.PCA:
-        embedding = PCA(embedding_data, 2, np.asarray([0, 0]))
-    else:
-        embedding = MDS(embedding_data, 2, 0.0)
+    embedding = Embedding(embedding_data, 2, np.asarray([0, 0]))
 
     new_samples = pd.Series(["new1", "new2"])
     all_samples = pd.concat([sample_ids, new_samples], ignore_index=True)
@@ -124,7 +121,7 @@ class TestEmbeddingComparison:
                 continue
             reflected_pca_data[col] *= -1
 
-        pca_reflected = PCA(
+        pca_reflected = Embedding(
             embedding=reflected_pca_data,
             n_components=pca_example.n_components,
             explained_variances=pca_example.explained_variances,
@@ -142,7 +139,7 @@ class TestEmbeddingComparison:
                 continue
             reflected_pca_data[col] += 1
 
-        pca_shifted = PCA(
+        pca_shifted = Embedding(
             embedding=shifted_pca_data,
             n_components=pca_example.n_components,
             explained_variances=pca_example.explained_variances,
@@ -165,7 +162,7 @@ class TestEmbeddingComparison:
                 "D1": rotated_embedding_vector[:, 1],
             }
         )
-        pca_rotated = PCA(
+        pca_rotated = Embedding(
             embedding=pca_data_rotated,
             n_components=pca_example.n_components,
             explained_variances=pca_example.explained_variances,
@@ -175,7 +172,7 @@ class TestEmbeddingComparison:
         assert comparison.compare() == pytest.approx(1.0, abs=1e-6)
 
     def test_compare_is_valid_score(self):
-        pca1 = PCA(
+        pca1 = Embedding(
             pd.DataFrame(
                 data={
                     "sample_id": ["sample1", "sample2", "sample3"],
@@ -188,7 +185,7 @@ class TestEmbeddingComparison:
             np.asarray([0.0, 0.0]),
         )
 
-        pca2 = PCA(
+        pca2 = Embedding(
             pd.DataFrame(
                 data={
                     "sample_id": ["sample1", "sample2", "sample3"],
@@ -244,14 +241,8 @@ class TestBatchEmbeddingComparison:
         embedding_data2 = _numpy_to_dataframe(
             self.data_embedding2, self.samples_embedding2, self.populations
         )
-        if embedding_type == EmbeddingAlgorithm.PCA:
-            e1 = PCA(embedding_data1, 2, np.asarray([0, 0]))
-            e2 = PCA(embedding_data2, 2, np.asarray([0, 0]))
-        elif embedding_type == EmbeddingAlgorithm.MDS:
-            e1 = MDS(embedding_data1, 2, 0.0)
-            e2 = MDS(embedding_data2, 2, 0.0)
-        else:
-            raise ValueError("Unsupported embedding type ", embedding_type)
+        e1 = Embedding(embedding_data1, 2, np.asarray([0, 0]))
+        e2 = Embedding(embedding_data2, 2, np.asarray([0, 0]))
 
         return BatchEmbeddingComparison([e1, e2, e1])
 

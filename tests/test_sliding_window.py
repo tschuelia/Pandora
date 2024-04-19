@@ -7,7 +7,7 @@ import pytest
 
 from pandora.custom_types import EmbeddingAlgorithm
 from pandora.dataset import EigenDataset, NumpyDataset
-from pandora.embedding import MDS, PCA
+from pandora.embedding import Embedding
 from pandora.sliding_window import (
     sliding_window_embedding,
     sliding_window_embedding_numpy,
@@ -65,12 +65,12 @@ def test_sliding_window_embedding(
         if embedding == EmbeddingAlgorithm.PCA:
             # each window should have embedding.pca != None, but embedding.mds == None
             assert all(w.pca is not None for w in windows)
-            assert all(isinstance(w.pca, PCA) for w in windows)
+            assert all(isinstance(w.pca, Embedding) for w in windows)
             assert all(w.mds is None for w in windows)
         elif embedding == EmbeddingAlgorithm.MDS:
             # each window should have embedding.mds != None, but embedding.pca == None
             assert all(w.mds is not None for w in windows)
-            assert all(isinstance(w.mds, MDS) for w in windows)
+            assert all(isinstance(w.mds, Embedding) for w in windows)
             assert all(w.pca is None for w in windows)
 
         # make sure that all files are present if keep_files == True, otherwise check that they are deleted
@@ -99,10 +99,10 @@ def test_sliding_window_embedding_numpy(test_numpy_dataset_sliding_window, embed
     if embedding == EmbeddingAlgorithm.PCA:
         # each window should have embedding.pca != None, but embedding.mds == None
         assert all(w.pca is not None for w in sliding_windows)
-        assert all(isinstance(w.pca, PCA) for w in sliding_windows)
+        assert all(isinstance(w.pca, Embedding) for w in sliding_windows)
         assert all(w.mds is None for w in sliding_windows)
     elif embedding == EmbeddingAlgorithm.MDS:
         # each window should have embedding.mds != None, but embedding.pca == None
         assert all(w.mds is not None for w in sliding_windows)
-        assert all(isinstance(w.mds, MDS) for w in sliding_windows)
+        assert all(isinstance(w.mds, Embedding) for w in sliding_windows)
         assert all(w.pca is None for w in sliding_windows)

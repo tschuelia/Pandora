@@ -16,10 +16,10 @@ from sklearn.metrics import fowlkes_mallows_score
 from sklearn.preprocessing import normalize
 
 from pandora.custom_errors import PandoraException
-from pandora.embedding import MDS, PCA, Embedding
+from pandora.embedding import Embedding
 
 
-def filter_samples(embedding: Embedding, samples_to_keep: List[str]) -> Embedding:
+def _filter_samples(embedding: Embedding, samples_to_keep: List[str]) -> Embedding:
     """Filters the given Embedding object by removing all samples not contained in samples_to_keep.
 
     Parameters
@@ -37,34 +37,25 @@ def filter_samples(embedding: Embedding, samples_to_keep: List[str]) -> Embeddin
     embedding_data = embedding.embedding
     embedding_data = embedding_data.loc[embedding_data.sample_id.isin(samples_to_keep)]
 
-    if isinstance(embedding, PCA):
-        return PCA(
-            embedding=embedding_data,
-            n_components=embedding.n_components,
-            explained_variances=embedding.explained_variances,
-        )
-    elif isinstance(embedding, MDS):
-        return MDS(
-            embedding=embedding_data,
-            n_components=embedding.n_components,
-            stress=embedding.stress,
-        )
-    else:
-        raise PandoraException(f"Unrecognized embedding type: {type(embedding)}.")
+    return Embedding(
+        embedding=embedding_data,
+        n_components=embedding.n_components,
+        explained_variances=embedding.explained_variances,
+    )
 
 
 def _check_sample_clipping(
     before_clipping: Embedding, after_clipping: Embedding
 ) -> None:
     """Compares the number of samples prior to and after clipping. Will show a warning message in case more than 20% of
-    samples were removed, indicating a potential major mismatch between the two PCAs.
+    samples were removed, indicating a potential major mismatch between the two Embeddings.
 
     Parameters
     ----------
-    before_clipping : PCA
-        PCA object prior to sample filtering.
-    after_clipping : PCA
-        PCA object after sample filtering.
+    before_clipping : Embedding
+        Embedding object prior to sample filtering.
+    after_clipping : Embedding
+        Embedding object after sample filtering.
 
     Returns
     -------
@@ -114,8 +105,8 @@ def _clip_missing_samples_for_comparison(
 
     shared_samples = sorted(comp_ids.intersection(ref_ids))
 
-    comparable_clipped = filter_samples(comparable, shared_samples)
-    reference_clipped = filter_samples(reference, shared_samples)
+    comparable_clipped = _filter_samples(comparable, shared_samples)
+    reference_clipped = _filter_samples(reference, shared_samples)
 
     assert (
         comparable_clipped.embedding_matrix.shape
@@ -151,20 +142,11 @@ def _pad_missing_samples(all_sample_ids: pd.Series, embedding: Embedding) -> Emb
 
     embedding_matrix = _numpy_to_dataframe(embedding_matrix, sample_ids, populations)
 
-    if isinstance(embedding, PCA):
-        return PCA(
-            embedding=embedding_matrix,
-            n_components=embedding.n_components,
-            explained_variances=embedding.explained_variances,
-        )
-    elif isinstance(embedding, MDS):
-        return MDS(
-            embedding=embedding_matrix,
-            n_components=embedding.n_components,
-            stress=embedding.stress,
-        )
-    else:
-        raise PandoraException(f"Unrecognized Embedding type {type(embedding)}.")
+    return Embedding(
+        embedding=embedding_matrix,
+        n_components=embedding.n_components,
+        explained_variances=embedding.explained_variances,
+    )
 
 
 def _cluster_stability_for_pair(args):
@@ -234,7 +216,6 @@ class EmbeddingComparison:
     ------
     PandoraException
         - If either ``comparable`` of ``reference`` is not an Embedding object.
-        - If ``comparable`` and ``reference`` are not of the same type (e.g. one is PCA and the other MDS).
     """
 
     def __init__(self, comparable: Embedding, reference: Embedding):
@@ -305,8 +286,6 @@ class BatchEmbeddingComparison:
     """Class structure for comparing three or more Embedding results. All comparisons are conducted pairwise for all
     unique pairs of embeddings.
 
-    Embedding objects must all be of the same type, allowed types are PCA and MDS.
-
     This class provides methods for comparing both Embedding based on all samples,
     for comparing the K-Means clustering results, and for computing sample support values.
 
@@ -325,19 +304,10 @@ class BatchEmbeddingComparison:
     Raises
     ------
     PandoraException
-        - If not all embeddings are of the same type.
-        - If not all embeddings are either PCA or MDS objects.
         - If less than three embeddings are passed.
     """
 
     def __init__(self, embeddings: List[Embedding]):
-        types = set(type(e) for e in embeddings)
-        if len(types) > 1:
-            raise PandoraException("All Embeddings need to be of identical types.")
-
-        if types.pop() not in [PCA, MDS]:
-            raise PandoraException("All Embeddings must be PCA or MDS embeddings.")
-
         if len(embeddings) < 3:
             raise PandoraException(
                 "BatchEmbeddingComparison of Embeddings makes only sense for three or more embeddings."
@@ -595,7 +565,6 @@ def match_and_transform(
         - Mismatch in sample IDs between ``comparable`` and ``reference`` (identical sample IDs required for comparison).
         - Mismatch in number of samples of PCs in comparable and reference.
         - No samples left after clipping. This is most likely caused by incorrect annotations of sample IDs.
-        - Comparable and reference are of different types. Both Embeddings need to be either PCA or MDS objects.
     """
     comparable, reference = _clip_missing_samples_for_comparison(comparable, reference)
 
@@ -639,36 +608,17 @@ def match_and_transform(
         comparable.populations,
     )
 
-    if isinstance(reference, PCA) and isinstance(comparable, PCA):
-        standardized_reference = PCA(
-            embedding=standardized_reference,
-            n_components=reference.n_components,
-            explained_variances=reference.explained_variances,
-        )
+    standardized_reference = Embedding(
+        embedding=standardized_reference,
+        n_components=reference.n_components,
+        explained_variances=reference.explained_variances,
+    )
 
-        transformed_comparable = PCA(
-            embedding=transformed_comparable,
-            n_components=comparable.n_components,
-            explained_variances=comparable.explained_variances,
-        )
-
-    elif isinstance(reference, MDS) and isinstance(comparable, MDS):
-        standardized_reference = MDS(
-            embedding=standardized_reference,
-            n_components=reference.n_components,
-            stress=reference.stress,
-        )
-
-        transformed_comparable = MDS(
-            embedding=transformed_comparable,
-            n_components=comparable.n_components,
-            stress=comparable.stress,
-        )
-
-    else:
-        raise PandoraException(
-            "comparable and reference need to be of type PCA or MDS."
-        )
+    transformed_comparable = Embedding(
+        embedding=transformed_comparable,
+        n_components=comparable.n_components,
+        explained_variances=comparable.explained_variances,
+    )
 
     if not all(standardized_reference.sample_ids == transformed_comparable.sample_ids):
         raise PandoraException(

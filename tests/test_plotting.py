@@ -3,7 +3,7 @@ import pandas as pd
 import pytest
 
 from pandora.custom_errors import PandoraException
-from pandora.embedding import PCA
+from pandora.embedding import Embedding
 from pandora.embedding_comparison import EmbeddingComparison
 from pandora.plotting import (
     get_distinct_colors,
@@ -52,7 +52,7 @@ def test_plot_support_values(pca_example):
 
 
 def test_plot_support_values_with_different_sample_sets_issues_warnings():
-    pca = PCA(
+    pca = Embedding(
         pd.DataFrame(
             data={
                 "sample_id": ["sample1", "sample2", "sample3"],
@@ -77,7 +77,7 @@ def test_plot_support_values_with_different_sample_sets_issues_warnings():
         plot_support_values(pca, support_values)
 
     # in this case we expect the warning message for sample3 and the support_values
-    pca = PCA(
+    pca = Embedding(
         pd.DataFrame(
             data={
                 "sample_id": ["sample1", "sample2", "sample3"],
@@ -100,7 +100,7 @@ def test_plot_support_values_with_different_sample_sets_issues_warnings():
 
 
 def test_plot_support_values_with_disjoint_sample_ids_raises_pandora_exception():
-    pca = PCA(
+    pca = Embedding(
         pd.DataFrame(
             data={
                 "sample_id": ["sample1", "sample2", "sample3"],

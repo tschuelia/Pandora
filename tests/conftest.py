@@ -7,7 +7,7 @@ import pytest
 
 from pandora.custom_types import Executable
 from pandora.dataset import EigenDataset, NumpyDataset
-from pandora.embedding import PCA, from_smartpca
+from pandora.embedding import Embedding, from_smartpca
 
 
 @pytest.fixture
@@ -46,7 +46,7 @@ def example_dataset(example_eigen_dataset_prefix) -> EigenDataset:
 
 
 @pytest.fixture
-def pca_example(correct_smartpca_result_prefix) -> PCA:
+def pca_example(correct_smartpca_result_prefix) -> Embedding:
     return from_smartpca(
         evec=pathlib.Path(f"{correct_smartpca_result_prefix}.evec"),
         eval=pathlib.Path(f"{correct_smartpca_result_prefix}.eval"),

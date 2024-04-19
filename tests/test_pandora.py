@@ -9,7 +9,7 @@ import yaml
 from pandora.custom_errors import PandoraException
 from pandora.custom_types import EmbeddingAlgorithm
 from pandora.dataset import EigenDataset
-from pandora.embedding import MDS, PCA
+from pandora.embedding import Embedding
 from pandora.pandora import (
     Pandora,
     PandoraConfig,
@@ -224,8 +224,8 @@ class TestPandora:
 
         pandora.embed_dataset()
 
-        # pandora's dataset's PCA should be a PCA object now and not None
-        assert isinstance(pandora.dataset.pca, PCA)
+        # pandora's dataset's PCA should be an Embedding object now and not None
+        assert isinstance(pandora.dataset.pca, Embedding)
         # plot directory should contain four plots (two pdf, two html)
         assert len(list(pandora.pandora_config.plot_dir.iterdir())) == 4
 
@@ -236,8 +236,8 @@ class TestPandora:
 
         pandora.embed_dataset()
 
-        # pandora's dataset's MDS should be a MDS object now and not None
-        assert isinstance(pandora.dataset.mds, MDS)
+        # pandora's dataset's MDS should be an Embedding object now and not None
+        assert isinstance(pandora.dataset.mds, Embedding)
         # plot directory should contain four plots (two pdf, two html)
         assert len(list(pandora.pandora_config.plot_dir.iterdir())) == 4
 
@@ -251,8 +251,8 @@ class TestPandora:
 
         pandora.embed_dataset()
 
-        # pandora's dataset's PCA should be a PCA object now and not None
-        assert isinstance(pandora.dataset.pca, PCA)
+        # pandora's dataset's PCA should be an Embedding object now and not None
+        assert isinstance(pandora.dataset.pca, Embedding)
 
         # plot directory should contain six plots (3 pdf, 3 html)
         assert len(list(pandora.pandora_config.plot_dir.iterdir())) == 6
@@ -295,7 +295,7 @@ class TestPandora:
 
         # since we are asking for MDS analyses, pandora.dataset.mds should be set, but pandora.dataset.pca shouldn't
         assert pandora.dataset.mds is not None
-        assert isinstance(pandora.dataset.mds, MDS)
+        assert isinstance(pandora.dataset.mds, Embedding)
         assert pandora.dataset.pca is None
 
         assert len(pandora.replicates) == n_bootstraps_expected
@@ -330,7 +330,7 @@ class TestPandora:
 
         # since we are asking for MDS analyses, pandora.dataset.mds should be set, but pandora.dataset.pca shouldn't
         assert pandora.dataset.mds is not None
-        assert isinstance(pandora.dataset.mds, MDS)
+        assert isinstance(pandora.dataset.mds, Embedding)
         assert pandora.dataset.pca is None
 
         assert len(pandora.replicates) == n_windows_expected

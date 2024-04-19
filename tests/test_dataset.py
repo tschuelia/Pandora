@@ -1,4 +1,5 @@
 import pathlib
+import pickle
 import shutil
 import tempfile
 
@@ -16,8 +17,13 @@ from pandora.dataset import (
     _smartpca_finished,
     numpy_dataset_from_eigenfiles,
 )
-from pandora.distance_metrics import DISTANCE_METRICS, fst_population_distance
+from pandora.distance_metrics import (
+    DISTANCE_METRICS,
+    fst_population_distance,
+    missing_corrected_hamming_sample_distance,
+)
 from pandora.embedding import Embedding
+from pandora.embedding_comparison import EmbeddingComparison
 
 DTYPES_AND_MISSING_VALUES = [
     # signed integers
@@ -64,6 +70,11 @@ def incorrect_smartpca_npcs_result_prefix() -> pathlib.Path:
 def missing_smartpca_result_prefix() -> pathlib.Path:
     """SmartPCA result files do not exist."""
     return pathlib.Path(__file__).parent / "data" / "smartpca" / "does_not_exist"
+
+
+@pytest.fixture
+def example_mds_data_dir() -> pathlib.Path:
+    return pathlib.Path(__file__).parent / "data" / "mds"
 
 
 class TestEigenDataset:
@@ -371,8 +382,6 @@ def _modify_population(
                 f"{sample_id.strip()}\t{sex.strip()}\t{new_population}\n"
             )
 
-    print(new_ind.open().read())
-
 
 class TestEigenDatasetMDS:
     def test_run_mds_with_dash_in_population_name(
@@ -620,6 +629,39 @@ class TestNumpyDataset:
     ):
         with pytest.raises(PandoraException, match="Not all required input files"):
             numpy_dataset_from_eigenfiles(example_ped_dataset_prefix)
+
+    @pytest.mark.parametrize("dataset_id", range(4))
+    def test_mds_simulated_data(self, dataset_id, example_mds_data_dir):
+        """
+        Since we experienced problems with MDS analyses in Pandora < 2.0.0, we decided to implement a sanity check
+        of the current state of MDS results when preparing version 2.0.0.
+        For this, we performed MDS analyses using the R cmdscale function as a reference for a set of 4 datasets.
+        The 4 datasets are simulated datasets with a varying fraction of missing data obtained from this publication:
+
+        Yi, X. & Latch, E. K. (2022). Nonrandom missing data can bias Principal Component Analysis inference of
+        population genetic structure. Molecular Ecology Resources, 22, 602–611. https://doi.org/10.1111/1755-0998.13498.
+
+        The data is publicly available on GitHub: https://github.com/xuelingyi/missing_data_PCA
+
+        For the reference MDS results, we used the missing_corrected_hamming_distance distance metric. To compare the
+        MDS results, we use Pandora's EmbeddingComparison and expect the Pandora stability to be close to 1
+        indicating that the MDS implementation in Pandora produces the same MDS results as the R cmdscale method.
+        """
+        dataset: NumpyDataset = pickle.load(
+            (example_mds_data_dir / f"example_{dataset_id}_dataset.pckl").open("rb")
+        )
+        expected_mds = pickle.load(
+            (example_mds_data_dir / f"example_{dataset_id}_mds.pckl").open("rb")
+        )
+
+        dataset.run_mds(
+            n_components=2,
+            distance_metric=missing_corrected_hamming_sample_distance,
+            imputation=None,
+        )
+
+        comparison = EmbeddingComparison(dataset.mds, expected_mds)
+        assert comparison.compare() == pytest.approx(1.0)
 
 
 @pytest.mark.parametrize("dtype, expected_missing_value", DTYPES_AND_MISSING_VALUES)

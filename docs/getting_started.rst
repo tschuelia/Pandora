@@ -46,12 +46,12 @@ have to add the path to ``smartpca`` to the ``config-example.yaml``.
 
 You should then see an output similar to this:::
 
-    Pandora version 1.0.3 released by The Exelixis Lab
+    Pandora version 2.0.0 released by The Exelixis Lab
     Developed by: Julia Haag
     Latest version: https://github.com/tschuelia/Pandora
     Questions/problems/suggestions? Please open an issue on GitHub.
 
-    Pandora was called at 06-Nov-2023 16:26:50 as follows:
+    Pandora was called at 18-Apr-2024 16:26:50 as follows:
 
     /Users/julia/micromamba/envs/pandora/bin/pandora -c config_example.yaml
 
@@ -63,7 +63,7 @@ You should then see an output similar to this:::
     n_replicates: 10
     keep_replicates: False
     bootstrap_convergence_check: True
-    bootstrap_convergence_confidence_level: 0.05
+    bootstrap_convergence_tolerance: 0.05
     n_components: 10
     embedding_algorithm: PCA
     smartpca: smartpca
@@ -85,7 +85,7 @@ You should then see an output similar to this:::
     [00:00:02] Running SmartPCA on the input dataset.
     [00:00:02] Plotting embedding results for the input dataset.
     [00:00:18] Drawing 10 bootstrapped datasets and running PCA.
-    [00:00:18] NOTE: Bootstrap convergence check is enabled. Will terminate bootstrap computation once convergence is determined. Convergence confidence level: 0.05
+    [00:00:18] NOTE: Bootstrap convergence check is enabled. Will terminate bootstrap computation once convergence is determined. Convergence tolerance: 0.05
     [00:00:27] Bootstrapping done. Number of replicates computed: 10
     [00:00:27] Comparing bootstrapping embedding results.
     [00:00:34] Plotting bootstrapping embedding results.

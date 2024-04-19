@@ -223,7 +223,7 @@ def test_bootstrap_converged_for_identical_embeddings(
         assert _bootstrap_convergence_check(
             [test_numpy_dataset] * n_replicates,
             embedding_algorithm,
-            bootstrap_convergence_confidence_level=0.05,
+            bootstrap_convergence_tolerance=0.05,
             threads=2,
         )
 
@@ -244,7 +244,7 @@ def test_bootstrap_does_not_converge_for_distinct_embeddings(test_numpy_dataset)
     random_embeddings = [_random_embedding(test_numpy_dataset.pca) for _ in range(5)]
     bootstraps = random_embeddings + [test_numpy_dataset.pca]
     assert not _bootstrap_converged(
-        bootstraps, bootstrap_convergence_confidence_level=0.01, threads=2
+        bootstraps, bootstrap_convergence_tolerance=0.01, threads=2
     )
 
 
@@ -324,7 +324,7 @@ def test_bootstrap_and_embed_multiple_with_convergence_check_pca(
 ):
     # example_dataset actually does not require all 100 bootstraps to converge
     # so if we run bootstrap_and_embed_multiple with the convergence check enabled
-    # and the convergence confidence level to 0.05
+    # and the convergence tolerance to 0.05
     # we should get less than 100 bootstraps as result
 
     n_bootstraps = 100
@@ -345,12 +345,12 @@ def test_bootstrap_and_embed_multiple_with_convergence_check_pca(
         assert len(bootstraps) < n_bootstraps
 
 
-def test_bootstrap_and_embed_multiple_with_convergence_check_pca_no_convergence_with_high_confidence_level(
+def test_bootstrap_and_embed_multiple_with_convergence_check_pca_no_convergence_with_high_tolerance(
     example_dataset, smartpca
 ):
-    # when setting the confidence level to 0.01, we should see no convergence
+    # when setting the convergence tolerance to 0.01, we should see no convergence
     # so if we run bootstrap_and_embed_multiple with the convergence check enabled
-    # and the convergence confidence limit to 0.01
+    # and the convergence tolerance to 0.01
     # we should get exactly 100 bootstraps as result
 
     n_bootstraps = 100
@@ -366,7 +366,7 @@ def test_bootstrap_and_embed_multiple_with_convergence_check_pca_no_convergence_
             seed=0,
             keep_bootstraps=False,
             bootstrap_convergence_check=True,
-            bootstrap_convergence_confidence_level=0.01,
+            bootstrap_convergence_tolerance=0.01,
         )
 
         assert len(bootstraps) == n_bootstraps
@@ -405,7 +405,7 @@ def test_bootstrap_and_embed_multiple_numpy_with_convergence_check_pca(
 ):
     # test_numpy_dataset actually does not require all 100 bootstraps to converge (neither for PCA nor for MDS)
     # so if we run bootstrap_and_embed_multiple_numpy with the convergence check enabled
-    # and the confidence level to a very liberal setting (0.8)
+    # and the convergence tolerance to a very liberal setting (0.8)
     # we should get less than 100 bootstraps as result
 
     n_bootstraps = 100
@@ -417,7 +417,7 @@ def test_bootstrap_and_embed_multiple_numpy_with_convergence_check_pca(
         n_components=2,
         seed=0,
         bootstrap_convergence_check=True,
-        bootstrap_convergence_confidence_level=0.8,
+        bootstrap_convergence_tolerance=0.8,
     )
 
     assert len(bootstraps) < n_bootstraps

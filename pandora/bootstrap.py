@@ -29,7 +29,7 @@ from pandora.logger import fmt_message
 def _bootstrap_convergence_check(
     bootstraps: List[Union[NumpyDataset, EigenDataset]],
     embedding: EmbeddingAlgorithm,
-    bootstrap_convergence_confidence_level: float,
+    bootstrap_convergence_tolerance: float,
     threads: int,
     logger: Optional[loguru.Logger] = None,
 ):
@@ -44,14 +44,12 @@ def _bootstrap_convergence_check(
             f"Unrecognized embedding option {embedding}. Supported are 'pca' and 'mds'."
         )
 
-    return _bootstrap_converged(
-        embeddings, bootstrap_convergence_confidence_level, threads
-    )
+    return _bootstrap_converged(embeddings, bootstrap_convergence_tolerance, threads)
 
 
 def _bootstrap_converged(
     bootstraps: List[Embedding],
-    bootstrap_convergence_confidence_level: float,
+    bootstrap_convergence_tolerance: float,
     threads: int,
 ):
     """Checks for convergence by comparing the Pandora Stabilities for 10 subsets of the given list of bootstraps."""
@@ -76,7 +74,7 @@ def _bootstrap_converged(
             stabilities[j] = stability_s2
 
         relative_difference = abs(stability_s2 - stability_s1) / (stability_s1 + 1e-6)
-        if round(relative_difference, 3) > bootstrap_convergence_confidence_level:
+        if round(relative_difference, 3) > bootstrap_convergence_tolerance:
             return False
     return True
 
@@ -252,7 +250,7 @@ class _ParallelBoostrapProcessManager:
         self,
         threads: int,
         bootstrap_convergence_check: bool,
-        bootstrap_convergence_confidence_level: float,
+        bootstrap_convergence_tolerance: float,
         embedding: EmbeddingAlgorithm,
         logger: Optional[loguru.Logger] = None,
     ):
@@ -296,7 +294,7 @@ class _ParallelBoostrapProcessManager:
                         converged = _bootstrap_convergence_check(
                             bootstraps,
                             embedding,
-                            bootstrap_convergence_confidence_level,
+                            bootstrap_convergence_tolerance,
                             threads,
                             logger,
                         )
@@ -390,7 +388,7 @@ def bootstrap_and_embed_multiple(
     redo: bool = False,
     keep_bootstraps: bool = False,
     bootstrap_convergence_check: bool = True,
-    bootstrap_convergence_confidence_level: float = 0.05,
+    bootstrap_convergence_tolerance: float = 0.05,
     smartpca_optional_settings: Optional[Dict] = None,
     logger: Optional[loguru.Logger] = None,
 ) -> List[EigenDataset]:
@@ -434,8 +432,8 @@ def bootstrap_and_embed_multiple(
     bootstrap_convergence_check : bool, default=True
         Whether to automatically determine bootstrap convergence. If ``True``, will only compute as many replicates as
         required for convergence according to our heuristic (see Notes below).
-    bootstrap_convergence_confidence_level : float, default=0.05
-        Determines the level of confidence when checking for bootstrap convergence. A value of X means that we allow
+    bootstrap_convergence_tolerance : float, default=0.05
+        Determines the deviation tolerance when checking for bootstrap convergence. A value of X means that we allow
         deviations of up to :math:`X * 100\\%` between pairwise bootstrap comparisons and still assume convergence.
     smartpca_optional_settings : Dict, default=None
         Additional smartpca settings.
@@ -462,7 +460,7 @@ def bootstrap_and_embed_multiple(
     We first create 10 random subsets of size :math:`int(N/2)` by sampling from all :math:`N` replicates.
     We then compute the Pandora Stability (PS) for each of the 10 subsets and compute the relative difference of PS
     values between all possible pairs of subsets :math:`(PS_1, PS_2)` by computing :math:`\\frac{\\left|PS_1 - PS_2\\right|}{PS_2}`.
-    We assume convergence if all pairwise relative differences are below X * 100% were X is the set confidence level.
+    We assume convergence if all pairwise relative differences are below X * 100% were X is the set tolerance.
     If we determine that the bootstrap has converged, all remaining bootstrap computations are cancelled.
 
     (*) The reasoning for checking every ``max(10, threads)`` is the following: if Pandora runs on a machine with e.g. 48
@@ -517,7 +515,7 @@ def bootstrap_and_embed_multiple(
     bootstraps, finished_indices = parallel_bootstrap_process_manager.run(
         threads=threads,
         bootstrap_convergence_check=bootstrap_convergence_check,
-        bootstrap_convergence_confidence_level=bootstrap_convergence_confidence_level,
+        bootstrap_convergence_tolerance=bootstrap_convergence_tolerance,
         embedding=embedding,
         logger=logger,
     )
@@ -568,7 +566,7 @@ def bootstrap_and_embed_multiple_numpy(
     ] = euclidean_sample_distance,
     imputation: Optional[str] = "mean",
     bootstrap_convergence_check: bool = True,
-    bootstrap_convergence_confidence_level: float = 0.05,
+    bootstrap_convergence_tolerance: float = 0.05,
 ) -> List[NumpyDataset]:
     """Draws ``n_replicates`` bootstrap datasets of the provided NumpyDataset and performs PCA/MDS analysis (as
     specified by ``embedding``) for each bootstrap.
@@ -611,8 +609,8 @@ def bootstrap_and_embed_multiple_numpy(
     bootstrap_convergence_check : bool, default=True
         Whether to automatically determine bootstrap convergence. If ``True``, will only compute as many replicates as
         required for convergence according to our heuristic (see Notes below).
-    bootstrap_convergence_confidence_level : float, default=0.05
-        Determines the level of confidence when checking for bootstrap convergence. A value of X means that we allow
+    bootstrap_convergence_tolerance : float, default=0.05
+        Determines the level of deviation tolerance when checking for bootstrap convergence. A value of X means that we allow
         deviations of up to :math:`X * 100\\%` between pairwise bootstrap comparisons and still assume convergence.
 
     Returns
@@ -633,7 +631,7 @@ def bootstrap_and_embed_multiple_numpy(
     We first create 10 random subsets of size :math:`int(N/2)` by sampling from all :math:`N` replicates.
     We then compute the Pandora Stability (PS) for each of the 10 subsets and compute the relative difference of PS
     values between all possible pairs of subsets :math:`(PS_1, PS_2)` by computing :math:`\\frac{\\left|PS_1 - PS_2\\right|}{PS_2}`.
-    We assume convergence if all pairwise relative differences are below X * 100% were X is the set confidence level.
+    We assume convergence if all pairwise relative differences are below X * 100% were X is the set tolerance.
     If we determine that the bootstrap has converged, all remaining bootstrap computations are cancelled.
 
     (*) The reasoning for checking every ``max(10, threads)`` is the following: if Pandora runs on a machine with e.g. 48
@@ -666,7 +664,7 @@ def bootstrap_and_embed_multiple_numpy(
     bootstraps, _ = parallel_bootstrap_process_manager.run(
         threads=threads,
         bootstrap_convergence_check=bootstrap_convergence_check,
-        bootstrap_convergence_confidence_level=bootstrap_convergence_confidence_level,
+        bootstrap_convergence_tolerance=bootstrap_convergence_tolerance,
         embedding=embedding,
     )
 

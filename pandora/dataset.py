@@ -1258,7 +1258,7 @@ class NumpyDataset:
         bootstrap_data = self.input_data[
             :, np.random.choice(range(num_snps), size=num_snps)
         ]
-        return NumpyDataset(bootstrap_data, self.sample_ids, self.populations)
+        return NumpyDataset(bootstrap_data, self.sample_ids, self.populations, self._missing_value, bootstrap_data.dtype)
 
     def get_windows(self, n_windows: int = 100) -> List[NumpyDataset]:
         """Creates ``n_windows`` new ``NumpyDataset`` objects as overlapping sliding windows over self.

@@ -1035,6 +1035,10 @@ class NumpyDataset:
     populations : pd.Series[str]
         Pandas Series containing the populations of the sequences contained in ``input_data``.
         Expects the number of ``populations`` to match the first dimension of ``input_data``.
+        This population annotation can be used to group sequences, for example according to population structure in
+        population genetics datasets or different cell types in gene expression data.
+        These populations are relevant e.g. for MDS analyses using a per-population distance metric or when plotting
+        the results of a PCA/MDS analysis using the `plotting.plot_populations` method.
     missing_value : Union[float, int], default=np.nan
         Value to treat as missing value. All missing values in ``input_data`` will be replaced with a special value
         depending on the specified dtype:
@@ -1258,7 +1262,13 @@ class NumpyDataset:
         bootstrap_data = self.input_data[
             :, np.random.choice(range(num_snps), size=num_snps)
         ]
-        return NumpyDataset(bootstrap_data, self.sample_ids, self.populations, self._missing_value, bootstrap_data.dtype)
+        return NumpyDataset(
+            bootstrap_data,
+            self.sample_ids,
+            self.populations,
+            self._missing_value,
+            bootstrap_data.dtype,
+        )
 
     def get_windows(self, n_windows: int = 100) -> List[NumpyDataset]:
         """Creates ``n_windows`` new ``NumpyDataset`` objects as overlapping sliding windows over self.

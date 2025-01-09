@@ -1,4 +1,3 @@
-import dataclasses
 import datetime
 import logging
 import multiprocessing
@@ -18,7 +17,6 @@ from pydantic import (
     PositiveInt,
     ValidationError,
 )
-from pydantic.dataclasses import dataclass
 
 from pandora import __version__
 from pandora.bootstrap import bootstrap_and_embed_multiple
@@ -42,7 +40,6 @@ from pandora.plotting import (
 from pandora.sliding_window import sliding_window_embedding
 
 
-@dataclass
 class PandoraConfig(BaseModel):
     """Pydantic dataclass encapsulating the settings required to run Pandora.
 
@@ -317,7 +314,7 @@ class PandoraConfig(BaseModel):
             Dictionary representation of all settings in self. Filepaths are translated to absolute path strings,
             enums are represted by their value.
         """
-        config = dataclasses.asdict(self)
+        config = dict(self)
 
         # pathlib Paths cannot be dumped in yaml directly
         # so we have to manually replace them with their string representation

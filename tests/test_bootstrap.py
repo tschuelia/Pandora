@@ -52,6 +52,7 @@ def _dummy_func_with_wait(wait_seconds: int):
 
 
 class TestProcessWrapper:
+    @pytest.mark.slow
     def test_run(self, mp_context):
         wait_duration = 1
         proc = _ProcessWrapper(_dummy_func_with_wait, [wait_duration], mp_context)
@@ -59,6 +60,7 @@ class TestProcessWrapper:
         result = proc.run()
         assert result == wait_duration
 
+    @pytest.mark.slow
     def test_run_with_terminate_signal(self, mp_context):
         # setting the terminate signal of the process should prevent the process from starting and return None
         proc = _ProcessWrapper(_dummy_func_with_wait, [1], mp_context)
@@ -66,6 +68,7 @@ class TestProcessWrapper:
         res = proc.run()
         assert res is None
 
+    @pytest.mark.slow
     def test_run_with_terminate_signal_set_during_execution(self, mp_context):
         # we create five processes using concurrent futures but set the stop signal once three are completed
         processes = [
@@ -99,6 +102,7 @@ class TestProcessWrapper:
             # also all processes should be None
             assert all(p.process is None for p in processes)
 
+    @pytest.mark.slow
     def test_run_with_exception_during_execution(self, mp_context):
         # we create five processes using concurrent futures but one of them raises a ValueError
         # we catch this error and transform it to a Pandora exception to make sure catching the error works as expected
@@ -118,6 +122,7 @@ class TestProcessWrapper:
                         # there should be no other errors
                         raise PandoraException()
 
+    @pytest.mark.slow
     def test_pause_and_resume(self, mp_context):
         """Since _dummy_func_with_wait only waits for the passed duration of seconds X and then returns, it is
         reasonable to assume that it's runtime will be about X seconds in total.
@@ -138,6 +143,7 @@ class TestProcessWrapper:
             end_time = time.perf_counter()
             assert end_time - start_time >= 5
 
+    @pytest.mark.slow
     def test_pause_and_terminate(self, mp_context):
         # we should be able to terminate a paused process without any error
         process = _ProcessWrapper(_dummy_func_with_wait, [2], mp_context)
@@ -152,6 +158,7 @@ class TestProcessWrapper:
 
 
 class TestParallelBoostrapProcessManager:
+    @pytest.mark.slow
     def test_terminate(self):
         # Note: this test is similar to one above, but in this case we explicitly test the termination implementation
         # of the ParallelBoostrapProcessManager
@@ -184,6 +191,7 @@ class TestParallelBoostrapProcessManager:
         assert all(p.process is None for p in process_manager.processes)
 
 
+@pytest.mark.slow
 def test_wrapped_func():
     with tempfile.NamedTemporaryFile() as tmpfile:
         tmpfile = pathlib.Path(tmpfile.name)
@@ -205,6 +213,7 @@ def test_wrapped_func():
         assert str(status) == "Status < 0"
 
 
+@pytest.mark.slow
 @pytest.mark.parametrize(
     "embedding_algorithm", [EmbeddingAlgorithm.PCA, EmbeddingAlgorithm.MDS]
 )
@@ -248,6 +257,7 @@ def test_bootstrap_does_not_converge_for_distinct_embeddings(test_numpy_dataset)
     )
 
 
+@pytest.mark.slow
 @pytest.mark.parametrize("embedding", [EmbeddingAlgorithm.PCA, EmbeddingAlgorithm.MDS])
 @pytest.mark.parametrize("keep_files", [True, False])
 def test_bootstrap_and_embed_multiple(example_dataset, smartpca, embedding, keep_files):
@@ -288,6 +298,7 @@ def test_bootstrap_and_embed_multiple(example_dataset, smartpca, embedding, keep
             assert not any(b.files_exist() for b in bootstraps)
 
 
+@pytest.mark.slow
 @pytest.mark.parametrize("embedding", [EmbeddingAlgorithm.PCA, EmbeddingAlgorithm.MDS])
 def test_bootstrap_and_embed_multiple_numpy(test_numpy_dataset, embedding):
     n_bootstraps = 20
@@ -319,6 +330,7 @@ def test_bootstrap_and_embed_multiple_numpy(test_numpy_dataset, embedding):
         assert all(b.pca is None for b in bootstraps)
 
 
+@pytest.mark.slow
 def test_bootstrap_and_embed_multiple_with_convergence_check_pca(
     example_dataset, smartpca
 ):
@@ -345,6 +357,7 @@ def test_bootstrap_and_embed_multiple_with_convergence_check_pca(
         assert len(bootstraps) < n_bootstraps
 
 
+@pytest.mark.slow
 def test_bootstrap_and_embed_multiple_with_convergence_check_pca_no_convergence_with_high_tolerance(
     example_dataset, smartpca
 ):
@@ -372,6 +385,7 @@ def test_bootstrap_and_embed_multiple_with_convergence_check_pca_no_convergence_
         assert len(bootstraps) == n_bootstraps
 
 
+@pytest.mark.slow
 @pytest.mark.parametrize("embedding", [EmbeddingAlgorithm.PCA, EmbeddingAlgorithm.MDS])
 def test_bootstrap_and_embed_multiple_stops_with_pandora_exception_if_subprocess_fails(
     example_dataset, smartpca, embedding
@@ -399,6 +413,7 @@ def test_bootstrap_and_embed_multiple_stops_with_pandora_exception_if_subprocess
             )
 
 
+@pytest.mark.slow
 @pytest.mark.parametrize("embedding", [EmbeddingAlgorithm.PCA, EmbeddingAlgorithm.MDS])
 def test_bootstrap_and_embed_multiple_numpy_with_convergence_check_pca(
     test_numpy_dataset, embedding
@@ -423,6 +438,7 @@ def test_bootstrap_and_embed_multiple_numpy_with_convergence_check_pca(
     assert len(bootstraps) < n_bootstraps
 
 
+@pytest.mark.slow
 @pytest.mark.parametrize("embedding", [EmbeddingAlgorithm.PCA, EmbeddingAlgorithm.MDS])
 def test_bootstrap_and_embed_multiple_numpy_stops_with_pandora_exception_if_subprocess_fails(
     test_numpy_dataset, embedding

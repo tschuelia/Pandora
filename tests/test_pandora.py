@@ -217,6 +217,7 @@ class TestPandora:
         }
         assert set(pandora.dataset.embedding_populations) == pca_populations_expected
 
+    @pytest.mark.slow
     def test_do_pca(self, pandora_test_config):
         pandora = Pandora(pandora_test_config)
 
@@ -229,6 +230,7 @@ class TestPandora:
         # plot directory should contain four plots (two pdf, two html)
         assert len(list(pandora.pandora_config.plot_dir.iterdir())) == 4
 
+    @pytest.mark.slow
     def test_do_mds(self, pandora_test_config_mds):
         pandora = Pandora(pandora_test_config_mds)
 

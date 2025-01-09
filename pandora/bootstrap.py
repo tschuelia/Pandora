@@ -26,6 +26,11 @@ from pandora.embedding_comparison import BatchEmbeddingComparison
 from pandora.logger import fmt_message
 
 
+def _log_msg(msg: str, logger: Optional[loguru.Logger] = None):
+    if logger is not None:
+        logger.info(fmt_message(msg))
+
+
 def _bootstrap_convergence_check(
     bootstraps: List[Union[NumpyDataset, EigenDataset]],
     embedding: EmbeddingAlgorithm,
@@ -33,8 +38,7 @@ def _bootstrap_convergence_check(
     threads: int,
     logger: Optional[loguru.Logger] = None,
 ):
-    if logger is not None:
-        logger.debug(fmt_message("Running convergence check."))
+    _log_msg(f"Running convergence check with {len(bootstraps)} replicates.", logger)
     if embedding == EmbeddingAlgorithm.PCA:
         embeddings = [b.pca for b in bootstraps]
     elif embedding == EmbeddingAlgorithm.MDS:
@@ -139,6 +143,7 @@ class _ProcessWrapper:
         with self.lock:
             if self.terminate_execution:
                 # received terminate signal before starting, nothing to do
+                self._terminate()
                 return
 
         with tempfile.NamedTemporaryFile() as result_tmpfile:
@@ -263,6 +268,7 @@ class _ParallelBoostrapProcessManager:
             for finished_task in concurrent.futures.as_completed(tasks):
                 try:
                     bootstrap, bootstrap_index = finished_task.result()
+                    _log_msg(f"Finished bootstrap {bootstrap_index}.", logger)
                 except Exception as e:
                     # terminate all running and waiting processes
                     self.terminate()
@@ -298,6 +304,10 @@ class _ParallelBoostrapProcessManager:
                             threads,
                             logger,
                         )
+                        _log_msg(
+                            f"Convergence check finished with result: {converged}.",
+                            logger,
+                        )
                     except Exception as e:
                         # an error occurred during the convergence check, gracefully terminate, then reraise
                         self.resume()
@@ -306,15 +316,16 @@ class _ParallelBoostrapProcessManager:
                         raise e
 
                     self.resume()
+                    _log_msg("Resumed all processes after convergence check.", logger)
                     if converged:
                         # in case convergence is detected, we set the event that interrupts all running processes
-                        if logger is not None:
-                            logger.debug(
-                                fmt_message(
-                                    "Bootstrap convergence detected. Stopping bootstrapping."
-                                )
-                            )
+                        _log_msg(
+                            "Bootstrap convergence detected. Stopping bootstrapping.",
+                            logger,
+                        )
+                        self.terminate()
                         break
+        _log_msg("Bootstrapping done, terminating procedure...", logger)
         self.terminate()
         return bootstraps, finished_indices
 
@@ -472,8 +483,7 @@ def bootstrap_and_embed_multiple(
     if threads is None:
         threads = multiprocessing.cpu_count()
 
-    if logger is not None:
-        logger.debug(fmt_message(f"Using {threads} threads for bootstrapping."))
+    _log_msg(f"Using {threads} threads for bootstrapping.", logger)
 
     if result_dir is not None:
         result_dir.mkdir(exist_ok=True, parents=True)
@@ -483,8 +493,7 @@ def bootstrap_and_embed_multiple(
     if seed is not None:
         random.seed(seed)
 
-        if logger is not None:
-            logger.debug(fmt_message(f"Setting the random seed to {seed}."))
+        _log_msg(f"Setting the random seed to {seed}.", logger)
 
     bootstrap_args = [
         (
@@ -502,11 +511,10 @@ def bootstrap_and_embed_multiple(
         for bootstrap_index in range(n_bootstraps)
     ]
 
-    if logger is not None and bootstrap_convergence_check:
-        logger.debug(
-            fmt_message(
-                f"Checking for bootstrap convergence every {max(10, threads)} bootstraps."
-            )
+    if bootstrap_convergence_check:
+        _log_msg(
+            f"Checking for bootstrap convergence every {max(10, threads)} bootstraps.",
+            logger,
         )
 
     parallel_bootstrap_process_manager = _ParallelBoostrapProcessManager(

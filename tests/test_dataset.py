@@ -712,11 +712,11 @@ def test_process_input_data_fails_for_unsupported_dtype(dtype):
 
 
 def test_process_input_data_fails_for_uint64_dtype_conversion():
-    # since float64 cannot represent the computed max value for np.uint64, the _safe_cast should fail
     with pytest.raises(PandoraException, match="Could not safely cast to"):
+        # Fails since 1.5 cannot be represented as uint64
         test_data_with_missing = np.asarray(
             [
-                [np.nan, 1, 1, 1, 1, 1, 1],
+                [np.nan, 1.5, 1, 1, 1, 1, 1],
                 [np.nan, 2, 0, 2, 2, 2, 2],
                 [0, 1, 2, 0, np.nan, 2, 0],
             ]

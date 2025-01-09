@@ -20,7 +20,7 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - name: Setup Conda
-        uses: mamba-org/setup-micromamba@v1
+        uses: mamba-org/setup-micromamba@v2
         with:
           environment-file: etc/environment.yml
           cache-environment: true
@@ -28,9 +28,13 @@ jobs:
             python=${{ matrix.python-version }}
 #      - name: Setup tmate session
 #        uses: mxschmitt/action-tmate@v3
-      - name: Run Pandora tests
+      - name: Run Pandora tests (fast)
         run: |
-          PYTHONPATH=. pytest -svx --color=yes
+          PYTHONPATH=. pytest -svx --color=yes -m "not slow"
+        shell: micromamba-shell {0}
+      - name: Run Pandora tests (slow)
+        run: |
+          PYTHONPATH=. pytest -svx --color=yes -m slow
         shell: micromamba-shell {0}
 
   Install-using-pip:
@@ -47,7 +51,7 @@ jobs:
         with:
           python-version: '3.11'
       - name: Setup smartpca
-        uses: mamba-org/setup-micromamba@v1
+        uses: mamba-org/setup-micromamba@v2
         with:
           environment-name: eigensoft
           create-args: >-

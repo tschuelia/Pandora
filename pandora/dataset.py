@@ -70,7 +70,7 @@ def _check_ind_file(ind_file: pathlib.Path):
 
     for line in ind_file.open():
         try:
-            ind_id, _, _ = line.strip().split()
+            ind_id, _, _ = re.split(r"\s+", line.strip(), maxsplit=2)
         except ValueError:
             # too few or too many lines
             raise PandoraConfigException(
@@ -1353,7 +1353,7 @@ def numpy_dataset_from_eigenfiles(eigen_prefix: pathlib.Path) -> NumpyDataset:
     populations = []
 
     for line in ind_file.open():
-        sid, _, pop = line.strip().split()
+        sid, _, pop = re.split(r"\s+", line.strip(), maxsplit=2)
         sample_ids.append(sid.strip())
         populations.append(pop.strip())
 

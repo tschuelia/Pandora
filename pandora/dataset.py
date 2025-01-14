@@ -445,7 +445,7 @@ class EigenDataset:
 
         sample_ids = []
         for sample in self._ind_file.open():
-            sample_id, _, _ = sample.split()
+            sample_id, _, _ = re.split(r"\s+", sample.strip(), maxsplit=2)
             sample_ids.append(sample_id.strip())
 
         return pd.Series(sample_ids)

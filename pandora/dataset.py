@@ -470,7 +470,7 @@ class EigenDataset:
 
         populations = []
         for sample in self._ind_file.open():
-            _, _, population = sample.split()
+            _, _, population = re.split(r"\s+", sample.strip(), maxsplit=2)
             populations.append(population.strip())
 
         return pd.Series(populations)
